@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns cljseq.phasor-test
-  "Unit tests for cljseq.phasor pure operations and shape functions."
-  (:require [clojure.test :refer [deftest is testing are]]
-            [cljseq.clock  :as clock]
+  "Unit tests for cljseq.phasor pure operations and shape functions.
+  Clock integration tests (Phasor record, clock-div, clock-shift) live in clock_test."
+  (:require [clojure.test :refer [deftest is testing]]
             [cljseq.phasor :as phasor]))
 
 (def eps 1e-9)
@@ -149,27 +149,3 @@
       (is (≈ 1.0 (sq 0.1)))
       (is (≈ 0.0 (sq 0.3))))))
 
-;; ---------------------------------------------------------------------------
-;; Phasor record (cljseq.clock integration)
-;; ---------------------------------------------------------------------------
-
-(deftest phasor-record-test
-  (testing "Phasor sample wraps correctly"
-    (let [ph (clock/->Phasor 1 0)]
-      (is (≈ 0.0 (clock/sample ph 0)))
-      (is (≈ 0.5 (clock/sample ph 0.5)))
-      (is (≈ 0.0 (clock/sample ph 1.0)))))
-  (testing "Phasor next-edge"
-    (let [ph (clock/->Phasor 1 0)]
-      (is (≈ 1.0 (clock/next-edge ph 0)))
-      (is (≈ 1.0 (clock/next-edge ph 0.3)))
-      (is (≈ 2.0 (clock/next-edge ph 1.0)))))
-  (testing "clock-div/4 next-edge"
-    (let [cd (clock/clock-div 4)]
-      (is (≈ 4.0 (clock/next-edge cd 0)))
-      (is (≈ 4.0 (clock/next-edge cd 1)))
-      (is (≈ 8.0 (clock/next-edge cd 4)))))
-  (testing "clock-shift phase offset"
-    (let [ph (clock/clock-shift 4 0.5)]
-      ;; At beat 0, phase = wrap(0 * 1/4 + 0.5) = 0.5
-      (is (≈ 0.5 (clock/sample ph 0))))))

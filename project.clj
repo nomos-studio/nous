@@ -5,6 +5,7 @@
   :license {:name "EPL-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.12.2"]
+                 [cljseq-maths "0.1.0"]
                  [org.clojure/data.json "2.5.1"]
                  [http-kit "2.8.0"]
                  [org.xerial/sqlite-jdbc "3.47.1.0"]]

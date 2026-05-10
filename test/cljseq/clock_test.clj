@@ -168,3 +168,27 @@
               b [0.0 0.1 0.5 0.999 1.0 2.0 7.99 8.0 100.0]]
         (is (> (clock/next-edge c b) b)
             (str "next-edge not > " b " for " c))))))
+
+;; ---------------------------------------------------------------------------
+;; Phasor record — clock integration (moved from phasor_test)
+;; ---------------------------------------------------------------------------
+
+(deftest phasor-record-test
+  (testing "Phasor sample wraps correctly"
+    (let [ph (clock/->Phasor 1 0)]
+      (is (≈ 0.0 (clock/sample ph 0)))
+      (is (≈ 0.5 (clock/sample ph 0.5)))
+      (is (≈ 0.0 (clock/sample ph 1.0)))))
+  (testing "Phasor next-edge"
+    (let [ph (clock/->Phasor 1 0)]
+      (is (≈ 1.0 (clock/next-edge ph 0)))
+      (is (≈ 1.0 (clock/next-edge ph 0.3)))
+      (is (≈ 2.0 (clock/next-edge ph 1.0)))))
+  (testing "clock-div/4 next-edge"
+    (let [cd (clock/clock-div 4)]
+      (is (≈ 4.0 (clock/next-edge cd 0)))
+      (is (≈ 4.0 (clock/next-edge cd 1)))
+      (is (≈ 8.0 (clock/next-edge cd 4)))))
+  (testing "clock-shift phase offset"
+    (let [ph (clock/clock-shift 4 0.5)]
+      (is (≈ 0.5 (clock/sample ph 0))))))

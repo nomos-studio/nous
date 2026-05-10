@@ -49,12 +49,14 @@
             [cljseq.core     :as core]
             [cljseq.ctrl     :as ctrl]
             [cljseq.fm       :as fm]
+            [cljseq.loop     :as loop-ns]
             [cljseq.osc      :as osc]
             [cljseq.patch    :as patch]
             [cljseq.peer     :as peer]
             [cljseq.runtime  :as runtime]
             [cljseq.synth    :as synth]
-            [cljseq.target   :as target]))
+            [cljseq.target   :as target]
+            [cljseq.timeline :as timeline]))
 
 ;; ---------------------------------------------------------------------------
 ;; Connection state
@@ -692,9 +694,9 @@
     :dur-ms     — note duration in milliseconds (default 500)
     any other key matching a synth arg is passed through.
 
-  The release time is computed as an absolute wall-clock epoch before
-  the OSC send, so thread-scheduling jitter does not shorten or lengthen
-  the sounding duration.
+  The release beat is computed from the current timeline beat before the OSC
+  send, so the note duration tracks the session tempo (including Link sync)
+  rather than wall-clock time.
 
   Returns node-id.
 
@@ -708,15 +710,16 @@
                        (when midi (* 440.0 (Math/pow 2.0 (/ (- midi 69) 12.0)))))
         args       (-> (dissoc event :synth :dur-ms :pitch/midi)
                        (cond-> freq (assoc :freq freq)))
-        ;; Capture release target before sc-synth! so the duration is relative
-        ;; to when we schedule the note-on, not when the daemon thread starts.
-        off-at-ms  (+ (System/currentTimeMillis) (long dur-ms))
+        ;; Capture release beat before sc-synth! so duration is relative to
+        ;; note-on scheduling time, not when the daemon thread wakes.
+        release-beat (+ (timeline/current-beat)
+                        (clock/ms->beats dur-ms (core/get-bpm)))
         node-id    (sc-synth! synth-name args)]
     (doto (Thread. (fn []
                      (try
-                       (let [sleep-ms (- off-at-ms (System/currentTimeMillis))]
-                         (when (pos? sleep-ms)
-                           (Thread/sleep sleep-ms)))
+                       (binding [loop-ns/*virtual-time*      release-beat
+                                 loop-ns/*sleep-interrupted?* (atom false)]
+                         (loop-ns/-park-until-beat! release-beat))
                        (free-synth! node-id)
                        (catch Exception e
                          (runtime/conj! [:sc :errors]

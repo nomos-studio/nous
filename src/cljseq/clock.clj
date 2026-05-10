@@ -98,6 +98,11 @@
   ^double [beats bpm]
   (* (double beats) (bpm->ms-per-beat bpm)))
 
+(defn ms->beats
+  "Convert `ms` milliseconds to beats at `bpm`."
+  ^double [ms bpm]
+  (/ (double ms) (bpm->ms-per-beat bpm)))
+
 (defn now-ns
   "Current wall-clock time in nanoseconds."
   ^long []
