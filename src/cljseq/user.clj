@@ -78,7 +78,8 @@
             [cljseq.target          :as target]
             [cljseq.schema          :as schema]
             [cljseq.journal         :as journal]
-            [cljseq.runtime         :as runtime]))
+            [cljseq.runtime         :as runtime]
+            [cljseq.kairos          :as kairos]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle
@@ -558,6 +559,25 @@
 
 (def send-sysex! sidecar/send-sysex!)
 (def send-mts!   sidecar/send-mts!)
+
+;; ---------------------------------------------------------------------------
+;; kairos (cljseq.kairos)
+;; ---------------------------------------------------------------------------
+
+(def kairos-connected?       kairos/connected?)
+(def connect-kairos!         kairos/connect!)
+(def disconnect-kairos!      kairos/disconnect!)
+(def send-graph-load!        kairos/send-graph-load!)
+(def send-graph-reset!       kairos/send-graph-reset!)
+(def send-param-set!         kairos/send-param-set!)
+(def send-wasm-hot-swap!     kairos/send-wasm-hot-swap!)
+(def kairos-note-on!         kairos/send-note-on!)
+(def kairos-note-off!        kairos/send-note-off!)
+(def kairos-midi-in!         kairos/send-midi-in!)
+(def kairos-session-open!    kairos/send-session-open!)
+(def kairos-session-close!   kairos/send-session-close!)
+(def kairos-register-source! kairos/send-register-source!)
+(def kairos-tx-log!          kairos/send-tx-log!)
 
 ;; ---------------------------------------------------------------------------
 ;; Keyboard layout (cljseq.ivk)
