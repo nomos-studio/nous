@@ -376,18 +376,18 @@
     :channel — MIDI channel 0–15 (default 0)
     :port    — MIDI port index (default 0)
     :note-id — note identifier for per-note param access (default -1)
+    :beat    — Link beat position at which to fire (nil = immediate)
 
   Example:
     (kairos/send-note-on! 60 0.8)
-    (kairos/send-note-on! 60 0.8 :channel 1 :note-id 42)"
-  [key velocity & {:keys [channel port note-id]
+    (kairos/send-note-on! 60 0.8 :channel 1 :note-id 42)
+    (kairos/send-note-on! 60 0.8 :beat 16.0)"
+  [key velocity & {:keys [channel port note-id beat]
                    :or   {channel 0 port 0 note-id -1}}]
-  (send-frame! (make-frame MSG-NOTE-ON
-                           (edn-bytes {:port     port
-                                       :channel  channel
-                                       :key      key
-                                       :velocity (double velocity)
-                                       :note-id  note-id}))))
+  (let [base {:port port :channel channel :key key
+              :velocity (double velocity) :note-id note-id}]
+    (send-frame! (make-frame MSG-NOTE-ON
+                             (edn-bytes (cond-> base beat (assoc :beat (double beat))))))))
 
 (defn send-note-off!
   "Send a note-off event to kairos.
@@ -398,18 +398,18 @@
     :channel — MIDI channel 0–15 (default 0)
     :port    — MIDI port index (default 0)
     :note-id — note identifier (default -1)
+    :beat    — Link beat position at which to fire (nil = immediate)
 
   Example:
     (kairos/send-note-off! 60)
-    (kairos/send-note-off! 60 :note-id 42)"
-  [key & {:keys [channel port note-id]
+    (kairos/send-note-off! 60 :note-id 42)
+    (kairos/send-note-off! 60 :beat 16.5)"
+  [key & {:keys [channel port note-id beat]
           :or   {channel 0 port 0 note-id -1}}]
-  (send-frame! (make-frame MSG-NOTE-OFF
-                           (edn-bytes {:port    port
-                                       :channel channel
-                                       :key     key
-                                       :velocity 0.0
-                                       :note-id note-id}))))
+  (let [base {:port port :channel channel :key key
+              :velocity 0.0 :note-id note-id}]
+    (send-frame! (make-frame MSG-NOTE-OFF
+                             (edn-bytes (cond-> base beat (assoc :beat (double beat))))))))
 
 (defn send-midi-in!
   "Inject raw MIDI bytes into the kairos input event queue.

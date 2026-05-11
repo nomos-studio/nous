@@ -192,3 +192,48 @@
       (kairos/disconnect!)
       (is (false? (kairos/connected?)))
       (.close srv))))
+
+(deftest beat-tagged-note-wire-test
+  (testing "send-note-on! with :beat includes :beat in payload"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-note-on! 60 0.8 :beat 16.0)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x41 (:type frame)))
+          (is (= 60   (get-in frame [:payload :key])))
+          (is (= 16.0 (get-in frame [:payload :beat]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "send-note-on! without :beat omits :beat from payload"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-note-on! 60 0.8)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x41 (:type frame)))
+          (is (nil? (get-in frame [:payload :beat]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "send-note-off! with :beat includes :beat in payload"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-note-off! 60 :beat 16.5)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x42 (:type frame)))
+          (is (= 60   (get-in frame [:payload :key])))
+          (is (= 16.5 (get-in frame [:payload :beat]))))
+        (finally
+          (kairos/disconnect!))))))
