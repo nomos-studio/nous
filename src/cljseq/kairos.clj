@@ -1,24 +1,31 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns cljseq.kairos
-  "kairos IPC client.
+  "kairos IPC client — process management and framed EDN messaging.
 
   Connects to a running kairos process via Unix domain socket and sends
-  EDN-payload control frames.  kairos must be running before connect! is called;
-  this namespace does not spawn the process.
+  EDN-payload control frames.  Use start-kairos! to launch and connect in one
+  step, or connect! to attach to an already-running process.
 
   Wire format (network byte order / big-endian uint32 length prefix):
     [uint32 payload_len][uint8 msg_type][uint8 reserved ×3][UTF-8 EDN payload]
 
-  Typical REPL session:
-    (kairos/connect!)                          ; default /tmp/kairos.sock
+  Lifecycle:
+    (kairos/start-kairos! :binary \"/usr/local/bin/kairos\")
     (kairos/send-graph-load! my-graph)
     (kairos/send-param-set! [:synth/a :freq] 440.0)
+    (kairos/stop-kairos!)
+
+  Or, attaching to an already-running kairos:
+    (kairos/connect!)                          ; default /tmp/kairos.sock
     (kairos/disconnect!)
+
+  Published runtime paths:
+    [:kairos :status] — :connected / :disconnected / :starting / :error
 
   Graph EDN shape:
     {:graph/nodes [{:id :kw :plugin \"plugin.id\" :params {}}]
      :graph/edges [[:from-node :from-port :to-node :to-port]]}"
-  (:require [clojure.string :as str])
+  (:require [cljseq.runtime :as runtime])
   (:import [java.net UnixDomainSocketAddress StandardProtocolFamily]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.channels SocketChannel Channels]
@@ -29,11 +36,14 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private kairos-state
-  (atom {:channel       nil   ; java.nio.channels.SocketChannel
-         :out           nil   ; java.io.OutputStream (synchronized on send)
-         :in            nil   ; java.io.InputStream  (reader thread)
-         :socket-path   nil   ; String — path this connection was opened on
-         :push-handlers {}})) ; msg-type → (fn [^bytes payload])
+  (atom {:channel        nil   ; java.nio.channels.SocketChannel
+         :out            nil   ; java.io.OutputStream (synchronized on send)
+         :in             nil   ; java.io.InputStream  (reader thread)
+         :socket-path    nil   ; String — path this connection was opened on
+         :push-handlers  {}    ; msg-type → (fn [^bytes payload])
+         :process        nil   ; java.lang.Process — set by start-kairos!, nil otherwise
+         :last-start-opts nil  ; map of opts passed to last start-kairos! call
+         }))
 
 (defn connected?
   "Return true if a kairos connection is active."
@@ -178,17 +188,103 @@
              :in          in
              :socket-path socket-path)
       (start-reader! in)
+      (runtime/set! [:kairos :status] :connected)
       (println (str "[cljseq.kairos] connected to " socket-path))
       true)))
 
 (defn disconnect!
-  "Close the kairos connection."
+  "Close the kairos connection. Does not kill a managed subprocess — use stop-kairos! for that."
   []
   (when-let [^SocketChannel ch (:channel @kairos-state)]
     (try (.close ch) (catch Exception _)))
   (swap! kairos-state assoc :channel nil :out nil :in nil :socket-path nil)
+  (runtime/set! [:kairos :status] :disconnected)
   (println "[cljseq.kairos] disconnected")
   nil)
+
+;; ---------------------------------------------------------------------------
+;; Process management
+;; ---------------------------------------------------------------------------
+
+(def ^:dynamic *process-launcher*
+  "Launch a kairos subprocess. Called by start-kairos! with [binary & args].
+  Returns a java.lang.Process.
+  Override in tests to inject a fake process:
+    (binding [kairos/*process-launcher* (fn [& _] my-mock-process)] ...)"
+  (fn [& cmd]
+    (-> (ProcessBuilder. ^java.util.List (vec cmd))
+        (.redirectErrorStream false)
+        .start)))
+
+(defn start-kairos!
+  "Launch kairos as a managed subprocess and connect to it.
+
+  Options:
+    :binary      — path to the kairos binary (required on first call;
+                   reused automatically by restart-kairos!)
+    :socket-path — Unix domain socket path (default \"/tmp/kairos.sock\")
+    :args        — extra CLI arguments (default [])
+    :retry       — connection attempts after launch (default 10)
+    :wait-ms     — ms to wait after launch before first connect attempt
+                   (default 200)
+
+  Publishes [:kairos :status] :starting → :connected on success,
+  or :error on failure.
+
+  Example:
+    (kairos/start-kairos! :binary \"/usr/local/bin/kairos\")
+    (kairos/start-kairos! :binary \"/usr/local/bin/kairos\"
+                          :socket-path \"/tmp/my-kairos.sock\")"
+  [& {:keys [binary socket-path args retry wait-ms]
+      :or   {socket-path "/tmp/kairos.sock" args [] retry 10 wait-ms 200}}]
+  (let [bin (or binary (get-in @kairos-state [:last-start-opts :binary]))]
+    (when-not bin
+      (throw (ex-info "start-kairos!: :binary is required" {})))
+    (runtime/set! [:kairos :status] :starting)
+    (let [proc (apply *process-launcher* bin args)]
+      (swap! kairos-state assoc
+             :process proc
+             :last-start-opts {:binary      bin
+                               :socket-path socket-path
+                               :args        args
+                               :retry       retry
+                               :wait-ms     wait-ms})
+      (Thread/sleep wait-ms)
+      (try
+        (connect! :socket-path socket-path :retry retry)
+        proc
+        (catch Exception e
+          (.destroyForcibly ^java.lang.Process proc)
+          (swap! kairos-state assoc :process nil)
+          (runtime/set! [:kairos :status] :error)
+          (throw e))))))
+
+(defn stop-kairos!
+  "Kill the managed kairos subprocess (if running) and disconnect.
+
+  Safe to call when no managed process exists — disconnect! is still called."
+  []
+  (when-let [proc ^java.lang.Process (:process @kairos-state)]
+    (.destroyForcibly proc)
+    (swap! kairos-state assoc :process nil))
+  (disconnect!)
+  nil)
+
+(defn restart-kairos!
+  "Kill and relaunch kairos using the opts from the last start-kairos! call.
+
+  Throws if start-kairos! has never been called (no stored binary)."
+  []
+  (let [{:keys [binary socket-path args retry wait-ms]} (:last-start-opts @kairos-state)]
+    (when-not binary
+      (throw (ex-info "restart-kairos!: no stored start opts; call start-kairos! first" {})))
+    (stop-kairos!)
+    (Thread/sleep 100)
+    (start-kairos! :binary      binary
+                   :socket-path socket-path
+                   :args        args
+                   :retry       retry
+                   :wait-ms     wait-ms)))
 
 ;; ---------------------------------------------------------------------------
 ;; Session

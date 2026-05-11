@@ -46,6 +46,7 @@
       :restore-fn  #(thing/reload-state!))"
   (:require [cljseq.loop    :as loop-ns]
             [cljseq.core    :as core]
+            [cljseq.kairos  :as kairos]
             [cljseq.runtime :as runtime]
             [cljseq.sc      :as sc]
             [cljseq.sidecar :as sidecar]))
@@ -229,6 +230,49 @@
   (register! :sidecar
              :check-fn    sidecar/connected?
              :restart-fn  sidecar/restart-sidecar!))
+
+(defn register-kairos!
+  "Register the kairos audio engine as a supervised service.
+
+  Reactive: watches [:kairos :status] in the runtime tree — no poll thread.
+  kairos.clj publishes :connected / :disconnected / :starting / :error on every
+  connection state change.
+
+  On :connected   — transitions :kairos to :up, calls restore-fn if supplied.
+                    Use restore-fn to re-load the plugin graph after a restart.
+  On :disconnected/:error — transitions :kairos to :down, calls restart-fn
+                    (default: kairos/restart-kairos! using stored start opts).
+  On :starting    — no transition; intermediate state during process launch.
+
+  Options:
+    :restart-fn  — override the restart behaviour.  Useful when kairos is
+                   managed externally and restart-kairos! is not appropriate.
+    :restore-fn  — called after recovery to reload the last plugin graph.
+
+  Example:
+    ;; Simple: auto-restart using stored start opts
+    (supervisor/register-kairos!)
+
+    ;; With graph restore on recovery
+    (supervisor/register-kairos!
+      :restore-fn #(kairos/send-graph-load! @my-graph-atom))"
+  [& {:keys [restart-fn restore-fn]}]
+  (swap! service-state assoc :kairos {:status :unknown :last-check-ms 0 :consecutive-failures 0})
+  (runtime/unwatch! ::kairos-status-watcher)
+  (runtime/watch! [:kairos :status] ::kairos-status-watcher
+    (fn [_path _old new-status]
+      (let [now-ms (System/currentTimeMillis)
+            prev   (get-in @service-state [:kairos :status])
+            rfn    (or restart-fn kairos/restart-kairos!)]
+        (case new-status
+          :connected
+          (when (not= :up prev)
+            (transition-up! :kairos restore-fn now-ms {}))
+          (:disconnected :error)
+          (when (not= :down prev)
+            (transition-down! :kairos now-ms)
+            (try-restart! :kairos rfn))
+          nil)))))
 
 (defn- check-service! [service-name]
   (when-let [{:keys [check-fn restart-fn restore-fn]} (get @services service-name)]

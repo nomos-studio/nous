@@ -564,16 +564,28 @@
 ;; kairos (cljseq.kairos)
 ;; ---------------------------------------------------------------------------
 
+;; Connection and status
 (def kairos-connected?       kairos/connected?)
 (def connect-kairos!         kairos/connect!)
 (def disconnect-kairos!      kairos/disconnect!)
+;; Process lifecycle
+(def start-kairos!           kairos/start-kairos!)
+(def stop-kairos!            kairos/stop-kairos!)
+(def restart-kairos!         kairos/restart-kairos!)
+;; Supervisor integration
+(def register-kairos!        supervisor/register-kairos!)
+;; Graph management
 (def send-graph-load!        kairos/send-graph-load!)
 (def send-graph-reset!       kairos/send-graph-reset!)
+;; Parameter control
 (def send-param-set!         kairos/send-param-set!)
+;; WASM hot-swap
 (def send-wasm-hot-swap!     kairos/send-wasm-hot-swap!)
+;; Note / MIDI events
 (def kairos-note-on!         kairos/send-note-on!)
 (def kairos-note-off!        kairos/send-note-off!)
 (def kairos-midi-in!         kairos/send-midi-in!)
+;; Session logging
 (def kairos-session-open!    kairos/send-session-open!)
 (def kairos-session-close!   kairos/send-session-close!)
 (def kairos-register-source! kairos/send-register-source!)

@@ -420,6 +420,11 @@
   ;; Close the durable session log if the sidecar is connected
   (when (sidecar/connected?)
     (sidecar/close-session!))
+  ;; Close the kairos session log if kairos is connected (dynamic resolve avoids circular dep)
+  (when-let [kairos-connected? (resolve 'cljseq.kairos/connected?)]
+    (when (kairos-connected?)
+      (when-let [close! (resolve 'cljseq.kairos/send-session-close!)]
+        (close!))))
   ;; Wait briefly for threads to notice the stop signal
   (Thread/sleep 50)
   (swap! system-state assoc :loops {})
