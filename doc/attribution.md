@@ -20,7 +20,7 @@ the following convention applies:
 | Hardware product              | Owner                    | cljseq abstraction           |
 |-------------------------------|--------------------------|------------------------------|
 | Bloom step sequencer          | Qu-Bit Electronix        | `deffractal` / `cljseq.fractal` |
-| Marbles random sampler        | Mutable Instruments      | `defstochastic` / `cljseq.stochastic` |
+| Marbles random sampler        | Mutable Instruments      | `defstochastic` / `cljseq.stochastic`; `:stochastic-gate` / `:stochastic-cv` RT modulators |
 | Labyrinth sequencer           | Moog Music Inc.          | `defflux` / `cljseq.flux`    |
 | Mimeophon audio repeater      | MakeNoise                | `deftemporal-buffer` / `cljseq.temporal-buffer` |
 | Cosmos drifting memory station | Soma Laboratory          | `deftemporal-buffer` / `cljseq.temporal-buffer` |
@@ -30,6 +30,9 @@ the following convention applies:
 | Solar 42 multi-voice drone synthesizer | Soma Laboratory          | `defpatch! :s42` / `cljseq.patch`               |
 | Leviasynth 8-op FM synthesizer | ASM (Audiophile Synthesizer Machines) | `compile-fm :8op-cc` / `cljseq.fm` |
 | Digitone 4-op FM synthesizer   | Elektron                 | `compile-fm :4op-cc` / `cljseq.fm`              |
+| Tides function generator      | Mutable Instruments      | `:slope` RT modulator        |
+| Stages segment generator      | Mutable Instruments      | `:segment` RT modulator      |
+| Maths utility generator       | Make Noise               | `:slew` RT modulator         |
 
 New entries should be added to this table whenever a hardware-inspired abstraction
 is named.
