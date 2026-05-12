@@ -79,7 +79,8 @@
             [cljseq.schema          :as schema]
             [cljseq.journal         :as journal]
             [cljseq.runtime         :as runtime]
-            [cljseq.kairos          :as kairos]))
+            [cljseq.kairos          :as kairos]
+            [cljseq.terrain         :as terr]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle
@@ -729,6 +730,18 @@
 (def tick-tape!          berlin/tick-tape!)
 (def frippertronics!     berlin/frippertronics!)
 (def sos-send!           berlin/sos-send!)
+
+;; ---------------------------------------------------------------------------
+;; Terrain sequencer — 3D fractal sequence space (cljseq.terrain)
+;; ---------------------------------------------------------------------------
+
+(defmacro defterrain [gen-name & opts] `(terr/defterrain ~gen-name ~@opts))
+(def terrain-next-step!  terr/next-terrain-step!)
+(def make-terrain-seq    terr/make-terrain-seq)
+(def terrain-names       terr/terrain-names)
+(def terrain-step        terr/terrain-step)
+(def terrain-seq-at      terr/terrain-seq)
+(def z->path             terr/z->path)
 
 ;; Temporal buffer — direct access for Hold, Flip, Color, Feedback, zone switching
 (def deftemporal-buffer       tbuf/deftemporal-buffer)

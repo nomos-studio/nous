@@ -193,7 +193,7 @@
 ;; Branch tree (§24.2)
 ;; ---------------------------------------------------------------------------
 
-(defn- apply-transform
+(defn apply-transform
   "Apply a single transform keyword to a seq of steps."
   [steps transform {:keys [scale root mutate-prob transpose-semitones]
                     :or   {root 60 mutate-prob 0.25 transpose-semitones 12}}]
