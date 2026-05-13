@@ -237,3 +237,86 @@
           (is (= 16.5 (get-in frame [:payload :beat]))))
         (finally
           (kairos/disconnect!))))))
+
+;; ---------------------------------------------------------------------------
+;; schedule-bundle! wire tests
+;; ---------------------------------------------------------------------------
+
+(deftest schedule-bundle-wire-test
+  (testing "schedule-bundle! sends msg type 0x45"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/schedule-bundle! 5.0
+                                 [{:at-tick 0 :type :note-on :key 60 :velocity 0.8}])
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x45 (:type frame))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "schedule-bundle! encodes :at-beat correctly"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/schedule-bundle! 12.5
+                                 [{:at-tick 0 :type :note-on :key 48 :velocity 0.6}])
+        (let [frame (deref server 2000 :timeout)]
+          (is (= 12.5 (get-in frame [:payload :at-beat]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "schedule-bundle! preserves event fields"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/schedule-bundle! 4.0
+                                 [{:at-tick 8 :type :note-off :key 72 :velocity 0.0
+                                   :channel 2 :port 1 :note-id 7}])
+        (let [frame  (deref server 2000 :timeout)
+              ev     (first (get-in frame [:payload :events]))]
+          (is (= 8         (:at-tick ev)))
+          (is (= :note-off (:type ev)))
+          (is (= 72        (:key ev)))
+          (is (= 0.0       (:velocity ev)))
+          (is (= 2         (:channel ev)))
+          (is (= 1         (:port ev)))
+          (is (= 7         (:note-id ev))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "schedule-bundle! encodes a multi-event retrigger bundle"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/schedule-bundle! 8.0
+                                 [{:at-tick 0  :type :note-on  :key 60 :velocity 0.8}
+                                  {:at-tick 4  :type :note-off :key 60}
+                                  {:at-tick 8  :type :note-on  :key 60 :velocity 0.8}
+                                  {:at-tick 12 :type :note-off :key 60}
+                                  {:at-tick 16 :type :note-on  :key 60 :velocity 0.8}
+                                  {:at-tick 20 :type :note-off :key 60}])
+        (let [frame  (deref server 2000 :timeout)
+              events (get-in frame [:payload :events])]
+          (is (= 6 (count events)))
+          (is (= [0 4 8 12 16 20] (mapv :at-tick events)))
+          (is (= [:note-on :note-off :note-on :note-off :note-on :note-off]
+                 (mapv :type events)))
+          (is (every? #(= 60 (:key %)) events)))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "at-tick / 24.0 beat offsets — verified at Clojure level"
+    ;; These are the beat values kairos will compute server-side.
+    ;; Verify the arithmetic once in pure Clojure — no socket needed.
+    (is (= 5.0              (+ 5.0 (/ 0  24.0))))
+    (is (= (+ 5.0 (/ 8 24.0)) (+ 5.0 (/ 8  24.0))))
+    (is (= (+ 5.0 (/ 1 3.0))  (+ 5.0 (/ 8  24.0))))))

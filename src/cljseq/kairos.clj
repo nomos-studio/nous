@@ -64,7 +64,8 @@
 (def ^:private MSG-NOTE-ON         (unchecked-byte 0x41))
 (def ^:private MSG-NOTE-OFF        (unchecked-byte 0x42))
 (def ^:private MSG-MIDI-IN         (unchecked-byte 0x43))
-(def ^:private MSG-WASM-HOT-SWAP   (unchecked-byte 0x44))
+(def ^:private MSG-WASM-HOT-SWAP    (unchecked-byte 0x44))
+(def ^:private MSG-SCHEDULE-BUNDLE  (unchecked-byte 0x45))
 
 ;; ---------------------------------------------------------------------------
 ;; Frame serialization
@@ -410,6 +411,49 @@
               :velocity 0.0 :note-id note-id}]
     (send-frame! (make-frame MSG-NOTE-OFF
                              (edn-bytes (cond-> base beat (assoc :beat (double beat))))))))
+
+(defn schedule-bundle!
+  "Schedule a bundle of beat-accurate events for delivery by kairos.
+
+  `at-beat` — Link beat at which tick-0 fires.
+  `events`  — vector of event maps. Each map:
+                :at-tick   — sub-beat offset in 24 PPQN units (integer, required)
+                             0 fires at at-beat; 8 fires 1/3 beat after; 24 = one beat later
+                :type      — :note-on or :note-off (default :note-on)
+                :key       — MIDI note 0–127 (default 60)
+                :velocity  — 0.0–1.0 (default 0.8; use 0.0 for note-off)
+                :channel   — MIDI channel 0–15 (default 0)
+                :port      — MIDI port index (default 0)
+                :note-id   — per-note ID for CLAP NoteExpression (default -1)
+
+  Events are dispatched sample-accurately by the kairos event_scheduler.
+  Requires kairos to be connected and an event_scheduler to be wired in the
+  target process (aion or kairos). Silently drops the bundle otherwise.
+
+  Example:
+    ;; Three-note retrigger within one beat at beat 5.0
+    (schedule-bundle! 5.0
+      [{:at-tick 0  :type :note-on  :key 60 :velocity 0.8}
+       {:at-tick 4  :type :note-off :key 60}
+       {:at-tick 8  :type :note-on  :key 60 :velocity 0.8}
+       {:at-tick 12 :type :note-off :key 60}
+       {:at-tick 16 :type :note-on  :key 60 :velocity 0.8}
+       {:at-tick 20 :type :note-off :key 60}])"
+  [at-beat events]
+  (send-frame! (make-frame MSG-SCHEDULE-BUNDLE
+                           (edn-bytes
+                            {:at-beat (double at-beat)
+                             :events  (mapv (fn [{:keys [at-tick type key velocity channel port note-id]
+                                                  :or   {at-tick 0 type :note-on key 60
+                                                         velocity 0.8 channel 0 port 0 note-id -1}}]
+                                              {:at-tick  (long at-tick)
+                                               :type     type
+                                               :key      (long key)
+                                               :velocity (double velocity)
+                                               :channel  (long channel)
+                                               :port     (long port)
+                                               :note-id  (long note-id)})
+                                            events)}))))
 
 (defn send-midi-in!
   "Inject raw MIDI bytes into the kairos input event queue.

@@ -586,6 +586,8 @@
 (def kairos-note-on!         kairos/send-note-on!)
 (def kairos-note-off!        kairos/send-note-off!)
 (def kairos-midi-in!         kairos/send-midi-in!)
+;; Beat-accurate bundle scheduling
+(def schedule-bundle!        kairos/schedule-bundle!)
 ;; Session logging
 (def kairos-session-open!    kairos/send-session-open!)
 (def kairos-session-close!   kairos/send-session-close!)
