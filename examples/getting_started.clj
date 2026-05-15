@@ -14,7 +14,7 @@
 ;; 1. Boot the system
 ;; ---------------------------------------------------------------------------
 
-(require '[cljseq.user :refer :all])
+(require '[nous.user :refer :all])
 
 (session!)              ; start clock at 120 BPM
 
@@ -51,10 +51,10 @@
 ;; 4. Scale and chord context
 ;; ---------------------------------------------------------------------------
 
-(require '[cljseq.scale  :as scale]
-         '[cljseq.chord  :as chord]
-         '[cljseq.dsl    :as dsl]
-         '[cljseq.core   :as core])
+(require '[nous.scale  :as scale]
+         '[nous.chord  :as chord]
+         '[nous.dsl    :as dsl]
+         '[nous.core   :as core])
 
 (def my-scale (make-scale :C 4 :dorian))
 (def my-chord (make-chord :C 4 :minor))
@@ -70,7 +70,7 @@
 ;; 5. Chord voicing + drone — two phase-locked voices
 ;; ---------------------------------------------------------------------------
 
-(require '[cljseq.voice :as voice])
+(require '[nous.voice :as voice])
 
 (let [scale (make-scale :C 4 :major)
       chords (progression scale [:I :IV :V7 :I])]
@@ -80,17 +80,17 @@
 (defn play-bar! [chord]
   (let [root-midi  (first (chord/chord->midis chord))
         pad-midis  (voice/open-position chord)
-        start-beat (cljseq.loop/-current-beat)]
+        start-beat (nous.loop/-current-beat)]
     ;; Drone
     (future
-      (binding [cljseq.loop/*virtual-time* start-beat
-                cljseq.loop/*synth-ctx*    {:midi/channel 1 :mod/velocity 52}]
+      (binding [nous.loop/*virtual-time* start-beat
+                nous.loop/*synth-ctx*    {:midi/channel 1 :mod/velocity 52}]
         (play! {:pitch/midi root-midi :dur/beats 3.8})
         (sleep! 4)))
     ;; Pad
     (future
-      (binding [cljseq.loop/*virtual-time* start-beat
-                cljseq.loop/*synth-ctx*    {:midi/channel 2 :mod/velocity 65}]
+      (binding [nous.loop/*virtual-time* start-beat
+                nous.loop/*synth-ctx*    {:midi/channel 2 :mod/velocity 65}]
         (dsl/with-dur 3.5
           (play-voicing! pad-midis))
         (sleep! 4)))))
@@ -109,7 +109,7 @@
 ;; 6. Pattern + Rhythm — the NDLR motif model
 ;; ---------------------------------------------------------------------------
 
-(require '[cljseq.pattern :as pat])
+(require '[nous.pattern :as pat])
 
 ;; An 8-note scale run against a tresillo (3-in-8 Euclidean) rhythm.
 ;; The pattern and rhythm cycle independently — 8 × 8 = 64 steps before
@@ -132,7 +132,7 @@
 ;; 7. Stochastic context — probabilistic melody
 ;; ---------------------------------------------------------------------------
 
-(require '[cljseq.stochastic :as stoch])
+(require '[nous.stochastic :as stoch])
 
 (stoch/defstochastic melody-gen
   :channels   1
@@ -146,7 +146,7 @@
   (let [deg   (int (stoch/next-x! melody-gen 0))
         midi  (-> (make-scale :C 4 :dorian)
                   (scale/pitch-at deg)
-                  cljseq.pitch/pitch->midi)]
+                  nous.pitch/pitch->midi)]
     (play! {:pitch/midi midi :dur/beats 1/4 :midi/channel 3}))
   (sleep! 1/2))
 

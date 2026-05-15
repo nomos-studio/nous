@@ -30,7 +30,7 @@
 ;;
 ;; What bind-spectral! adds:
 ;;
-;;   The spectral analysis loop (cljseq.spectral) watches a Temporal Buffer
+;;   The spectral analysis loop (nous.spectral) watches a Temporal Buffer
 ;;   and publishes centroid/density/blur to the ctrl tree. bind-spectral!
 ;;   connects that analysis to a live SC node parameter -- the synthesis
 ;;   responds to what is being played, not just to explicit automation.
@@ -47,8 +47,8 @@
 ;;   (connect-sc!)
 ;;   (send-all-synthdefs!)
 
-(require '[cljseq.user   :refer :all])
-(require '[cljseq.clock  :as clock])
+(require '[nous.user   :refer :all])
+(require '[nous.clock  :as clock])
 
 ;; ---------------------------------------------------------------------------
 ;; Section 1. Setup

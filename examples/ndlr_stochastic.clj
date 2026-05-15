@@ -56,15 +56,15 @@
 ;;   (core/stop-loop! :ndlr-stochastic)
 
 (ns examples.ndlr-stochastic
-  (:require [cljseq.chord      :as chord-ns]
-            [cljseq.core       :as core]
-            [cljseq.dsl        :as dsl]
-            [cljseq.loop       :as loop-ns]
-            [cljseq.pattern    :as pat]
-            [cljseq.random     :as random]
-            [cljseq.scale      :as scale-ns]
-            [cljseq.stochastic :as stoch]
-            [cljseq.voice      :as voice]))
+  (:require [nous.chord      :as chord-ns]
+            [nous.core       :as core]
+            [nous.dsl        :as dsl]
+            [nous.loop       :as loop-ns]
+            [nous.pattern    :as pat]
+            [nous.random     :as random]
+            [nous.scale      :as scale-ns]
+            [nous.stochastic :as stoch]
+            [nous.voice      :as voice]))
 
 ;; ---------------------------------------------------------------------------
 ;; 1. Key, scale, and harmonic quality table

@@ -35,8 +35,8 @@
 ;;   (connect-sc!)
 ;;   (send-all-synthdefs!)
 
-(require '[cljseq.user   :refer :all])
-(require '[cljseq.clock  :as clock])
+(require '[nous.user   :refer :all])
+(require '[nous.clock  :as clock])
 
 ;; ---------------------------------------------------------------------------
 ;; § 1. Setup

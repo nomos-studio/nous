@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.phasor-test
-  "Unit tests for cljseq.phasor pure operations and shape functions.
+(ns nous.phasor-test
+  "Unit tests for nomos.maths.phasor pure operations and shape functions.
   Clock integration tests (Phasor record, clock-div, clock-shift) live in clock_test."
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.phasor :as phasor]))
+            [nomos.maths.phasor :as phasor]))
 
 (def eps 1e-9)
 (defn ≈ [a b] (< (Math/abs (- (double a) (double b))) eps))

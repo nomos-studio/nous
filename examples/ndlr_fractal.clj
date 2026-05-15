@@ -27,14 +27,14 @@
 ;;   (core/stop-loop! :ndlr)   ; to stop
 
 (ns examples.ndlr-fractal
-  (:require [cljseq.chord   :as chord-ns]
-            [cljseq.core    :as core]
-            [cljseq.dsl     :as dsl]
-            [cljseq.fractal :as frac]
-            [cljseq.loop    :as loop-ns]
-            [cljseq.pattern :as pat]
-            [cljseq.scale   :as scale-ns]
-            [cljseq.voice   :as voice]))
+  (:require [nous.chord   :as chord-ns]
+            [nous.core    :as core]
+            [nous.dsl     :as dsl]
+            [nous.fractal :as frac]
+            [nous.loop    :as loop-ns]
+            [nous.pattern :as pat]
+            [nous.scale   :as scale-ns]
+            [nous.voice   :as voice]))
 
 ;; ---------------------------------------------------------------------------
 ;; 1. Key and base scale

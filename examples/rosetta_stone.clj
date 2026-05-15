@@ -3,7 +3,7 @@
 ;; cljseq Rosetta Stone — Sonic-Pi and Overtone vocabulary in cljseq
 ;;
 ;; This file shows how common live-coding patterns from Sonic-Pi and Overtone
-;; are expressed in cljseq. Read each section as a side-by-side translation.
+;; are expressed in nous. Read each section as a side-by-side translation.
 ;;
 ;; cljseq diverges from both systems in key ways:
 ;;   - Music theory is first-class data (scales, chords, intervals as values)
@@ -28,7 +28,7 @@
 ;;   sample :bd_haus       —                       (play! {:pitch/midi 36}) + device map
 ;;   with_fx :reverb       —                       trajectory + device-send! CC
 
-(require '[cljseq.user :refer :all])
+(require '[nous.user :refer :all])
 
 ;; ============================================================================
 ;; 1. Playing a single note
@@ -187,8 +187,8 @@
         (play! note))))
   (sleep! 1/4))
 
-;; Euclidean rhythm (requires cljseq.stochastic aliased as stoch):
-;;   (require '[cljseq.stochastic :as stoch])
+;; Euclidean rhythm (requires nous.stochastic aliased as stoch):
+;;   (require '[nous.stochastic :as stoch])
 (deflive-loop :euclidean-kick {}
   (let [pattern (stoch/stochastic-rhythm {:pulses 5 :steps 16})]
     (doseq [beat pattern]
@@ -211,7 +211,7 @@
 ;;   (blade :freq 440 :attack 0.1 :release 2.0)
 
 ;; cljseq — synth is session config; graph is data:
-;;   (require '[cljseq.sc :as sc])
+;;   (require '[nous.sc :as sc])
 ;;   (sc/connect-sc!)
 ;;   (sc/send-synthdef! :blade)
 ;;   (sc/send-synthdef! :prophet)

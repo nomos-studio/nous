@@ -38,17 +38,17 @@
 ;;   D3=50  F3=53  G3=55  A3=57  C4=60
 ;;   D4=62  E4=64  G4=67  A4=69  C5=72  D5=74
 
-;; cljseq.core is the default REPL ns and already owns play!, sleep!,
+;; nous.core is the default REPL ns and already owns play!, sleep!,
 ;; deflive-loop, stop-loop!, set-bpm!, now, etc.
 ;; Only pull in what core doesn't have:
-(require '[cljseq.journey         :as journey]
-         '[cljseq.berlin          :as berlin]
-         '[cljseq.sc              :as sc]
-         '[cljseq.temporal-buffer :as tbuf]
-         '[cljseq.user            :refer [session! start-sidecar! stop-sidecar!
+(require '[nous.journey         :as journey]
+         '[nous.berlin          :as berlin]
+         '[nous.sc              :as sc]
+         '[nous.temporal-buffer :as tbuf]
+         '[nous.user            :refer [session! start-sidecar! stop-sidecar!
                                           make-scale trajectory]]
-         '[cljseq.berlin          :refer [frippertronics! sos-send!]]
-         '[cljseq.temporal-buffer :refer [temporal-buffer-hold! temporal-buffer-color!]])
+         '[nous.berlin          :refer [frippertronics! sos-send!]]
+         '[nous.temporal-buffer :refer [temporal-buffer-hold! temporal-buffer-color!]])
 
 ;; ============================================================
 ;; 0A. SESSION BOOT — clock
@@ -325,7 +325,7 @@
 ;; Uses `verb-node` (bound after instantiate-patch! + stereo reverb setup).
 ;; Returns a cancel fn (from sc/ramp-param!) in case the arc needs early exit.
 (defn drone-ramp! [from to beats]
-  (cljseq.sc/ramp-param! verb-node :amp from to beats))
+  (nous.sc/ramp-param! verb-node :amp from to beats))
 
 (defn begin-emergence! []
   ;; Loops already running. Start filter journeys here.
@@ -333,7 +333,7 @@
   (berlin/filter-journey! [:filter-b :cutoff] 74 2 8 75 64 :smooth-step)
   ;; Drone builds from silence to full presence over 320 beats (~5 min)
   (when (bound? #'verb-node)
-    (cljseq.sc/set-param! verb-node :amp 0.0)
+    (nous.sc/set-param! verb-node :amp 0.0)
     (drone-ramp! 0.0 0.18 320))
   (println "[journey] Movement 1: Emergence — filter opening + drone rising over 64 bars"))
 

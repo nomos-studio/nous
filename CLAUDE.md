@@ -1,4 +1,4 @@
-# cljseq — Claude Code Instructions
+# nous — Claude Code Instructions
 
 ## Release checklist
 
@@ -6,7 +6,7 @@ Run this checklist before committing a version bump and tagging. Missing any
 step is the root cause of past misses (version stayed at 0.2.0 through v0.3.0).
 
 ### 1. Version bump
-- [ ] `project.clj` — `(defproject cljseq "X.Y.Z" ...)`
+- [ ] `project.clj` — `(defproject nous "X.Y.Z" ...)`
 - [ ] Confirm the new version matches the intended tag (`vX.Y.Z`)
 
 ### 2. CHANGELOG.md
@@ -57,14 +57,14 @@ git push origin vX.Y.Z
 ## Project conventions
 
 ### Namespace naming
-- Clojure source: `src/cljseq/<name>.clj` → `cljseq.<name>`
-- Tests: `test/cljseq/<name>_test.clj` → `cljseq.<name>-test`
-- Underscores in filenames map to hyphens in ns names (`ensemble_improv.clj` → `cljseq.ensemble-improv`)
+- Clojure source: `src/nous/<name>.clj` → `nous.<name>`
+- Tests: `test/nous/<name>_test.clj` → `nous.<name>-test`
+- Underscores in filenames map to hyphens in ns names (`ensemble_improv.clj` → `nous.ensemble-improv`)
 
 ### New namespaces
 Every new namespace must be:
-1. Exported in `src/cljseq/user.clj` (add require + re-export `def`s)
-2. Covered by a test file in `test/cljseq/`
+1. Exported in `src/nous/user.clj` (add require + re-export `def`s)
+2. Covered by a test file in `test/nous/`
 3. Documented in `doc/user-manual.md`
 
 ### Private atom access in tests

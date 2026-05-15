@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "cljseq": {
+    "nous": {
       "command": "/opt/homebrew/bin/lein",
       "args": ["mcp", "--nrepl-port", "7888"],
       "env": {

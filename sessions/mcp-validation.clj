@@ -5,7 +5,7 @@
 ;; PURPOSE:
 ;;   Verify that Claude Code can steer a live cljseq session via the MCP bridge:
 ;;     1. cljseq nREPL boots headless
-;;     2. Claude connects via the "cljseq" MCP server (.mcp.json)
+;;     2. Claude connects via the "nous" MCP server (.mcp.json)
 ;;     3. Claude uses the `evaluate` tool to read session state and fire transitions
 ;;
 ;; HOW TO RUN THIS VALIDATION:
@@ -16,7 +16,7 @@
 ;;     tail -f /tmp/cljseq-repl.log   (wait for "nREPL server started on port 7888")
 ;;
 ;;   Step 2 — Open a Claude Code session in this worktree.
-;;     Claude Code will auto-detect .mcp.json and offer to connect the "cljseq" server.
+;;     Claude Code will auto-detect .mcp.json and offer to connect the "nous" server.
 ;;     Accept. The MCP server (lein mcp) boots and connects to port 7888.
 ;;
 ;;   Step 3 — In this REPL session, evaluate the forms below to seed the session state.
@@ -37,9 +37,9 @@
 ;; (evaluate these forms manually, or paste into the REPL)
 ;; ============================================================
 
-(require '[cljseq.journey :as journey]
-         '[cljseq.berlin  :as berlin]
-         '[cljseq.user    :refer [session! make-scale trajectory]])
+(require '[nous.journey :as journey]
+         '[nous.berlin  :as berlin]
+         '[nous.user    :refer [session! make-scale trajectory]])
 
 (session! :bpm 100)
 

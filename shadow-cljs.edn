@@ -5,5 +5,5 @@
   {:target     :browser
    :output-dir "resources/public/js"
    :asset-path "/js"
-   :modules    {:main {:init-fn cljseq-ui.core/init!}}
-   :devtools   {:after-load cljseq-ui.core/init!}}}}
+   :modules    {:main {:init-fn nous-ui.core/init!}}
+   :devtools   {:after-load nous-ui.core/init!}}}}
