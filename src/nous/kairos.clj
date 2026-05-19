@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.kairos
+(ns nous.kairos
   "kairos IPC client — process management and framed EDN messaging.
 
   Connects to a running kairos process via Unix domain socket and sends
@@ -25,7 +25,8 @@
   Graph EDN shape:
     {:graph/nodes [{:id :kw :plugin \"plugin.id\" :params {}}]
      :graph/edges [[:from-node :from-port :to-node :to-port]]}"
-  (:require [cljseq.runtime :as runtime])
+  (:require [clojure.edn    :as edn]
+            [nous.runtime :as runtime])
   (:import [java.net UnixDomainSocketAddress StandardProtocolFamily]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.channels SocketChannel Channels]
@@ -64,8 +65,12 @@
 (def ^:private MSG-NOTE-ON         (unchecked-byte 0x41))
 (def ^:private MSG-NOTE-OFF        (unchecked-byte 0x42))
 (def ^:private MSG-MIDI-IN         (unchecked-byte 0x43))
-(def ^:private MSG-WASM-HOT-SWAP    (unchecked-byte 0x44))
-(def ^:private MSG-SCHEDULE-BUNDLE  (unchecked-byte 0x45))
+(def ^:private MSG-WASM-HOT-SWAP     (unchecked-byte 0x44))
+(def ^:private MSG-SCHEDULE-BUNDLE   (unchecked-byte 0x45))
+(def ^:private MSG-MODULATOR-START   (unchecked-byte 0x46))
+(def ^:private MSG-MODULATOR-STOP    (unchecked-byte 0x47))
+(def ^:private MSG-MODULATOR-UPDATE  (unchecked-byte 0x48))
+(def ^:private MSG-TICK              (unchecked-byte 0x50))
 
 ;; ---------------------------------------------------------------------------
 ;; Frame serialization
@@ -113,6 +118,44 @@
   [msg-type handler]
   (swap! kairos-state assoc-in [:push-handlers msg-type] handler))
 
+;; ---------------------------------------------------------------------------
+;; 24 PPQN tick callbacks (MSG-TICK push frames from kairos/aion)
+;; ---------------------------------------------------------------------------
+
+(def ^:private tick-handlers (atom {}))
+(def ^:private tick-handler-counter (atom 0))
+
+(def ^:private _tick-handler-registered
+  (register-push-handler!
+   0x50  ; (bit-and MSG-TICK 0xFF) — must match the int produced by the reader
+   (fn [^bytes payload]
+     (let [tick-ev (edn/read-string (String. payload "UTF-8"))]
+       (doseq [[_ h] @tick-handlers]
+         (try (h tick-ev)
+              (catch Exception e
+                (binding [*out* *err*]
+                  (println "[nous.kairos] on-tick! handler error:" e)))))))))
+
+(defn on-tick!
+  "Register a handler called on every 24 PPQN tick pushed by kairos/aion.
+  handler — (fn [{:keys [beat tick-n]}]) called on the kairos reader thread.
+  Returns a registration key for off-tick!.
+
+  Example:
+    (def k (kairos/on-tick! (fn [{:keys [beat tick-n]}]
+                               (println \"tick\" tick-n \"at beat\" beat))))
+    (kairos/off-tick! k)"
+  [handler]
+  (let [k (swap! tick-handler-counter inc)]
+    (swap! tick-handlers assoc k handler)
+    k))
+
+(defn off-tick!
+  "Remove a tick handler registered with on-tick!. Returns nil."
+  [k]
+  (swap! tick-handlers dissoc k)
+  nil)
+
 (defn- read-fully!
   "Read exactly n bytes from in into buf starting at offset. Returns false on EOF."
   [^InputStream in ^bytes buf ^long offset ^long n]
@@ -143,11 +186,11 @@
                             (try (h payload)
                                  (catch Exception e
                                    (binding [*out* *err*]
-                                     (println "[cljseq.kairos] push handler error:" e))))))
+                                     (println "[nous.kairos] push handler error:" e))))))
                         (recur))))
                   (catch Exception _)))))]
     (.setDaemon t true)
-    (.setName  t "cljseq-kairos-reader")
+    (.setName  t "nous-kairos-reader")
     (.start t)))
 
 ;; ---------------------------------------------------------------------------
@@ -190,7 +233,7 @@
              :socket-path socket-path)
       (start-reader! in)
       (runtime/set! [:kairos :status] :connected)
-      (println (str "[cljseq.kairos] connected to " socket-path))
+      (println (str "[nous.kairos] connected to " socket-path))
       true)))
 
 (defn disconnect!
@@ -200,7 +243,7 @@
     (try (.close ch) (catch Exception _)))
   (swap! kairos-state assoc :channel nil :out nil :in nil :socket-path nil)
   (runtime/set! [:kairos :status] :disconnected)
-  (println "[cljseq.kairos] disconnected")
+  (println "[nous.kairos] disconnected")
   nil)
 
 ;; ---------------------------------------------------------------------------
@@ -489,6 +532,87 @@
   (send-frame! (make-frame MSG-WASM-HOT-SWAP
                            (edn-bytes {:node-id   node-id
                                        :wasm-path (str wasm-path)}))))
+
+;; ---------------------------------------------------------------------------
+;; TX log
+;; ---------------------------------------------------------------------------
+
+;; ---------------------------------------------------------------------------
+;; RT modulator engine
+;; ---------------------------------------------------------------------------
+
+(defn start-modulator!
+  "Start an autonomous RT modulator in the connected kairos/aion process.
+
+  id   — keyword or string naming this modulator (e.g. :lfo-1)
+  type — modulator type keyword (see below)
+  opts — parameter map, type-specific (all keys optional; defaults shown)
+
+  Built-in types:
+
+  :slope    — periodic LFO
+    :rate 1.0, :shape 0.0, :slope 0.0, :smoothness 0.0, :depth 1.0, :bipolar 1.0
+
+  :segment  — multi-segment function generator (up to 36 segments)
+    :segments [{:type :ramp|:step|:hold|:alt
+                :primary 0.5 :secondary 0.5 :loop false} ...]
+    :depth 1.0
+
+  :slew     — slew-limiter / function generator
+    :rise 0.1, :fall 0.1, :cycle 0.0, :depth 1.0
+
+  :shift-register — clocked shift register
+    :mode :turing|:lfsr|:rungler|:open (constructor-fixed; default :turing)
+    :length 16, :dac_bits 3 (constructor-fixed)
+    :clock_rate 2.0, :data 0.5, :param 0.5, :depth 1.0
+
+  :fractal  — fBm multi-octave CV
+    :base_rate 0.1, :octaves 4, :lacunarity 2.0, :persistence 0.5, :depth 1.0
+
+  :stochastic — probabilistic sample-and-hold
+    :rate 2.0, :bias 0.5, :spread 0.5, :deja_vu 0.0, :length 8, :depth 1.0
+
+  :graph    — EDN s-expression control graph; use nous.mod.graph/start! for
+              the composable DSL surface.  Direct usage:
+    :graph  — vector expression or {:cv expr :gate expr ...} multi-output map
+    :params — map of named param values live-updatable via update-modulator!
+
+  The modulator runs at the event-loop tick rate inside kairos/aion without
+  further IPC.  Use update-modulator! to change parameters while running.
+
+  Examples:
+    (kairos/start-modulator! :lfo-1 :slope {:rate 0.25 :shape -0.3})
+    (kairos/start-modulator! :env-1 :slew  {:rise 0.05 :fall 0.2 :cycle 1.0})
+    (kairos/start-modulator! :rng-1 :shift-register {:mode :turing :clock_rate 4.0})
+    (kairos/start-modulator! :noise :fractal {:base_rate 0.05 :octaves 6})
+    (kairos/start-modulator! :gates :stochastic {:rate 4.0 :bias 0.6})"
+  [id type & [opts]]
+  (send-frame! (make-frame MSG-MODULATOR-START
+                           (edn-bytes (merge {:id id :type type} opts)))))
+
+(defn stop-modulator!
+  "Stop and remove a named RT modulator.
+
+  id — keyword or string as passed to start-modulator!.
+
+  Example:
+    (kairos/stop-modulator! :lfo-1)"
+  [id]
+  (send-frame! (make-frame MSG-MODULATOR-STOP (edn-bytes {:id id}))))
+
+(defn update-modulator!
+  "Update a single parameter on a running RT modulator.
+
+  id    — keyword or string as passed to start-modulator!
+  key   — parameter name string or keyword (e.g. :rate, :shape)
+  value — new value (float)
+
+  Example:
+    (kairos/update-modulator! :lfo-1 :rate 2.0)
+    (kairos/update-modulator! :lfo-1 :shape -0.5)"
+  [id key value]
+  (send-frame! (make-frame MSG-MODULATOR-UPDATE
+                           (edn-bytes {:id id :key (name key) :value (double value)}))))
 
 ;; ---------------------------------------------------------------------------
 ;; TX log
