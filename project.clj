@@ -31,6 +31,7 @@
                        nous.m21
                        nous.stochastic
                        nous.mod
+                       nous.mod.graph
                        nous.morph
                        nomos.maths.phasor
                        nous.random
