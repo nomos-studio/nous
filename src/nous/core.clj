@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.core
+(ns nous.core
   "cljseq — music-theory-aware sequencer for Clojure.
 
   System lifecycle and primary user-facing API. Start with `(start!)`,
   stop with `(stop!)`. All interactive forms are available via:
-    (require '[cljseq.core :refer :all])
+    (require '[nous.core :refer :all])
 
   ## Hello clock session
     (start!)
@@ -15,22 +15,22 @@
 
   Key design decisions: Q47 (single system-state atom), Q48 (patch system),
   Q11 (live-loop alias), Q1 (virtual time), phase0-readiness.md."
-  (:require [cljseq.clock           :as clock]
-            [cljseq.conductor       :as conductor]
-            [cljseq.config          :as config]
-            [cljseq.ctrl            :as ctrl]
-            [cljseq.dirs            :as dirs]
-            [cljseq.flux            :as flux]
-            [cljseq.link            :as link]
-            [cljseq.loop            :as loop-ns]
-            [cljseq.midi-in         :as midi-in]
-            [cljseq.mod             :as mod]
-            [cljseq.mpe             :as mpe]
-            [cljseq.schema          :as schema]
-            [cljseq.sidecar         :as sidecar]
-            [cljseq.target          :as target]
-            [cljseq.temporal-buffer :as tbuf]
-            [cljseq.timeline        :as timeline]
+  (:require [nous.clock           :as clock]
+            [nous.conductor       :as conductor]
+            [nous.config          :as config]
+            [nous.ctrl            :as ctrl]
+            [nous.dirs            :as dirs]
+            [nous.flux            :as flux]
+            [nous.link            :as link]
+            [nous.loop            :as loop-ns]
+            [nous.midi-in         :as midi-in]
+            [nous.mod             :as mod]
+            [nous.mpe             :as mpe]
+            [nous.schema          :as schema]
+            [nous.sidecar         :as sidecar]
+            [nous.target          :as target]
+            [nous.temporal-buffer :as tbuf]
+            [nous.timeline        :as timeline]
             [clojure.edn            :as edn]
             [clojure.pprint         :as pprint]
             [clojure.string         :as str])
@@ -90,12 +90,49 @@
   []
   (get-in @system-state [:config :beats-per-bar] 4))
 
+(defn get-time-sig
+  "Return the current time signature as [numerator denominator], or nil if not set."
+  []
+  (get-in @system-state [:config :time-sig]))
+
+(defn bar-number
+  "Return the current bar number (0-based) derived from the master beat position
+  and the active beats-per-bar.  Beat 0 is bar 0.
+
+  Uses the current Link or local timeline beat.  Outside a live-loop, reflects
+  the global clock position; inside a live-loop, use (nous.loop/bar-number)
+  instead to read the virtual-time-based value."
+  []
+  (long (Math/floor (/ (timeline/current-beat) (double (get-beats-per-bar))))))
+
 (defn set-beats-per-bar!
   "Set the global beats-per-bar value (e.g. 3 for waltz time, 6 for compound).
   Used as the default by journey/start-bar-counter! and supervisor/start-watchdog!."
   [n]
   (swap! system-state assoc-in [:config :beats-per-bar] n)
   nil)
+
+(defn time-sig!
+  "Set the global time signature.
+
+  `numerator`   — beats per bar as written (e.g. 3 in 3/4, 6 in 6/8)
+  `denominator` — note value per beat as written (e.g. 4 = quarter, 8 = eighth)
+
+  `sleep!` and all beat arithmetic remain quarter-note relative (MIDI convention).
+  The denominator is stored for display only; it converts the numerator to
+  quarter-note beats: beats-per-bar = numerator × 4 / denominator.
+
+  Examples:
+    (time-sig! 4 4)  ; 4/4 — 4 quarter-note beats per bar (default)
+    (time-sig! 3 4)  ; 3/4 — 3 quarter-note beats per bar (waltz)
+    (time-sig! 6 8)  ; 6/8 — 3 quarter-note beats per bar (compound duple)
+    (time-sig! 5 4)  ; 5/4 — 5 quarter-note beats per bar"
+  [numerator denominator]
+  (let [beats-per-bar (/ (* numerator 4) denominator)]
+    (swap! system-state update :config assoc
+           :time-sig      [numerator denominator]
+           :beats-per-bar beats-per-bar)
+    nil))
 
 (defn get-timeline
   "Return the current timeline map for beat↔epoch-ms conversion.
@@ -154,7 +191,7 @@
                      (e.g. :berlin-study → 2026-04-20T21-34-00-berlin-study.sqlite)
     :no-log        — when true, suppress durable session logging (default false)
 
-  Registers the system-state atom with cljseq.loop and initialises the
+  Registers the system-state atom with nous.loop and initialises the
   master timeline anchored at the current wall-clock instant / beat 0.
 
   A session file path is computed and stored under :session-path. Call
@@ -290,12 +327,12 @@
   "Return a seq of Clojure forms that recreate the given session state map."
   [{:keys [bpm beats-per-bar models realizations active params]}]
   (concat
-    [`(cljseq.core/set-bpm! ~bpm)
-     `(cljseq.core/set-beats-per-bar! ~beats-per-bar)]
-    (for [[m model-map]       models]       `(cljseq.schema/defdevice-model ~m ~model-map))
-    (for [[r realization-map] realizations] `(cljseq.schema/defrealization  ~r ~realization-map))
-    (for [[m r]               active]       `(cljseq.schema/realize! ~m ~r))
-    (for [[p v]               params]       `(cljseq.ctrl/set! ~p ~v))))
+    [`(nous.core/set-bpm! ~bpm)
+     `(nous.core/set-beats-per-bar! ~beats-per-bar)]
+    (for [[m model-map]       models]       `(nous.schema/defdevice-model ~m ~model-map))
+    (for [[r realization-map] realizations] `(nous.schema/defrealization  ~r ~realization-map))
+    (for [[m r]               active]       `(nous.schema/realize! ~m ~r))
+    (for [[p v]               params]       `(nous.ctrl/set! ~p ~v))))
 
 (defn- apply-session-state!
   "Apply a session state map to the running system — direct function calls, no eval."
@@ -415,15 +452,15 @@
   (mod/mod-unroute-all!)
   (loop-ns/stop-all-loops!)
   ;; Stop the m21 server if it was ever loaded (dynamic to avoid circular dep)
-  (when-let [stop-m21 (resolve 'cljseq.m21/stop-server!)]
+  (when-let [stop-m21 (resolve 'nous.m21/stop-server!)]
     (stop-m21))
   ;; Close the durable session log if the sidecar is connected
   (when (sidecar/connected?)
     (sidecar/close-session!))
   ;; Close the kairos session log if kairos is connected (dynamic resolve avoids circular dep)
-  (when-let [kairos-connected? (resolve 'cljseq.kairos/connected?)]
+  (when-let [kairos-connected? (resolve 'nous.kairos/connected?)]
     (when (kairos-connected?)
-      (when-let [close! (resolve 'cljseq.kairos/send-session-close!)]
+      (when-let [close! (resolve 'nous.kairos/send-session-close!)]
         (close!))))
   ;; Wait briefly for threads to notice the stop signal
   (Thread/sleep 50)
@@ -484,12 +521,12 @@
 
 ;; ---------------------------------------------------------------------------
 ;; ---------------------------------------------------------------------------
-;; SC dispatch — optional backend, registered by cljseq.sc at load time
+;; SC dispatch — optional backend, registered by nous.sc at load time
 ;; ---------------------------------------------------------------------------
 
 ;; ---------------------------------------------------------------------------
 ;; Legacy dispatch atoms — kept for backward compatibility.
-;; New code should use cljseq.target/register! and ITriggerTarget instead.
+;; New code should use nous.target/register! and ITriggerTarget instead.
 ;; All audio backends register their ITriggerTarget via target/register! at
 ;; namespace load time. play! routes :target/:synth/:sample keys through the
 ;; target registry exclusively — no legacy dispatch atoms.
@@ -619,14 +656,14 @@
   Requires the system clock to be running (start!).
 
   This is the general form. For the SC-specific 3-arity convenience
-  (apply-trajectory! node param traj), use cljseq.sc/apply-trajectory!
+  (apply-trajectory! node param traj), use nous.sc/apply-trajectory!
 
   Example:
     ;; General form — any setter
     (apply-trajectory! #(println \"val:\" %)
       (traj/trajectory :from 0.0 :to 1.0 :beats 8 :curve :s-curve :start (now)))
 
-    ;; SC form (via cljseq.sc or cljseq.user)
+    ;; SC form (via nous.sc or nous.user)
     (let [node (sc/sc-synth! :saw-pad {:freq 220 :amp 0.5})]
       (apply-trajectory! node :cutoff
         (traj/trajectory :from 0.2 :to 0.9 :beats 16 :curve :s-curve
@@ -660,36 +697,37 @@
       nil)))
 
 ;; ---------------------------------------------------------------------------
-;; Re-export live-loop API from cljseq.loop
+;; Re-export live-loop API from nous.loop
 ;; ---------------------------------------------------------------------------
 
 (defn now
-  "Return the current virtual beat position. Delegates to cljseq.loop/now."
+  "Return the current virtual beat position. Delegates to nous.loop/now."
   []
   (loop-ns/now))
 
 (defn sleep!
-  "Advance virtual time and sleep. Delegates to cljseq.loop/sleep!"
+  "Advance virtual time and sleep. Delegates to nous.loop/sleep!"
   [beats]
   (loop-ns/sleep! beats))
 
 (defn sync!
   "Align to the next beat-grid boundary and park until it.
-  See cljseq.loop/sync! for full docs.
+  See nous.loop/sync! for full docs.
 
-  (sync!)    — next whole beat
-  (sync! 4)  — next bar boundary (4 beats)
-  (sync! 1/2) — next half-beat"
+  (sync!)      — next whole beat
+  (sync! :bar) — next bar boundary (reads beats-per-bar from time-sig config)
+  (sync! 4)    — next bar boundary explicitly (4 beats)
+  (sync! 1/2)  — next half-beat"
   ([] (loop-ns/sync!))
   ([divisor] (loop-ns/sync! divisor)))
 
 (defmacro deflive-loop
-  "Define a named live loop. See cljseq.loop/deflive-loop for full docs."
+  "Define a named live loop. See nous.loop/deflive-loop for full docs."
   [loop-name opts & body]
   `(loop-ns/deflive-loop ~loop-name ~opts ~@body))
 
 (defmacro live-loop
-  "Alias for deflive-loop (Q11). See cljseq.loop/deflive-loop."
+  "Alias for deflive-loop (Q11). See nous.loop/deflive-loop."
   [loop-name opts & body]
   `(loop-ns/deflive-loop ~loop-name ~opts ~@body))
 
@@ -704,7 +742,7 @@
 
 (defn ctrl-get
   "Read a value from the system state at `path`.
-  Phase 0 stub for the full ctrl/get from cljseq.ctrl."
+  Phase 0 stub for the full ctrl/get from nous.ctrl."
   [path]
   (get-in @system-state path))
 

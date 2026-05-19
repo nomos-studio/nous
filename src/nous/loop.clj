@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.loop
+(ns nous.loop
   "cljseq live-loop subsystem.
 
   `deflive-loop` defines a named, repeating loop registered in the system
@@ -19,17 +19,17 @@
 
   Key design decisions: Q11 (live-loop alias), Q1 (virtual time), Q59
   (LockSupport/parkUntil for drift-free sleep), Q2–Q3 (sync! stub Phase 0)."
-  (:require [cljseq.clock    :as clock]
-            [cljseq.link     :as link]
-            [cljseq.timeline :as timeline])
+  (:require [nous.clock    :as clock]
+            [nous.link     :as link]
+            [nous.timeline :as timeline])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
-;; System state reference (injected by cljseq.core/start!)
+;; System state reference (injected by nous.core/start!)
 ;; ---------------------------------------------------------------------------
 
-;; Holds a reference to the cljseq.core/system-state atom.
-;; Set by -register-system!; nil until cljseq.core/start! is called.
+;; Holds a reference to the nous.core/system-state atom.
+;; Set by -register-system!; nil until nous.core/start! is called.
 (def ^:private system-ref (atom nil))
 
 (defn -system-ref
@@ -39,7 +39,7 @@
   system-ref)
 
 (defn -register-system!
-  "Called by cljseq.core/start! to inject the system-state atom.
+  "Called by nous.core/start! to inject the system-state atom.
   Not part of the public API."
   [state-atom]
   (reset! system-ref state-atom))
@@ -59,7 +59,7 @@
   nil means no context — channel 1, velocity 64 are the fallback defaults.
 
   Bound per-thread by deflive-loop (from the :synth key in opts) and by
-  cljseq.live/with-synth. Set at the REPL root with cljseq.live/use-synth!.
+  nous.live/with-synth. Set at the REPL root with nous.live/use-synth!.
 
   Example context map:
     {:midi/channel 3 :mod/velocity 100}"
@@ -67,11 +67,11 @@
 
 (def ^:dynamic *timing-ctx*
   "Active timing modulator for the current thread. An ITemporalValue
-  (from cljseq.timing) that returns Double fractional-beat offsets,
+  (from nous.timing) that returns Double fractional-beat offsets,
   or nil for no timing modification.
 
   Bound per-thread by deflive-loop (from the :timing key in opts) and by
-  cljseq.live/with-timing. Set at the REPL root with cljseq.live/use-timing!."
+  nous.live/with-timing. Set at the REPL root with nous.live/use-timing!."
   nil)
 
 (def ^:dynamic *mod-ctx*
@@ -83,7 +83,7 @@
   to ctrl/send!.
 
   Bound per-thread by deflive-loop (from the :mod key in opts) and by
-  cljseq.live/with-mod. Set at the REPL root with cljseq.live/use-mod!.
+  nous.live/with-mod. Set at the REPL root with nous.live/use-mod!.
 
   Example context map:
     {[:filter/cutoff] (mod/lfo (->Phasor 1/4 0) phasor/sine-uni)
@@ -100,7 +100,7 @@
   gate length, or pitch.
 
   Bound per-thread by deflive-loop (from the :step-mods key in opts) and by
-  cljseq.live/with-step-mods. Set at the REPL root with cljseq.live/use-step-mods!.
+  nous.live/with-step-mods. Set at the REPL root with nous.live/use-step-mods!.
 
   Example:
     {[:mod/velocity] (mod/lfo (->Phasor 1/4 0) phasor/triangle)
@@ -109,13 +109,13 @@
 
 (def ^:dynamic *harmony-ctx*
   "Active harmonic context for the current thread (§4.3).
-  A cljseq.scale/Scale record (root + interval pattern), or nil.
+  A nous.scale/Scale record (root + interval pattern), or nil.
 
   Used by dsl/root, dsl/fifth, dsl/scale-degree to derive pitches from the
   current key/scale without hard-coding MIDI numbers.
 
   Bound per-thread by deflive-loop (from the :harmony key in opts) and by
-  cljseq.live/with-harmony. Set at the REPL root with cljseq.live/use-harmony!.
+  nous.live/with-harmony. Set at the REPL root with nous.live/use-harmony!.
 
   Example:
     (scale/scale :C 4 :major)      ; C major, root C4
@@ -124,14 +124,14 @@
 
 (def ^:dynamic *chord-ctx*
   "Active chord context for the current thread (§5.1).
-  A cljseq.chord/Chord record (root + quality + inversion), or nil.
+  A nous.chord/Chord record (root + quality + inversion), or nil.
 
-  Used by cljseq.pattern/motif! to resolve chord-relative pattern indices.
+  Used by nous.pattern/motif! to resolve chord-relative pattern indices.
   Index 1 = chord root, 2 = next chord tone, etc.; indices beyond chord size
   cycle upward by octave.
 
   Bound per-thread by deflive-loop (from the :chord key in opts) and by
-  cljseq.live/with-chord. Set at the REPL root with cljseq.live/use-chord!.
+  nous.live/with-chord. Set at the REPL root with nous.live/use-chord!.
 
   Example:
     (chord/chord :C 4 :maj7)   ; Cmaj7 as chord context"
@@ -151,7 +151,7 @@
   :x (unmapped), pass through unchanged.
 
   Bound per-thread by deflive-loop (from the :tuning key in opts) and by
-  cljseq.live/with-tuning. Set at the REPL root with cljseq.live/use-tuning!.
+  nous.live/with-tuning. Set at the REPL root with nous.live/use-tuning!.
 
   Example:
     {:scale (scala/load-scl \"31edo.scl\")}
@@ -199,13 +199,13 @@
 ;; ---------------------------------------------------------------------------
 
 ;; Atom holding (fn [service-names]) → truthy if loop should pause.
-;; Nil by default. Wired in by cljseq.supervisor/start-watchdog! so that
+;; Nil by default. Wired in by nous.supervisor/start-watchdog! so that
 ;; deflive-loop :pause-on-down opts work without a circular dependency.
 (defonce -pause-check-fn (atom nil))
 
 (defn -register-pause-check!
   "Internal: register or deregister the supervisor's pause predicate.
-  Pass nil to disable. Called by cljseq.supervisor."
+  Pass nil to disable. Called by nous.supervisor."
   [f]
   (reset! -pause-check-fn f))
 
@@ -222,6 +222,22 @@
   (double (or (when-let [s @system-ref]
                 (clojure.core/get-in @s [:config :link/quantum]))
               4)))
+
+(defn beats-per-bar
+  "Return the current beats-per-bar from system config (default 4).
+  Quarter-note relative — always denominator-4 equivalent regardless of the
+  time signature's written denominator."
+  ^double []
+  (double (or (when-let [s @system-ref]
+                (clojure.core/get-in @s [:config :beats-per-bar]))
+              4)))
+
+(defn bar-number
+  "Return the current bar number (0-based) from *virtual-time*.
+  Beat 0 is bar 0.  Call within a live-loop to get the loop's beat position;
+  outside a loop, *virtual-time* is 0.0 so this returns 0."
+  []
+  (long (Math/floor (/ *virtual-time* (beats-per-bar)))))
 
 (defn -start-beat
   "Return the beat at which a new live-loop should begin.
@@ -310,15 +326,16 @@
   "Align the current loop to the next beat-grid boundary and park until it.
 
   `divisor` — beat grid to align to (default 1). Examples:
-    (sync!)    — next whole beat
-    (sync! 4)  — next bar boundary (4 beats)
-    (sync! 1/2) — next half-beat
+    (sync!)      — next whole beat
+    (sync! :bar) — next bar boundary (reads beats-per-bar from time-sig config)
+    (sync! 4)    — next bar boundary explicitly (4 beats)
+    (sync! 1/2)  — next half-beat
 
   Sets *virtual-time* to the aligned boundary, parks until the corresponding
   wall-clock deadline, and returns the new *virtual-time*."
   ([] (sync! 1))
   ([divisor]
-   (let [d    (double divisor)
+   (let [d    (double (if (= divisor :bar) (beats-per-bar) divisor))
          vt   (double *virtual-time*)
          next (+ (* (Math/floor (/ vt d)) d) d)]
      (set! *virtual-time* next)
@@ -386,24 +403,24 @@
          pause-deps#    (:pause-on-down ~opts)  ; seq of service keywords, or nil
          resume-bar#    (or (:resume-on-bar ~opts) 4) ; bar-snap period on recovery
          loop-fn#       (fn []
-                          (binding [cljseq.loop/*synth-ctx*     synth-ctx#
-                                    cljseq.loop/*timing-ctx*    timing-ctx#
-                                    cljseq.loop/*mod-ctx*       mod-ctx#
-                                    cljseq.loop/*step-mod-ctx*  step-mod-ctx#
-                                    cljseq.loop/*harmony-ctx*   harmony-ctx#
-                                    cljseq.loop/*chord-ctx*     chord-ctx#
-                                    cljseq.loop/*tuning-ctx*    tuning-ctx#
-                                    cljseq.loop/*loop-name*     ~loop-name]
+                          (binding [nous.loop/*synth-ctx*     synth-ctx#
+                                    nous.loop/*timing-ctx*    timing-ctx#
+                                    nous.loop/*mod-ctx*       mod-ctx#
+                                    nous.loop/*step-mod-ctx*  step-mod-ctx#
+                                    nous.loop/*harmony-ctx*   harmony-ctx#
+                                    nous.loop/*chord-ctx*     chord-ctx#
+                                    nous.loop/*tuning-ctx*    tuning-ctx#
+                                    nous.loop/*loop-name*     ~loop-name]
                             (if (and pause-deps#
-                                     (when-let [chk# @cljseq.loop/-pause-check-fn]
+                                     (when-let [chk# @nous.loop/-pause-check-fn]
                                        (chk# pause-deps#)))
                               ;; A dependency is down: sleep one bar-length and retry.
                               ;; When the service recovers the loop will re-enter at
                               ;; the next resume-bar# boundary naturally.
-                              (cljseq.loop/sleep! resume-bar#)
+                              (nous.loop/sleep! resume-bar#)
                               (do ~@body))))
          restart-bar# (:restart-on-bar ~opts)
-         sref#       (cljseq.loop/-system-ref)]
+         sref#       (nous.loop/-system-ref)]
      ;; Clear a stale entry so re-evaluation starts a fresh thread instead of
      ;; silently hot-swapping into a loop that will never pick up the new fn.
      ;; Two cases that produce stale entries:
@@ -442,13 +459,13 @@
                  :thread             nil})
          (let [t# (Thread.
                    (fn []
-                     (let [start-beat# (cljseq.loop/-start-beat-for-period restart-bar#)]
-                       (binding [cljseq.loop/*virtual-time*       start-beat#
-                                 cljseq.loop/*sleep-interrupted?* sleep-interrupted?#]
+                     (let [start-beat# (nous.loop/-start-beat-for-period restart-bar#)]
+                       (binding [nous.loop/*virtual-time*       start-beat#
+                                 nous.loop/*sleep-interrupted?* sleep-interrupted?#]
                          ;; When Link is active or :restart-on-bar is set, park until
                          ;; the target boundary so the loop enters in phase (§15.4).
-                         (when (or (cljseq.link/active?) restart-bar#)
-                           (cljseq.loop/-park-until-beat! start-beat#))
+                         (when (or (nous.link/active?) restart-bar#)
+                           (nous.loop/-park-until-beat! start-beat#))
                          (loop []
                            (when @running?#
                              (let [f# (get-in @@sref#
@@ -478,7 +495,7 @@
                                     (dissoc loops# ~loop-name)
                                     loops#)))))))]
            (.setDaemon t# true)
-           (.setName t# (str "cljseq-loop-" (name ~loop-name)))
+           (.setName t# (str "nous-loop-" (name ~loop-name)))
            (swap! @sref# assoc-in [:loops ~loop-name :thread] t#)
            (.start t#)
            ~loop-name)))))
@@ -545,7 +562,7 @@
 
   Returns loop-name if restarted, nil if the loop is alive or not found.
 
-  Called by cljseq.supervisor when auto-restart is enabled for a loop, but
+  Called by nous.supervisor when auto-restart is enabled for a loop, but
   also useful from the REPL: (restart-loop! :voice-a)."
   [loop-name & {:keys [align-beats] :or {align-beats 4}}]
   ;; Use system-ref directly (the outer atom) to mirror the deflive-loop macro.
@@ -592,7 +609,7 @@
                                   (dissoc loops loop-name)
                                   loops))))))]
             (.setDaemon t true)
-            (.setName t (str "cljseq-loop-" (name loop-name)))
+            (.setName t (str "nous-loop-" (name loop-name)))
             (swap! @system-ref assoc-in [:loops loop-name :thread] t)
             (.start t)
             loop-name))))))

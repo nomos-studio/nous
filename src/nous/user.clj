@@ -1,14 +1,14 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.user
+(ns nous.user
   "Convenience namespace for REPL sessions.
 
   Load this at the start of a session to get everything you need in scope:
 
-    (require '[cljseq.user :refer :all])
+    (require '[nous.user :refer :all])
     (session!)           ; start clock at 120 BPM, prints status
     (session! :bpm 140)  ; with custom BPM
 
-  Everything in cljseq.core, cljseq.live, and the most-used theory namespaces
+  Everything in nous.core, nous.live, and the most-used theory namespaces
   is re-exported. You can also require just the pieces you need directly.
 
   Typical live session:
@@ -31,56 +31,56 @@
     (end-session!)
 
   See examples/ for full demonstrations."
-  (:require [cljseq.analyze    :as analyze]
-            [cljseq.arc        :as arc]
-            [cljseq.ardour     :as ardour]
-            [cljseq.link       :as link]
-            [cljseq.chord      :as chord]
-            [cljseq.conductor  :as conductor]
-            [cljseq.core       :as core]
-            [cljseq.live       :as live]
-            [cljseq.fractal    :as frac]
-            [cljseq.learn      :as learn]
-            [cljseq.loop       :as loop-ns]
-            [cljseq.mod        :as mod]
-            [cljseq.pattern    :as pat]
-            [cljseq.scala      :as scala]
-            [cljseq.scale      :as scale]
-            [cljseq.sidecar    :as sidecar]
-            [cljseq.ensemble-improv :as ei]
-            [cljseq.peer            :as peer]
-            [cljseq.server          :as server]
-            [cljseq.synth           :as synth]
-            [cljseq.sc              :as sc]
-            [cljseq.fm              :as fm]
-            [cljseq.spectral        :as spectral]
-            [cljseq.stochastic      :as stoch]
-            [cljseq.texture    :as tx]
-            [cljseq.trajectory :as traj]
-            [cljseq.patch         :as patch]
-            [cljseq.sample        :as smp]
-            [cljseq.freesound     :as freesound]
-            [cljseq.spatial-field :as sf]
-            [cljseq.config     :as config]
-            [cljseq.osc        :as osc]
-            [cljseq.remote     :as remote]
-            [cljseq.transform  :as xf]
-            [cljseq.ivk        :as ivk]
-            [cljseq.midi-in    :as midi-in]
-            [cljseq.voice      :as voice]
-            [cljseq.journey         :as journey]
-            [cljseq.berlin          :as berlin]
-            [cljseq.temporal-buffer :as tbuf]
-            [cljseq.ctrl            :as ctrl-ns]
-            [cljseq.supervisor      :as supervisor]
-            [cljseq.arp             :as arp-ns]
-            [cljseq.seq             :as sq]
-            [cljseq.target          :as target]
-            [cljseq.schema          :as schema]
-            [cljseq.journal         :as journal]
-            [cljseq.runtime         :as runtime]
-            [cljseq.kairos          :as kairos]
-            [cljseq.terrain         :as terr]))
+  (:require [nous.analyze    :as analyze]
+            [nous.arc        :as arc]
+            [nous.ardour     :as ardour]
+            [nous.link       :as link]
+            [nous.chord      :as chord]
+            [nous.conductor  :as conductor]
+            [nous.core       :as core]
+            [nous.live       :as live]
+            [nous.fractal    :as frac]
+            [nous.learn      :as learn]
+            [nous.loop       :as loop-ns]
+            [nous.mod        :as mod]
+            [nous.pattern    :as pat]
+            [nous.scala      :as scala]
+            [nous.scale      :as scale]
+            [nous.sidecar    :as sidecar]
+            [nous.ensemble-improv :as ei]
+            [nous.peer            :as peer]
+            [nous.server          :as server]
+            [nous.synth           :as synth]
+            [nous.sc              :as sc]
+            [nous.fm              :as fm]
+            [nous.spectral        :as spectral]
+            [nous.stochastic      :as stoch]
+            [nous.texture    :as tx]
+            [nous.trajectory :as traj]
+            [nous.patch         :as patch]
+            [nous.sample        :as smp]
+            [nous.freesound     :as freesound]
+            [nous.spatial-field :as sf]
+            [nous.config     :as config]
+            [nous.osc        :as osc]
+            [nous.remote     :as remote]
+            [nous.transform  :as xf]
+            [nous.ivk        :as ivk]
+            [nous.midi-in    :as midi-in]
+            [nous.voice      :as voice]
+            [nous.journey         :as journey]
+            [nous.berlin          :as berlin]
+            [nous.temporal-buffer :as tbuf]
+            [nous.ctrl            :as ctrl-ns]
+            [nous.supervisor      :as supervisor]
+            [nous.arp             :as arp-ns]
+            [nous.seq             :as sq]
+            [nous.target          :as target]
+            [nous.schema          :as schema]
+            [nous.journal         :as journal]
+            [nous.runtime         :as runtime]
+            [nous.kairos          :as kairos]
+            [nous.terrain         :as terr]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle
@@ -150,6 +150,9 @@
 (def get-bpm              core/get-bpm)
 (def set-beats-per-bar!   core/set-beats-per-bar!)
 (def get-beats-per-bar    core/get-beats-per-bar)
+(def time-sig!            core/time-sig!)
+(def get-time-sig         core/get-time-sig)
+(def bar-number           core/bar-number)
 (def play!                core/play!)
 (def sleep!               core/sleep!)
 (def sync!                core/sync!)
@@ -562,7 +565,7 @@
 (def send-mts!   sidecar/send-mts!)
 
 ;; ---------------------------------------------------------------------------
-;; kairos (cljseq.kairos)
+;; kairos (nous.kairos)
 ;; ---------------------------------------------------------------------------
 
 ;; Connection and status
@@ -588,6 +591,13 @@
 (def kairos-midi-in!         kairos/send-midi-in!)
 ;; Beat-accurate bundle scheduling
 (def schedule-bundle!        kairos/schedule-bundle!)
+;; 24 PPQN tick callbacks — aion/kairos pushes MSG-TICK on every beat tick
+(def on-tick!                kairos/on-tick!)
+(def off-tick!               kairos/off-tick!)
+;; RT modulator engine — autonomous modulators running in kairos/aion
+(def start-modulator!        kairos/start-modulator!)
+(def stop-modulator!         kairos/stop-modulator!)
+(def update-modulator!       kairos/update-modulator!)
 ;; Session logging
 (def kairos-session-open!    kairos/send-session-open!)
 (def kairos-session-close!   kairos/send-session-close!)
@@ -595,7 +605,7 @@
 (def kairos-tx-log!          kairos/send-tx-log!)
 
 ;; ---------------------------------------------------------------------------
-;; Keyboard layout (cljseq.ivk)
+;; Keyboard layout (nous.ivk)
 ;; ---------------------------------------------------------------------------
 
 (def start-kbd!         ivk/start-kbd!)
@@ -609,7 +619,7 @@
 (def render-layout      ivk/render-layout)
 
 ;; ---------------------------------------------------------------------------
-;; Arpeggiator pattern library (cljseq.arp)
+;; Arpeggiator pattern library (nous.arp)
 ;; ---------------------------------------------------------------------------
 
 (def arp-ls             arp-ns/ls)
@@ -620,7 +630,7 @@
 (def reset-arp-chord!   arp-ns/reset-chord!)
 
 ;; ---------------------------------------------------------------------------
-;; IStepSequencer runners (cljseq.seq)
+;; IStepSequencer runners (nous.seq)
 ;; ---------------------------------------------------------------------------
 
 (def run-step!          sq/run-step!)
@@ -629,7 +639,7 @@
 (def stop-seq!          sq/stop-seq!)
 
 ;; ---------------------------------------------------------------------------
-;; Audio target registry (cljseq.target)
+;; Audio target registry (nous.target)
 ;; ---------------------------------------------------------------------------
 
 (def register-target!   target/register!)
@@ -639,7 +649,7 @@
 (def param-target       target/param-target)
 
 ;; ---------------------------------------------------------------------------
-;; Device model schema (cljseq.schema)
+;; Device model schema (nous.schema)
 ;; ---------------------------------------------------------------------------
 
 (def defdevice-model      schema/defdevice-model)
@@ -653,7 +663,7 @@
 (def satisfies-profile?   schema/satisfies-profile?)
 
 ;; ---------------------------------------------------------------------------
-;; MIDI input (cljseq.midi-in)
+;; MIDI input (nous.midi-in)
 ;; ---------------------------------------------------------------------------
 
 (def open-input!              midi-in/open-input!)
@@ -697,7 +707,7 @@
 ;; ---------------------------------------------------------------------------
 
 ;; ---------------------------------------------------------------------------
-;; Kosmische vocabulary — cljseq.journey + cljseq.berlin
+;; Kosmische vocabulary — nous.journey + nous.berlin
 ;; ---------------------------------------------------------------------------
 
 ;; Journey conductor
@@ -734,7 +744,7 @@
 (def sos-send!           berlin/sos-send!)
 
 ;; ---------------------------------------------------------------------------
-;; Terrain sequencer — 3D fractal sequence space (cljseq.terrain)
+;; Terrain sequencer — 3D fractal sequence space (nous.terrain)
 ;; ---------------------------------------------------------------------------
 
 (defmacro defterrain [gen-name & opts] `(terr/defterrain ~gen-name ~@opts))

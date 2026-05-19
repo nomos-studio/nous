@@ -1,4 +1,4 @@
-# cljseq — Open Design Decisions
+# nous — Open Design Decisions
 
 Active tracker for unresolved design questions. Resolved items have been moved to
 `doc/archive/open-design-questions.md` (67 questions, all resolved except those here).
@@ -45,19 +45,32 @@ relationships. Under Link, LFO loops using wall-clock rates drift when BPM chang
 
 ## Timing and MIDI clock
 
-### Q56 — Time signature API: does it affect `sleep!`?
+### Q56 — Time signature API: does it affect `sleep!`?  ✓ RESOLVED
 
-**Blocking**: Bar-level `sync!`; bar-level phasor in `cljseq.loop`.
+**Resolution**: `sleep!` and all beat arithmetic are quarter-note relative (MIDI
+convention). The denominator is informational only; `time-sig!` converts to
+quarter-note beats internally (`beats-per-bar = numerator × 4 / denominator`).
 
-**Recommendation** (not yet implemented): `sleep!` and all beat arithmetic always
-refers to quarter notes (MIDI convention). Time signature affects only bar boundaries,
-bar-level `sync!`, and display. Avoids compound-time BPM ambiguity.
+**Implemented**:
+- `nous.core/time-sig!` — sets `[:config :time-sig]` and `[:config :beats-per-bar]`
+- `nous.core/get-time-sig` — returns `[numerator denominator]` for display
+- `nous.core/bar-number` — global bar counter from Link/local beat
+- `nous.loop/beats-per-bar` — reads system config; used by `sync!`
+- `nous.loop/bar-number` — bar counter from `*virtual-time*`
+- `(sync! :bar)` — snaps to next bar boundary using the configured `beats-per-bar`
+
+Examples:
+```clojure
+(time-sig! 3 4)   ; waltz — 3 beats per bar
+(time-sig! 6 8)   ; compound duple — 3 quarter-note beats per bar
+(sync! :bar)      ; snap to next bar boundary regardless of metre
+```
 
 ---
 
 ### Q57 — PPQN for MIDI Clock output: 24 fixed or configurable?
 
-**Blocking**: MIDI Clock output implementation in `cljseq-sidecar`.
+**Blocking**: MIDI Clock output implementation in `nous-sidecar`.
 
 **Recommendation** (not yet implemented): Always emit at 24 PPQN for live MIDI Clock
 (MIDI spec; all hardware expects it). Higher PPQN (96, 960) for SMF export only.
@@ -77,7 +90,7 @@ default.
 
 ## Plugin graph (future sprint)
 
-Questions Q61–Q65 are all pre-design for `cljseq-rack` — the hosted CLAP/VST3 plugin
+Questions Q61–Q65 are all pre-design for `nous-rack` — the hosted CLAP/VST3 plugin
 graph. None block current work. Grouped here for when that sprint begins.
 
 ### Q61 — Plugin graph DSL: declarative `defrack` vs. imperative API
@@ -132,7 +145,7 @@ reconstruction (generating `defrack` from track hierarchy) depends on Q61 first.
 
 **Context**
 
-cljseq has two parallel note-generation lineages that do not share an interface:
+nous has two parallel note-generation lineages that do not share an interface:
 
 - `Pattern` + `Rhythm` + `motif!` — NDLR model; two records that cycle at independent
   lengths; lcm-emergent phrase complexity; pitch resolution via `*harmony-ctx*` /
@@ -216,7 +229,7 @@ sequencer step can override any parameter (filter cutoff, resonance, microtonal 
 envelope, LFO rate, etc.) for just that step, independently of the global value.
 This is one of the most expressive features in modern hardware sequencers.
 
-cljseq's note map is already an open map — there is no structural reason this cannot
+nous's note map is already an open map — there is no structural reason this cannot
 be supported. The question is where the data lives and how it reaches the synth.
 
 **Data model**
@@ -320,7 +333,7 @@ Q68 unifies *when* and *how* steps are generated; Q69 defines *what* they can ca
 
 ## Literate compositional workflow
 
-### Q70 — contrib/ob-cljseq: org-babel integration for musical notebooks
+### Q70 — contrib/ob-nous: org-babel integration for musical notebooks
 
 **Blocking**: `doc/explorations/*/session.org` as the canonical exploration format.
 
@@ -332,25 +345,25 @@ org-babel closes that gap: a `session.org` file is simultaneously a composer's
 notebook, a tutorial, and a live performance score — prose and music in one
 document, evaluable block by block.
 
-This is not core sequencer functionality. It lives in `contrib/ob-cljseq` — a
+This is not core sequencer functionality. It lives in `contrib/ob-nous` — a
 thin layer on top of `ob-clojure` + CIDER. Users who don't use Emacs are
 unaffected; users who do get a first-class literate workflow.
 
 **Spike questions**
 
 The first spike is deliberately minimal: can evaluating a
-`#+BEGIN_SRC clojure :session cljseq` block against a running CIDER/nREPL
+`#+BEGIN_SRC clojure :session nous` block against a running CIDER/nREPL
 session play a note? If yes, how much musical workflow falls out for free?
 
 1. **What ob-clojure already provides** — `:session` tagging routes all blocks
    in a file to the same running nREPL session; results appear inline. This may
    be sufficient for basic use with zero custom code.
 
-2. **What a cljseq-specific layer adds**:
-   - Convenient session startup (`ob-cljseq-connect`) that finds or starts a
-     cljseq nREPL process and wires the `:session` header automatically
+2. **What a nous-specific layer adds**:
+   - Convenient session startup (`ob-nous-connect`) that finds or starts a
+     nous nREPL process and wires the `:session` header automatically
    - Results rendering: ctrl-tree snapshot → org table; loop-status → inline list
-   - A minor mode (`cljseq-org-mode`) with keybindings: panic (`C-c C-p`),
+   - A minor mode (`nous-org-mode`) with keybindings: panic (`C-c C-p`),
      BPM nudge, stop-all-loops — musical operations that shouldn't require
      locating a specific block
 
@@ -381,7 +394,7 @@ with no formal device abstraction. These are the same conceptual gap approached
 from opposite sides: one handles triggered events without a protocol, the other
 handles continuous parameter events without a named face on the device.
 
-Every audio target in cljseq (synthesizer, FX processor, sample player, Pd patch,
+Every audio target in nous (synthesizer, FX processor, sample player, Pd patch,
 external hardware) receives two kinds of event:
 
 - **Triggered** — note-on with pitch/velocity/duration; voice has a lifecycle
@@ -391,7 +404,7 @@ These are dual. Formalizing one without the other produces an asymmetric model.
 The ctrl tree already *is* `IParamTarget` in practice — `param-root` and
 `send-param!` are the formal face it has been missing.
 
-**Proposed protocols** (implemented in `cljseq.target`):
+**Proposed protocols** (implemented in `nous.target`):
 
 ```clojure
 (defprotocol ITarget
@@ -441,7 +454,7 @@ The `:synth` key remains as the event-map signal; the dispatch mechanism
 becomes protocol-based rather than atom-based.
 
 ```clojure
-;; Register targets (done in cljseq.sc / cljseq.target setup)
+;; Register targets (done in nous.sc / nous.target setup)
 (target/register! :sc    (->SCTarget ...))
 (target/register! :midi  (->MidiTarget ...))
 
@@ -472,10 +485,10 @@ to construct and register the right concrete `ITarget` at session start:
 
 **Implementation order**
 
-1. `cljseq.target` namespace — protocols + target registry + `SCTarget` +
+1. `nous.target` namespace — protocols + target registry + `SCTarget` +
    `MidiTarget`; `core/play!` dispatch migrated (this Q)
 2. `OscFxTarget` — thin `IParamTarget`-only implementation; replaces the
-   ad-hoc OSC calls in `cljseq.arc` NightSky / Strymon arcs (follow-on)
+   ad-hoc OSC calls in `nous.arc` NightSky / Strymon arcs (follow-on)
 3. `PdTarget` — OSC-backed `ITriggerTarget` + `IParamTarget`; no compile step;
    configurable address convention (Q72)
 4. Topology loader: construct + register targets from `:target-type`
@@ -485,12 +498,12 @@ to construct and register the right concrete `ITarget` at session start:
 
 ### Q72 — PdTarget: Pure Data as an OSC-driven synthesis backend
 
-**Blocking**: Nothing currently; Pure Data as a first-class cljseq target.
+**Blocking**: Nothing currently; Pure Data as a first-class nous target.
 
 **Context**
 
 Pure Data is a visual DSP environment. Its patch format (`.pd`) is the instrument
-definition. At runtime, cljseq drives a running Pd patch via OSC or MIDI — the
+definition. At runtime, nous drives a running Pd patch via OSC or MIDI — the
 patch itself is authored separately (by hand or via offline generation tools).
 
 Unlike SC, there is no "compile and send SynthDef" step at runtime. The
@@ -509,7 +522,7 @@ model is an `ITriggerTarget` + `IParamTarget` that speaks OSC to a running patch
                :param-root    [:pd :pad]}))
 ```
 
-Polyphony is handled inside the Pd patch (`[poly]`, `[clone~]` etc.); cljseq
+Polyphony is handled inside the Pd patch (`[poly]`, `[clone~]` etc.); nous
 sends note-on messages and the patch manages voice allocation.
 
 **Pd `.pd` file generation** (longer term) — the hiccup graph IR could compile
@@ -524,11 +537,11 @@ standard oscillators/filters. Polyphony generation requires explicit design.
 
 ### Q50 — P2P control plane: peer discovery and remote tree composition
 
-**Status**: Deferred; `cljseq.peer` implements single-peer HTTP polling. Full P2P
+**Status**: Deferred; `nous.peer` implements single-peer HTTP polling. Full P2P
 (mDNS discovery, distributed ctrl-tree merge, conductor pattern) deferred until the
 ctrl tree is stable and a multi-musician use case is concrete.
 
 **Design is not foreclosed**: OSC addresses are stable, tree serial number enables
 stale-snapshot detection, EDN serialisation allows peer state transmission. When the
 time comes: mDNS/Bonjour for discovery; discovered peers appear as device subtrees at
-`[:cljseq :peers <peer-id>]`.
+`[:nous :peers <peer-id>]`.

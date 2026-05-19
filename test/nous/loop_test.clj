@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.loop-test
-  "Unit tests for cljseq.loop — virtual time, sleep!, sync!, deflive-loop,
+(ns nous.loop-test
+  "Unit tests for nous.loop — virtual time, sleep!, sync!, deflive-loop,
   stop-loop!, dynamic context vars."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.core :as core]
-            [cljseq.loop :as loop]))
+            [nous.core :as core]
+            [nous.loop :as loop]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures
@@ -136,6 +136,89 @@
             (binding [loop/*virtual-time* 0.3]
               (deliver result (loop/sync! 1/2))))))
       (is (= 0.5 (deref result 1000 :timeout))))))
+
+;; ---------------------------------------------------------------------------
+;; time-sig! / beats-per-bar / bar-number / (sync! :bar) — Q56
+;; ---------------------------------------------------------------------------
+
+(deftest time-sig-sets-beats-per-bar-test
+  (testing "4/4 → 4 beats per bar"
+    (core/time-sig! 4 4)
+    (is (= 4 (core/get-beats-per-bar))))
+  (testing "3/4 → 3 beats per bar"
+    (core/time-sig! 3 4)
+    (is (= 3 (core/get-beats-per-bar))))
+  (testing "6/8 → 3 quarter-note beats per bar"
+    (core/time-sig! 6 8)
+    (is (= 3 (core/get-beats-per-bar))))
+  (testing "5/4 → 5 beats per bar"
+    (core/time-sig! 5 4)
+    (is (= 5 (core/get-beats-per-bar))))
+  (testing "12/8 → 6 beats per bar"
+    (core/time-sig! 12 8)
+    (is (= 6 (core/get-beats-per-bar)))))
+
+(deftest get-time-sig-test
+  (testing "returns nil before any time-sig! call when only start! used"
+    (is (nil? (core/get-time-sig))))
+  (testing "returns [numerator denominator] after time-sig!"
+    (core/time-sig! 3 4)
+    (is (= [3 4] (core/get-time-sig)))))
+
+(deftest beats-per-bar-in-loop-test
+  (testing "loop/beats-per-bar reads system config (default 4)"
+    (core/time-sig! 4 4)
+    (is (= 4.0 (loop/beats-per-bar))))
+  (testing "loop/beats-per-bar reflects time-sig! change"
+    (core/time-sig! 3 4)
+    (is (= 3.0 (loop/beats-per-bar)))))
+
+(deftest bar-number-test
+  (testing "bar-number 0 at beat 0 in 4/4"
+    (core/time-sig! 4 4)
+    (binding [loop/*virtual-time* 0.0]
+      (is (= 0 (loop/bar-number)))))
+  (testing "bar-number 0 at beat 3.9 in 4/4"
+    (core/time-sig! 4 4)
+    (binding [loop/*virtual-time* 3.9]
+      (is (= 0 (loop/bar-number)))))
+  (testing "bar-number 1 at beat 4.0 in 4/4"
+    (core/time-sig! 4 4)
+    (binding [loop/*virtual-time* 4.0]
+      (is (= 1 (loop/bar-number)))))
+  (testing "bar-number 1 at beat 2.0 in 3/4 (waltz)"
+    (core/time-sig! 3 4)
+    (binding [loop/*virtual-time* 3.0]
+      (is (= 1 (loop/bar-number))))))
+
+(deftest sync-bar-test
+  (testing "(sync! :bar) snaps to next bar using beats-per-bar=4"
+    (core/time-sig! 4 4)
+    (let [result (promise)]
+      (.start
+        (Thread.
+          (fn []
+            (binding [loop/*virtual-time* 1.5]
+              (deliver result (loop/sync! :bar))))))
+      (is (= 4.0 (deref result 1000 :timeout)))))
+  (testing "(sync! :bar) snaps to next bar in 3/4"
+    (core/time-sig! 3 4)
+    (let [result (promise)]
+      (.start
+        (Thread.
+          (fn []
+            (binding [loop/*virtual-time* 1.5]
+              (deliver result (loop/sync! :bar))))))
+      (is (= 3.0 (deref result 1000 :timeout)))))
+  (testing "(sync! :bar) past first bar snaps to next bar in 3/4"
+    (core/time-sig! 3 4)
+    (let [result (promise)]
+      (.start
+        (Thread.
+          (fn []
+            (binding [loop/*virtual-time* 3.2]
+              (deliver result (loop/sync! :bar))))))
+      (is (= 6.0 (deref result 1000 :timeout))))))
 
 ;; ---------------------------------------------------------------------------
 ;; deflive-loop — registration and execution
