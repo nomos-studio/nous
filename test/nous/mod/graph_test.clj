@@ -31,6 +31,16 @@
 (deftest beat-test
   (is (= [:beat] (g/beat))))
 
+(deftest beat-phase-test
+  (testing "literal period"
+    (is (= [:beat-phase 4] (g/beat-phase 4))))
+  (testing "fractional period"
+    (is (= [:beat-phase 0.5] (g/beat-phase 0.5))))
+  (testing "param-controlled period"
+    (is (= [:beat-phase [:param :period]] (g/beat-phase (g/param :period)))))
+  (testing "composes with sin for musically-locked LFO"
+    (is (= [:sin [:beat-phase 4]] (g/sin (g/beat-phase 4))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Periodic shapes
 ;; ---------------------------------------------------------------------------

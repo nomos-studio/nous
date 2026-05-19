@@ -87,6 +87,19 @@
   []
   [:beat])
 
+(defn beat-phase
+  "Phase derived from Link beat position: fmod(beat / period-beats, 1.0).
+  Stateless — no accumulator, zero drift under BPM changes.
+  Prefer over (phasor hz-rate) when the period should track musical time.
+
+  `period-beats` — cycle length in beats (literal or any node expression).
+
+  Examples:
+    (beat-phase 4)              ; one cycle per bar in 4/4
+    (beat-phase (param :period)) ; voltage-controlled period in beats"
+  [period-beats]
+  [:beat-phase period-beats])
+
 ;; ---------------------------------------------------------------------------
 ;; Periodic shapes — expect a [0, 1) phase input from phasor
 ;; ---------------------------------------------------------------------------

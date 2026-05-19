@@ -25,21 +25,32 @@ one value per audio buffer — no JVM polling needed.
 
 ---
 
-### Q32 — Polyrhythmic phase coherence across restarts and tempo changes
+### Q32 — Polyrhythmic phase coherence across restarts and tempo changes  ✓ RESOLVED
 
-**Blocking**: Nothing currently; quality issue for multi-loop live sets.
+**Resolution**: Two mechanisms cover the two cases:
 
-**Question**: When a `live-loop` is redefined mid-run, it can restart with an
-arbitrary phase offset relative to other loops, breaking intentional polyrhythmic
-relationships. Under Link, LFO loops using wall-clock rates drift when BPM changes.
+1. **Loop restart phase** — `:restart-on-bar` in `deflive-loop` (already implemented).
+   Restarts at the next bar boundary, phase-locking the loop to the Link quantum.
 
-**Recommendation** (partially implemented — `:restart-on-bar` exists in `deflive-loop`):
-1. `:restart-on-bar` restarts at the next bar boundary — use this for phase-critical
-   loops.
-2. LFO rate in Hz should always derive from BPM (`freq = beats/period × BPM/60`) so
-   rate self-corrects when BPM changes.
-3. Full solution: global phase anchor from Link beat-1 timestamp; all period-based
-   loops compute phase as `(current-beat % period) / period`.
+2. **LFO phase under BPM changes** — `[:beat-phase period-beats]` graph node
+   (implemented in `graph_modulator` and `nous.mod.graph/beat-phase`).
+   Computes phase as `fmod(beat / period_beats, 1.0)` — stateless, derived directly
+   from Link beat position, zero drift under any BPM change.
+
+**Implemented**:
+- `nous.mod.graph/beat-phase` — `[:beat-phase period-beats]`; period may be a literal
+  or any node expression (e.g. `[:param :period]` for voltage-controlled period)
+- `graph_modulator::beat_phase` — C++ eval case; no state slots needed
+
+**Pattern**:
+```clojure
+; Wall-clock phasor — rate must be recomputed when BPM changes
+(g/phasor 0.5)          ; 0.5 Hz, always 2 seconds regardless of tempo
+
+; Musically-locked phase — always exactly N beats per cycle
+(g/beat-phase 4)        ; one cycle per bar (4/4), self-corrects on BPM change
+(g/sin (g/beat-phase 4)) ; sine LFO locked to bar period
+```
 
 ---
 
@@ -68,12 +79,14 @@ Examples:
 
 ---
 
-### Q57 — PPQN for MIDI Clock output: 24 fixed or configurable?
+### Q57 — PPQN for MIDI Clock output: 24 fixed or configurable?  ✓ RESOLVED
 
-**Blocking**: MIDI Clock output implementation in `nous-sidecar`.
+**Resolution**: 24 PPQN fixed for live MIDI Clock (MIDI spec; all hardware expects
+it). Higher PPQN (96, 960) reserved for SMF export only.
 
-**Recommendation** (not yet implemented): Always emit at 24 PPQN for live MIDI Clock
-(MIDI spec; all hardware expects it). Higher PPQN (96, 960) for SMF export only.
+**Implemented**: nomos-rt/aion emits `MSG-TICK` (0x50) push frames at 24 PPQN.
+`nous.kairos/on-tick!` / `off-tick!` register handlers receiving `{:beat b :tick-n n}`
+on every tick. MIDI Clock byte dispatch is wired in `nous-sidecar` via this mechanism.
 
 ---
 
