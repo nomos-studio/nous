@@ -265,3 +265,78 @@
   Example: (g/update! :filter-lfo :rate 2.0)"
   [id key value]
   (kairos/update-modulator! id key value))
+
+;; ---------------------------------------------------------------------------
+;; MIDI CC routing — Q30
+;;
+;; Routes modulator output fields to MIDI CC targets via the aion tick stream.
+;; aion pushes {:beat b :tick-n n :mods {:id {:cv F :aux F :gate B :gate2 B}}}
+;; on every 24 PPQN tick; route! subscribes a handler that scales the named
+;; field to [0, 127] and dispatches MIDI CC through the IPC channel.
+;;
+;; CC value mapping:
+;;   :cv / :aux  — float in any range; scaled assuming [-1, 1] → [0, 127].
+;;                 Values outside [-1, 1] are clamped before scaling.
+;;   :gate/:gate2 — boolean; true → 127, false → 0.
+;;
+;; Override the scale with :lo/:hi opts (raw CC values, default 0/127).
+;; ---------------------------------------------------------------------------
+
+(def ^:private cc-routes (atom {})) ; id → {:field :cc :channel :lo :hi :tick-key}
+
+(defn route!
+  "Route a graph modulator output field to a MIDI CC target.
+
+  Subscribes to the kairos/aion 24 PPQN tick stream and sends MIDI CC bytes
+  for the named modulator on every tick that carries its output.
+
+  id      — modulator id keyword (must match a running graph modulator)
+  opts map keys:
+    :field   — :cv (default), :aux, :gate, :gate2
+    :channel — MIDI channel 1–16 (default 1)
+    :cc      — CC number 0–127 (required)
+    :lo      — CC value when input is -1.0 or false (default 0)
+    :hi      — CC value when input is +1.0 or true  (default 127)
+
+  Returns the route id (same as modulator id) for use with unroute!.
+
+  Examples:
+    (g/route! :filter-lfo {:cc 74})
+    (g/route! :filter-lfo {:cc 74 :channel 2 :field :cv :lo 20 :hi 110})
+    (g/route! :amp-env    {:cc 11 :field :gate})"
+  [id {:keys [field channel cc lo hi]
+       :or   {field :cv channel 1 lo 0 hi 127}}]
+  {:pre [(some? cc)]}
+  (let [kw-id    (keyword (name id))
+        tick-key (kairos/on-tick!
+                   (fn [{:keys [mods]}]
+                     (when-let [out (get mods kw-id)]
+                       (let [raw   (get out field 0.0)
+                             value (if (#{:gate :gate2} field)
+                                     (if raw hi lo)
+                                     (let [t (-> (+ (double raw) 1.0) (/ 2.0)
+                                                 (max 0.0) (min 1.0))]
+                                       (Math/round (double (+ lo (* t (- hi lo)))))))]
+                         (kairos/send-midi-in!
+                           [(bit-or 0xB0 (dec (int channel)))
+                            (int cc)
+                            (int value)])))))]
+    (swap! cc-routes assoc kw-id {:field field :cc cc :channel channel
+                                   :lo lo :hi hi :tick-key tick-key})
+    kw-id))
+
+(defn unroute!
+  "Remove the MIDI CC route for the named modulator. Returns nil.
+
+  Example: (g/unroute! :filter-lfo)"
+  [id]
+  (let [kw-id (keyword (name id))]
+    (when-let [r (get @cc-routes kw-id)]
+      (kairos/off-tick! (:tick-key r))
+      (swap! cc-routes dissoc kw-id))
+    nil))
+
+(defn routes
+  "Return the current CC route map, keyed by modulator id."
+  []
+  @cc-routes)

@@ -9,19 +9,53 @@ Each entry carries the original Q-number for cross-reference with the archive.
 
 ## LFO and polyrhythm
 
-### Q30 — Continuous LFO scheduling: update rate and sidecar handoff
+### Q30 — Continuous LFO scheduling: update rate and sidecar handoff  ✓ RESOLVED
 
-**Blocking**: `param-loop` LFO implementation.
+**Resolution**: RT modulator engine in aion computes LFO values at the audio
+block tick rate and pushes them to connected clients via `MSG-TICK` (0x50).
+No JVM polling thread is needed. MIDI CC routing is handled entirely in
+`nous.mod.graph` using the existing `on-tick!` subscription mechanism.
 
-**Question**: At what rate should the JVM poll and dispatch LFO values to the
-sidecar for MIDI CC and OSC targets? For CLAP targets, the sidecar can compute
-one value per audio buffer — no JVM polling needed.
+**Architecture**:
+1. aion runs `mod_engine.tick(beat, tick_rate_hz, cb)` on every event-loop pass.
+   The callback accumulates modulator outputs into an EDN `:mods` map.
+2. On each 24 PPQN tick, aion appends `:mods` to the `MSG-TICK` payload:
+   `{:beat D :tick-n N :mods {:id {:cv F :aux F :gate B :gate2 B} ...}}`
+3. `nous.kairos/on-tick!` already passes the full parsed EDN map to handlers —
+   `:mods` flows through with no kairos changes required.
+4. `nous.mod.graph/route!` registers a tick handler that:
+   - Reads `(get mods kw-id)` for the routed modulator
+   - Scales `:cv`/`:aux` from [-1,1] → [lo, hi] (default [0,127])
+   - Maps `:gate`/`:gate2` boolean → hi/lo CC value
+   - Dispatches `send-midi-in!` with the computed CC byte triplet
 
-**Recommendation** (not yet implemented):
-- Default: 100 Hz (10 ms intervals), configurable per `param-loop` via `:rate hz`.
-- CLAP targets: compute one value per buffer via IPC type `0x76` automation message
-  with sample offset. No high-frequency JVM polling.
-- MIDI CC / OSC: 100 Hz from JVM LFO thread, batched to sidecar.
+**Implemented**:
+- `aion/src/main.cpp` — tick callback captures modulator outputs; `:mods` EDN
+  appended to MSG-TICK frame only when non-empty
+- `nomos/rt/ipc.hpp` — `msg_tick` comment updated to document `:mods` field
+- `nous.mod.graph/route!` — subscribe MIDI CC routing to `on-tick!` stream
+- `nous.mod.graph/unroute!` — deregister handler via `off-tick!`
+- `nous.mod.graph/routes` — inspect active routes
+
+**Pattern**:
+```clojure
+; Start a sin LFO at param-controlled rate
+(g/start! :filter-lfo
+  (-> (g/param :rate) g/phasor g/sin)
+  {:rate 0.5})
+
+; Route its CV output to MIDI CC 74 (filter cutoff), channel 1
+(g/route! :filter-lfo {:cc 74})
+
+; Route with custom range and channel
+(g/route! :filter-lfo {:cc 74 :channel 2 :lo 20 :hi 110})
+
+; Route gate output
+(g/route! :amp-env {:cc 11 :field :gate})
+
+; Remove route
+(g/unroute! :filter-lfo)
+```
 
 ---
 
@@ -90,14 +124,14 @@ on every tick. MIDI Clock byte dispatch is wired in `nous-sidecar` via this mech
 
 ---
 
-### Q58 — MTC frame rate: default and drop-frame handling
+### Q58 — MTC frame rate: default and drop-frame handling  ✓ RESOLVED (design)
 
-**Blocking**: MTC implementation (Phase 2).
+**Resolution**: Default 25 fps (1920 samples/frame at 48 kHz — clean integer math).
+Drop-frame correction behind explicit config `{:frame-rate 29.97 :drop-frame true}`.
+30 fps non-drop as secondary North American default.
 
-**Recommendation** (not yet implemented): Default 25 fps (1920 samples/frame at
-48 kHz — clean math). Drop-frame correction behind explicit config
-`{:frame-rate 29.97 :drop-frame true}`. 30 fps non-drop as secondary North American
-default.
+Implementation deferred to MTC Phase 2.  Design is closed; no further discussion
+needed before coding begins.
 
 ---
 

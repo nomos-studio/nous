@@ -207,3 +207,39 @@
   (testing "graph round-trips through pr-str / read-string"
     (let [expr (-> (g/param :rate) g/phasor g/sin (g/scale -1.0 1.0))]
       (is (= expr (read-string (pr-str expr)))))))
+
+;; ---------------------------------------------------------------------------
+;; MIDI CC routing — Q30
+;; These tests exercise the routing bookkeeping without a live IPC connection.
+;; ---------------------------------------------------------------------------
+
+(deftest route-registers-and-unroutes-test
+  (testing "route! registers a route entry"
+    (g/route! :test-lfo {:cc 74 :channel 1})
+    (is (contains? (g/routes) :test-lfo))
+    (is (= 74 (:cc (get (g/routes) :test-lfo))))
+    (is (= 1  (:channel (get (g/routes) :test-lfo))))
+    (is (= :cv (:field (get (g/routes) :test-lfo))))
+    (g/unroute! :test-lfo))
+
+  (testing "unroute! removes the entry"
+    (g/route! :test-lfo {:cc 74})
+    (g/unroute! :test-lfo)
+    (is (not (contains? (g/routes) :test-lfo))))
+
+  (testing "route! with explicit field and range"
+    (g/route! :env {:cc 11 :channel 2 :field :gate :lo 0 :hi 127})
+    (let [r (get (g/routes) :env)]
+      (is (= :gate (:field r)))
+      (is (= 2     (:channel r)))
+      (is (= 0     (:lo r)))
+      (is (= 127   (:hi r))))
+    (g/unroute! :env))
+
+  (testing "unroute! on unknown id is a no-op"
+    (is (nil? (g/unroute! :nonexistent))))
+
+  (testing "route! returns the modulator id as keyword"
+    (let [id (g/route! :vol-lfo {:cc 7})]
+      (is (= :vol-lfo id))
+      (g/unroute! :vol-lfo))))
