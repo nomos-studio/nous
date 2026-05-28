@@ -1,6 +1,6 @@
-# Building cljseq from source
+# Building nous from source
 
-cljseq has two independent build systems that both need to be run from a fresh
+nous has two independent build systems that both need to be run from a fresh
 clone: **Leiningen** for the Clojure library, and **CMake** for the C++ sidecar
 binary that handles real-time MIDI output.
 
@@ -49,8 +49,8 @@ the Windows Multimedia API (WinMM) via RtMidi — no extra driver is required.
 ## 1. Clone
 
 ```bash
-git clone https://github.com/rodgert/cljseq.git
-cd cljseq
+git clone https://github.com/rodgert/nous.git
+cd nous
 ```
 
 No submodules. All C++ dependencies are fetched automatically by CMake
@@ -60,7 +60,7 @@ FetchContent on first build.
 
 ## 2. Build the C++ sidecar
 
-The sidecar (`cljseq-sidecar`) is a small native process that the JVM spawns
+The sidecar (`nous-sidecar`) is a small native process that the JVM spawns
 at runtime to handle scheduled MIDI output with sub-millisecond accuracy.
 
 ```bash
@@ -68,7 +68,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-The resulting binary is at `build/cpp/cljseq-sidecar/cljseq-sidecar`.
+The resulting binary is at `build/cpp/nous-sidecar/nous-sidecar`.
 
 **What CMake fetches on first run** (requires internet, ~60 MB total):
 
@@ -84,13 +84,13 @@ Subsequent `cmake --build` invocations skip the network entirely
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `CLJSEQ_BUILD_SIDECAR` | `ON` | Build `cljseq-sidecar` |
-| `CLJSEQ_BUILD_AUDIO` | `ON` | Build `cljseq-audio` (CLAP host, requires more deps) |
+| `CLJSEQ_BUILD_SIDECAR` | `ON` | Build `nous-sidecar` |
+| `CLJSEQ_BUILD_AUDIO` | `ON` | Build `nous-audio` (CLAP host, requires more deps) |
 | `CLJSEQ_ENABLE_LINK` | `OFF` | Add Ableton Link support — see §4 below |
 | `CLJSEQ_BUILD_TESTS` | `OFF` | Build C++ unit tests |
 | `CMAKE_BUILD_TYPE` | _(none)_ | Set to `Release` for production, `Debug` for dev |
 
-To skip `cljseq-audio` (not needed for MIDI-only use):
+To skip `nous-audio` (not needed for MIDI-only use):
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCLJSEQ_BUILD_AUDIO=OFF
@@ -114,7 +114,7 @@ lein test          # run the test suite
 
 All tests should pass with 0 failures, 0 errors. Tests that exercise the
 full MIDI path require the sidecar binary (step 2) to be present at
-`build/cpp/cljseq-sidecar/cljseq-sidecar`.
+`build/cpp/nous-sidecar/nous-sidecar`.
 
 ### Start a REPL
 
@@ -123,7 +123,7 @@ lein repl
 ```
 
 ```clojure
-(require '[cljseq.core :refer :all])
+(require '[nous.core :refer :all])
 (start!)                                    ; spawns sidecar, starts clock
 
 (deflive-loop :hello {}
@@ -135,11 +135,11 @@ lein repl
 
 ### Run tests only (no sidecar)
 
-The unit tests for `cljseq.clock`, `cljseq.loop`, and `cljseq.ctrl` run
-without the sidecar. Only `cljseq.integration-test` requires it.
+The unit tests for `nous.clock`, `nous.loop`, and `nous.ctrl` run
+without the sidecar. Only `nous.integration-test` requires it.
 
 ```bash
-lein test cljseq.core-test cljseq.ctrl-test cljseq.phasor-test
+lein test nous.core-test nous.ctrl-test nous.phasor-test
 ```
 
 ---
@@ -173,7 +173,7 @@ step 2 — no duplicate download.
 Once built, enable Link from the REPL:
 
 ```clojure
-(require '[cljseq.link :as link])
+(require '[nous.link :as link])
 (start!)
 (link/enable!)      ; joins or creates a Link session
 (link/bpm)          ; => current session BPM
@@ -193,7 +193,7 @@ cmake --build build --parallel
 ```
 
 The Clojure tests call `sidecar/start-sidecar!` which spawns the binary from
-`build/cpp/cljseq-sidecar/cljseq-sidecar`, so a rebuilt binary is picked up
+`build/cpp/nous-sidecar/nous-sidecar`, so a rebuilt binary is picked up
 automatically on the next test run or REPL restart.
 
 ### Live coding at the REPL
@@ -217,7 +217,7 @@ Re-evaluating a `deflive-loop` form swaps its body on the next iteration:
 
 ```bash
 lein test                      # full suite
-lein test cljseq.core-test     # single namespace
+lein test nous.core-test     # single namespace
 ```
 
 ---
@@ -225,22 +225,22 @@ lein test cljseq.core-test     # single namespace
 ## 6. Directory layout
 
 ```
-cljseq/
-├── src/cljseq/         Clojure library (EPL-2.0)
+nous/
+├── src/nous/         Clojure library (EPL-2.0)
 │   ├── core.clj        System lifecycle, public API
 │   ├── loop.clj        deflive-loop, sleep!, sync!
 │   ├── clock.clj       Clock primitives, beat arithmetic
 │   ├── ctrl.clj        Control tree (bind!, send!, undo!)
 │   ├── link.clj        Ableton Link client
 │   └── sidecar.clj     Sidecar process management + IPC
-├── test/cljseq/        Clojure tests
+├── test/nous/        Clojure tests
 ├── cpp/
-│   ├── libcljseq-rt/   Shared C++ runtime (LGPL-2.1-or-later)
+│   ├── libnous-rt/   Shared C++ runtime (LGPL-2.1-or-later)
 │   │   ├── include/    Public headers (scheduler, link_bridge)
 │   │   └── src/        Scheduler, clock, OSC codec
-│   ├── libcljseq-link/ Ableton Link engine (GPL-2.0-or-later, opt-in)
-│   ├── cljseq-sidecar/ MIDI sidecar binary (LGPL, or GPL when Link enabled)
-│   └── cljseq-audio/   CLAP audio host binary
+│   ├── libnous-link/ Ableton Link engine (GPL-2.0-or-later, opt-in)
+│   ├── nous-sidecar/ MIDI sidecar binary (LGPL, or GPL when Link enabled)
+│   └── nous-audio/   CLAP audio host binary
 ├── doc/                Design documents, R&R, open questions
 ├── CMakeLists.txt      Root C++ build
 ├── project.clj         Clojure build (Leiningen)
@@ -252,7 +252,7 @@ cljseq/
 
 ## 7. Troubleshooting
 
-**`cljseq-sidecar binary not found`**
+**`nous-sidecar binary not found`**
 Run `cmake --build build` (step 2) before starting the Clojure REPL or tests.
 
 **`MIDI init failed — continuing without MIDI`**
@@ -260,7 +260,7 @@ The sidecar found no MIDI output ports. On macOS, enable the IAC Driver
 in Audio MIDI Setup. The sidecar runs in a degraded mode; REPL sessions that
 don't call `play!` are unaffected.
 
-**`Could not connect to cljseq-sidecar after 10 attempts`**
+**`Could not connect to nous-sidecar after 10 attempts`**
 The sidecar failed to start. Check `lein test` output for a preceding C++
 error message. Common causes: missing MIDI driver on Linux
 (`sudo apt install libasound2-dev` before building), or binary not rebuilt
@@ -310,7 +310,7 @@ deliberately and record the reason in the CMakeLists comment. Do not use
 |------------|-----------|---------------|
 | Asio | `asio-1-30-2` | Edit root `CMakeLists.txt`; re-run `cmake -B build` |
 | RtMidi | `6.0.0` | Edit root `CMakeLists.txt`; delete `build/_deps/rtmidi-*`; re-run |
-| Ableton Link | `Link-3.0.4` | Edit `cpp/libcljseq-link/CMakeLists.txt`; delete `build/_deps/ableton-link-*`; re-run |
+| Ableton Link | `Link-3.0.4` | Edit `cpp/libnous-link/CMakeLists.txt`; delete `build/_deps/ableton-link-*`; re-run |
 
 To force a re-fetch after updating a pin:
 

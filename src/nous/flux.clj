@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.flux
-  "cljseq flux sequence — circular step buffer with independent read and write heads.
+(ns nous.flux
+  "nous flux sequence — circular step buffer with independent read and write heads.
 
   Inspired by the Moog Labyrinth Eurorack sequencer (see doc/attribution.md).
   A `defflux` sequence has two independent processes operating on a shared
@@ -51,19 +51,19 @@
   Key design decisions: Q53 (concurrency — vector of atoms), Q54 (scale as
   ITemporalValue), §26 Flux Sequence Architecture."
   (:refer-clojure :exclude [peek reset!])
-  (:require [cljseq.clock :as clock]
-            [cljseq.ctrl  :as ctrl]
-            [cljseq.loop  :as loop-ns])
+  (:require [nous.clock :as clock]
+            [nous.ctrl  :as ctrl]
+            [nous.loop  :as loop-ns])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
-;; System state (injected by cljseq.core/start!)
+;; System state (injected by nous.core/start!)
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private system-ref (atom nil))
 
 (defn -register-system!
-  "Called by cljseq.core/start! to inject the system-state atom."
+  "Called by nous.core/start! to inject the system-state atom."
   [state-atom]
   (clojure.core/reset! system-ref state-atom))
 
@@ -374,13 +374,13 @@
     ;; Register ctrl tree node
     (ctrl/defnode! [:flux flux-name] :type :data)
     ;; Start threads
-    (let [rt (start-thread! (str "cljseq-flux-read-"    (name flux-name))
+    (let [rt (start-thread! (str "nous-flux-read-"    (name flux-name))
                              #(read-runner    flux-name read-running?))
           wt (when write-cfg
-               (start-thread! (str "cljseq-flux-write-"  (name flux-name))
+               (start-thread! (str "nous-flux-write-"  (name flux-name))
                                #(write-runner  flux-name write-running?)))
           ct (when corrupt-cfg
-               (start-thread! (str "cljseq-flux-corrupt-" (name flux-name))
+               (start-thread! (str "nous-flux-corrupt-" (name flux-name))
                                #(corrupt-runner flux-name corrupt-running?)))]
       (swap! registry update flux-name assoc
              :read-thread rt :write-thread wt :corrupt-thread ct)))
@@ -400,7 +400,7 @@
   nil)
 
 (defn stop-all!
-  "Stop all active flux instances. Called by cljseq.core/stop!."
+  "Stop all active flux instances. Called by nous.core/stop!."
   []
   (doseq [name (keys @registry)]
     (stop! name))

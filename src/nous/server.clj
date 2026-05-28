@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.server
+(ns nous.server
   "Control-plane HTTP server (§17 Phase 1) with WebSocket push (v0.13.0).
 
   Exposes the ctrl tree over a minimal JSON REST API so external tools,
@@ -57,10 +57,10 @@
             [clojure.string    :as str]
             [clojure.data.json :as json]
             [clojure.java.io   :as io]
-            [cljseq.ctrl       :as ctrl]
-            [cljseq.core       :as core]
-            [cljseq.loop       :as loop-ns]
-            [cljseq.runtime    :as runtime])
+            [nous.ctrl       :as ctrl]
+            [nous.core       :as core]
+            [nous.loop       :as loop-ns]
+            [nous.runtime    :as runtime])
   (:import  [java.net URLDecoder]))
 
 ;; ---------------------------------------------------------------------------

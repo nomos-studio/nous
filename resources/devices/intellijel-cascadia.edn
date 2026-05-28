@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Intellijel Cascadia — cljseq device map
+;; Intellijel Cascadia — nous device map
 ;;
 ;; Semi-modular synthesizer with full MPE support, two learnable CC jacks,
 ;; and 58 Eurorack-compatible patchbay jacks. No NRPNs, no program change,
@@ -117,7 +117,7 @@
   :mpe          {:note "MPE mode: per-note pitch, timbre, pressure; each note on separate channel"}}
 
  :device/notes
- {:mpe-use       "Primary expressive cljseq use: MPE pitch bend for microtonal playing via LinnStrument or Hydrasynth; Y→filter, Z→VCA"
+ {:mpe-use       "Primary expressive nous use: MPE pitch bend for microtonal playing via LinnStrument or Hydrasynth; Y→filter, Z→VCA"
   :learnable-cc  "MIDI CC and MIDI MOD jack assignments survive power cycle; configure once via Config App or MIDI learn"
   :no-nrpn       "No NRPNs — Cascadia uses CV patching rather than MIDI parameter control for synthesis routing"
   :no-sysex      "No SysEx; Cascadia Config App communicates over USB MIDI using a proprietary protocol"

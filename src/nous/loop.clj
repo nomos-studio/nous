@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.loop
-  "cljseq live-loop subsystem.
+  "nous live-loop subsystem.
 
   `deflive-loop` defines a named, repeating loop registered in the system
   state at [:loops <name>]. `live-loop` is a macro alias with auto-generated
@@ -474,7 +474,7 @@
                                  (f#)
                                  (catch Throwable e#
                                    (binding [*out* *err*]
-                                     (println (str "[cljseq] loop "
+                                     (println (str "[nous] loop "
                                                    (name ~loop-name)
                                                    " error ("
                                                    (.getSimpleName (class e#))
@@ -595,7 +595,7 @@
                              (try (f)
                                   (catch Throwable e
                                     (binding [*out* *err*]
-                                      (println (str "[cljseq] loop " (name loop-name)
+                                      (println (str "[nous] loop " (name loop-name)
                                                     " error (restarted) ("
                                                     (.getSimpleName (class e)) "): "
                                                     (.getMessage e))))))

@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.berlin-test
+(ns nous.berlin-test
   (:require [clojure.test :refer [deftest is are testing]]
-            [cljseq.berlin          :as berlin]
-            [cljseq.temporal-buffer :as tbuf]
-            [cljseq.trajectory      :as traj]))
+            [nous.berlin          :as berlin]
+            [nous.temporal-buffer :as tbuf]
+            [nous.trajectory      :as traj]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers

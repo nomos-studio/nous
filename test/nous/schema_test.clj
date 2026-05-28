@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.schema-test
-  "Tests for cljseq.schema — device model, realization, and realize!."
+(ns nous.schema-test
+  "Tests for nous.schema — device model, realization, and realize!."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.schema :as schema]
-            [cljseq.ctrl   :as ctrl]
-            [cljseq.core   :as core]))
+            [nous.schema :as schema]
+            [nous.ctrl   :as ctrl]
+            [nous.core   :as core]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixture

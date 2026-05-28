@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.fractal-test
-  "Unit tests for cljseq.fractal — transformation algebra, playback order,
+(ns nous.fractal-test
+  "Unit tests for nous.fractal — transformation algebra, playback order,
   branch tree, path navigation, and deffractal context."
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.core    :as core]
-            [cljseq.ctrl    :as ctrl]
-            [cljseq.fractal :as fractal]
-            [cljseq.random  :as random]))
+            [nous.core    :as core]
+            [nous.ctrl    :as ctrl]
+            [nous.fractal :as fractal]
+            [nous.random  :as random]))
 
 ;; ---------------------------------------------------------------------------
 ;; Test fixtures

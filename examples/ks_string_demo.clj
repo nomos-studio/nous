@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Karplus-Strong String — cljseq SCLang showcase
+;; Karplus-Strong String — nous SCLang showcase
 ;; ================================================
 ;;
 ;; Demonstrates:
@@ -19,7 +19,7 @@
 ;;   Between those extremes lies the entire vocabulary of plucked string timbre:
 ;;   steel, nylon, gut, silk, air.
 ;;
-;;   In cljseq, a trajectory is a first-class value — it describes a curve over
+;;   In nous, a trajectory is a first-class value — it describes a curve over
 ;;   time that can be sampled at any beat. That same trajectory can be:
 ;;     • Sampled once per note to evolve each note's starting timbre
 ;;     • Fed continuously to apply-trajectory! to evolve a *live* running node
@@ -115,7 +115,7 @@
 ;;
 ;;   This is the direct "SCLang By Other Means" demonstration:
 ;;     Clojure trajectory → continuous OSC → live UGen parameter
-;;   The synthesis intention is described in data; cljseq executes it.
+;;   The synthesis intention is described in data; nous executes it.
 ;; ---------------------------------------------------------------------------
 
 ;; A very long-sustaining drone on E2 (bass register)

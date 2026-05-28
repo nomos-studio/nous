@@ -1,4 +1,4 @@
-;; Canonical cljseq UGen name → PureData object
+;; Canonical nous UGen name → PureData object
 ;; :obj uses strings (not keywords) because ~ is not valid in EDN keywords.
 ;; :inlets/:outlets are provided for connection-list generation.
 {:osc         {:obj "osc~"       :inlets 2 :outlets 1}

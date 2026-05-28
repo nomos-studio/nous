@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.learn-test
-  "Unit tests for cljseq.learn — MIDI Learn device map authoring tool.
+(ns nous.learn-test
+  "Unit tests for nous.learn — MIDI Learn device map authoring tool.
 
   All tests use -inject-message! to feed synthetic MIDI data directly into
   the capture queue, so no sidecar or physical hardware is required."
@@ -8,7 +8,7 @@
             [clojure.java.io  :as io]
             [clojure.string   :as str]
             [clojure.test     :refer [deftest is testing use-fixtures]]
-            [cljseq.learn     :as learn]))
+            [nous.learn     :as learn]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -292,7 +292,7 @@
             (is (= [0 127] (:range (first ccs))))
             (is (= 71 (:cc (second ccs)))))
           ;; file should have EDN comment header
-          (is (str/includes? content ";; cljseq device map")))
+          (is (str/includes? content ";; nous device map")))
         (finally
           (.delete (io/file tmp)))))))
 

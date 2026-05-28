@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.conductor
+(ns nous.conductor
   "Conductor — sequences arc-type gestures over musical time.
 
   A conductor is a named entity that runs a sequence of sections, each of which
@@ -63,9 +63,9 @@
     (abort! :trance-drop)
 
   Key design decisions: R&R §31 (conductor), Track B conductor layer."
-  (:require [cljseq.loop       :as loop-ns]
-            [cljseq.mod        :as mod]
-            [cljseq.trajectory :as traj])
+  (:require [nous.loop       :as loop-ns]
+            [nous.mod        :as mod]
+            [nous.trajectory :as traj])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
@@ -324,7 +324,7 @@
              :running? running?
              :thread   thread)
       (.setDaemon thread true)
-      (.setName thread (str "cljseq-conductor-" (name name-kw)))
+      (.setName thread (str "nous-conductor-" (name name-kw)))
       (.start thread)))
   name-kw)
 
@@ -391,7 +391,7 @@
   nil)
 
 (defn stop-all-conductors!
-  "Abort all running conductors. Called by cljseq.core/stop!."
+  "Abort all running conductors. Called by nous.core/stop!."
   []
   (doseq [name-kw (conductor-names)]
     (abort! name-kw))

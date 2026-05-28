@@ -1,14 +1,14 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; MuseKinetics 12Step — cljseq device map
+;; MuseKinetics 12Step — nous device map
 ;;
 ;; 12-key chromatic foot controller with individually addressable LEDs and
 ;; a 4-character alphanumeric display. Pressure + tilt sensitive. Two CV
-;; outputs (NRPNs). Bidirectional — cljseq can control LEDs and display.
+;; outputs (NRPNs). Bidirectional — nous can control LEDs and display.
 ;;
 ;; Manufacturer: MuseKinetics (not Conductive Labs — Conductive Labs makes the NDLR)
 ;;
-;; Bidirectional capabilities (cljseq → 12Step):
+;; Bidirectional capabilities (nous → 12Step):
 ;;   - Individual key LED color: CC 20-33 (one per key, 0=off, 1-127=on/color)
 ;;   - All LEDs off: CC 42 value 0
 ;;   - 4-char display: CC 50-53 (one CC per character, ASCII-ish encoding)
@@ -20,7 +20,7 @@
  :device/name         "MuseKinetics 12Step"
  :device/manufacturer "MuseKinetics"
  :device/type         :foot-controller
- :device/role         :both   ; source (keys) + target (LED + display control from cljseq)
+ :device/role         :both   ; source (keys) + target (LED + display control from nous)
  :device/connectivity [:usb-midi :din-midi]
 
  :midi/channel        1    ; configurable; default = 1
@@ -36,15 +36,15 @@
   :din-out  true
   :usb      true}   ; class-compliant
 
- ;; TRANSMITTED CCs (12Step → cljseq)
+ ;; TRANSMITTED CCs (12Step → nous)
  ;; Keys 1-12 transmit configurable notes/CCs; pressure and tilt produce additional CCs
  :midi/cc-transmit
  [{:cc :configurable  :path [:key :1-12]   :note "Key CCs configurable per-key in 12Step editor; typically note or CC per key"}
   {:cc :configurable  :path [:pressure]    :note "Pressure per key → configurable CC; 0-127"}
   {:cc :configurable  :path [:tilt]        :note "Tilt (board angle) → configurable CC; 0-127"}]
 
- ;; RECEIVED CCs (cljseq → 12Step)
- ;; These are the bidirectional control CCs — cljseq drives these
+ ;; RECEIVED CCs (nous → 12Step)
+ ;; These are the bidirectional control CCs — nous drives these
  :midi/cc
  [;; --- Individual Key LED control (CC 20-33, one per key) ----------------
   {:cc 20  :path [:led :key-1]   :range [0 127]  :note "0=off; 1-63=dim; 64-127=bright (device-specific color mapping)"}
@@ -89,7 +89,7 @@
  {:chars      4
   :type       :alphanumeric-7-segment
   :midi-controllable true
-  :note       "cljseq can write arbitrary 4-char strings to display via CC 50-53"}
+  :note       "nous can write arbitrary 4-char strings to display via CC 50-53"}
 
  :device/cv-outputs
  {:cv-1  {:signal :cv :range "+/-5V" :note "Controlled via NRPN 1"}
@@ -97,7 +97,7 @@
 
  :device/notes
  {:manufacturer-note  "Manufacturer is MuseKinetics — not Conductive Labs. Conductive Labs makes the NDLR."
-  :bidirectional-use  "Primary cljseq value: feedback LED to show active scale degrees or chord tones; display for current mode/key name"
+  :bidirectional-use  "Primary nous value: feedback LED to show active scale degrees or chord tones; display for current mode/key name"
   :led-encoding       "LED color encoding (value → color) is device-specific; consult 12Step editor for full color table"
   :display-encoding   "Display CC values use an ASCII-ish encoding; consult MIDI implementation doc for full character map"}
 

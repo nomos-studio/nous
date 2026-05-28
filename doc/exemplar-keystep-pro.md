@@ -13,7 +13,7 @@ It combines four independent sequencing tracks — one polyphonic, two monophoni
 drum — with 37 velocity-sensitive keys, a rich per-step parameter model, and independent
 CV/gate/mod outputs per track. It is the contemporary consensus instrument for what a
 "complete" mid-price hardware step sequencer should do, and its per-step parameter set
-is the most directly actionable reference for cljseq's step map design.
+is the most directly actionable reference for nous's step map design.
 
 ---
 
@@ -44,7 +44,7 @@ input chord rather than replaying stored steps.
 
 ## Per-Step Parameter Set
 
-This is the KeyStep Pro's most influential contribution to cljseq's design. Every step
+This is the KeyStep Pro's most influential contribution to nous's design. Every step
 on a melodic track carries:
 
 | Parameter | Range | Notes |
@@ -56,9 +56,9 @@ on a melodic track carries:
 | `:time-shift` | ±50% of step width | Positive = late, negative = early |
 | `:pitch-rand` | ±N semitones | Random pitch offset at playback; base pitch ± range |
 
-### Implications for the cljseq step map
+### Implications for the nous step map
 
-The cljseq step map (as designed in Q6 and the unified step map §25) should extend to
+The nous step map (as designed in Q6 and the unified step map §25) should extend to
 include these fields. None of them require new protocol machinery — they are data keys:
 
 ```clojure
@@ -84,7 +84,7 @@ the `timing/bind!` pipeline at step playback time. A step with `:time-shift 1/16
 equivalent to a local swing offset applied only to that step.
 
 **Cascade of defaults**: `:velocity :default` inheriting from a track/global default is
-the right behaviour. In cljseq, this maps to `(or step-velocity track-velocity global-velocity)`.
+the right behaviour. In nous, this maps to `(or step-velocity track-velocity global-velocity)`.
 The control tree holds the track and global defaults; step-level values shadow them.
 
 ---
@@ -134,7 +134,7 @@ output). The KeyStep Pro makes this explicit with a dedicated physical jack. Thi
 confirms that velocity is a **dual-encoding parameter**: the output adapter layer must
 handle both MIDI and CV representations of the same semantic value.
 
-In cljseq:
+In nous:
 ```clojure
 ;; Velocity expressed as MIDI byte
 {:velocity 80}
@@ -162,7 +162,7 @@ via independent `live-loop` bodies with different `sleep!` patterns.
 
 ---
 
-## Novel Concepts for cljseq
+## Novel Concepts for nous
 
 | Concept | DSL candidate |
 |---------|--------------|

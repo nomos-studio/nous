@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.stochastic-test
-  "Unit tests for cljseq.stochastic — DEJA VU ring buffer, X/T sections, defstochastic."
+(ns nous.stochastic-test
+  "Unit tests for nous.stochastic — DEJA VU ring buffer, X/T sections, defstochastic."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.core       :as core]
-            [cljseq.ctrl       :as ctrl]
-            [cljseq.random     :as random]
-            [cljseq.stochastic :as stochastic]))
+            [nous.core       :as core]
+            [nous.ctrl       :as ctrl]
+            [nous.random     :as random]
+            [nous.stochastic :as stochastic]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

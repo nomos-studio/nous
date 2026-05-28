@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.schema
+(ns nous.schema
   "Device model schema and realization management.
 
   Schema changes are first-class transactions: `defdevice-model`,
@@ -50,7 +50,7 @@
   schema state by projecting [:cljseq/schema ...] transactions first.
 
   Key design decisions: doc/design-device-model.md, Q74-Q76, Q79."
-  (:require [cljseq.ctrl :as ctrl]))
+  (:require [nous.ctrl :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Schema source context
@@ -232,15 +232,15 @@
   (let [model       (ctrl/get (model-path model-id))
         realization (ctrl/get (realization-path realization-id))]
     (when-not model
-      (throw (ex-info "cljseq.schema/realize!: model not registered"
+      (throw (ex-info "nous.schema/realize!: model not registered"
                       {:model model-id
                        :registered (ctrl/child-keys [:cljseq/schema :device-models])})))
     (when-not realization
-      (throw (ex-info "cljseq.schema/realize!: realization not registered"
+      (throw (ex-info "nous.schema/realize!: realization not registered"
                       {:realization realization-id
                        :registered (ctrl/child-keys [:cljseq/schema :realizations])})))
     (when (not= (:model realization) model-id)
-      (throw (ex-info "cljseq.schema/realize!: realization is for a different model"
+      (throw (ex-info "nous.schema/realize!: realization is for a different model"
                       {:model model-id :realization-model (:model realization)})))
     ;; Tear down previous realization bindings if one is active
     (when-let [prev-id (ctrl/get (active-path model-id))]

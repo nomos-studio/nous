@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.peer
+(ns nous.peer
   "Topology Layer 2 — UDP multicast peer discovery + HTTP ctrl-tree mounting.
 
   Phase 1 scope:
@@ -67,9 +67,9 @@
   Peers expire 15 s after their last beacon."
   (:require [clojure.edn       :as edn]
             [clojure.data.json :as json]
-            [cljseq.ctrl       :as ctrl]
-            [cljseq.pitch      :as pitch-ns]
-            [cljseq.scale      :as scale-ns])
+            [nous.ctrl       :as ctrl]
+            [nous.pitch      :as pitch-ns]
+            [nous.scale      :as scale-ns])
   (:import [java.net DatagramSocket DatagramPacket InetAddress
                      MulticastSocket SocketTimeoutException]
            [java.net URL HttpURLConnection]
@@ -170,7 +170,7 @@
   `backend-kw` — keyword identifying the backend (e.g. `:sc`, `:surge-xt`)
   `info`        — map of connection details to advertise in the beacon
 
-  Called automatically by `cljseq.sc/connect-sc!`.
+  Called automatically by `nous.sc/connect-sc!`.
 
   Example:
     (peer/register-backend! :sc {:host \"127.0.0.1\" :sc-port 57110})"
@@ -181,7 +181,7 @@
 (defn deregister-backend!
   "Remove a synthesis backend from the active backend registry.
 
-  Called automatically by `cljseq.sc/disconnect-sc!`.
+  Called automatically by `nous.sc/disconnect-sc!`.
 
   Example:
     (peer/deregister-backend! :sc)"
@@ -349,7 +349,7 @@
               (catch Exception e
                 (binding [*out* *err*]
                   (println "[peer/beacon] thread error:" (.getMessage e))))))
-          "cljseq-peer-beacon")
+          "nous-peer-beacon")
     (.setDaemon true)))
 
 ;; ---------------------------------------------------------------------------
@@ -411,7 +411,7 @@
               (catch Exception e
                 (binding [*out* *err*]
                   (println "[peer/listener] thread error:" (.getMessage e))))))
-          "cljseq-peer-listener")
+          "nous-peer-listener")
     (.setDaemon true)))
 
 ;; ---------------------------------------------------------------------------
@@ -518,7 +518,7 @@
               (catch Exception e
                 (binding [*out* *err*]
                   (println "[peer/poll] error for" node-id ":" (.getMessage e))))))
-          (str "cljseq-peer-poll-" (name node-id)))
+          (str "nous-peer-poll-" (name node-id)))
     (.setDaemon true)))
 
 ;; ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.topology
-  "cljseq studio MIDI topology -- Layer 1.
+(ns nous.topology
+  "nous studio MIDI topology -- Layer 1.
 
   Provides stable logical device aliases that survive MIDI port index changes
   across reboots, USB reconnects, and MioXM re-patching. Device aliases are
@@ -34,8 +34,8 @@
   Layer 3 (future):    Spatial/group device targets, trajectory routing."
   (:require [clojure.edn     :as edn]
             [clojure.java.io :as io]
-            [cljseq.dirs     :as dirs]
-            [cljseq.sidecar  :as sidecar]))
+            [nous.dirs     :as dirs]
+            [nous.sidecar  :as sidecar]))
 
 ;; ---------------------------------------------------------------------------
 ;; State
@@ -49,8 +49,8 @@
   Resolution order:
     1. CLJSEQ_TOPOLOGY environment variable
     2. (dirs/user-config-dir)/topology.edn
-       -- XDG default: ~/.config/cljseq/topology.edn
-       -- macOS native: ~/Library/Application Support/cljseq/topology.edn
+       -- XDG default: ~/.config/nous/topology.edn
+       -- macOS native: ~/Library/Application Support/nous/topology.edn
 
   See doc/topology-example.edn for the full schema and annotations."
   []
@@ -166,7 +166,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn start-sidecar!
-  "Start the cljseq sidecar with MIDI output routed to `output-alias`.
+  "Start the nous sidecar with MIDI output routed to `output-alias`.
 
   Resolves the device alias to a port index via :port-pattern matching,
   then calls sidecar/start-sidecar!.

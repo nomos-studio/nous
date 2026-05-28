@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to cljseq are documented here.
+All notable changes to nous are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -21,25 +21,25 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   path, before, after). Survives process restarts; zero write-amplification on
   the hot path.
 - **`source-kind` vocabulary** — canonical `source-kind->int` / `int->source-kind`
-  maps in `cljseq.journal`; shared by sidecar write path and journal read path.
+  maps in `nous.journal`; shared by sidecar write path and journal read path.
   Source kinds: `:user`, `:loop`, `:input`, `:trajectory`, `:watcher`,
   `:supervisor`, `:schema`, `:undo`, `:error`.
 
 #### Session lifecycle
 
-- **`export-session!`** — write the live ctrl/schema tree to a `.cljseq` EDN
+- **`export-session!`** — write the live ctrl/schema tree to a `.nous` EDN
   file as fully-qualified, human-readable Clojure forms. VCS-friendly; can be
   opened in any editor and edited before replay.
-- **`restore-session!`** — load a `.cljseq` file and re-apply it: BPM,
+- **`restore-session!`** — load a `.nous` file and re-apply it: BPM,
   beats-per-bar, device models, realizations, active realizations, and all
   parameter writes via direct function calls (no eval).
 - **`export-from-journal!`** — reconstruct the final parameter state from a
-  SQLite journal file and write it as a `.cljseq` export. Useful when the
+  SQLite journal file and write it as a `.nous` export. Useful when the
   live session was never explicitly exported.
 - **`load-session!`** — open a SQLite journal and restore the final state into
   the running JVM without writing an intermediate file.
 
-#### `cljseq.journal` — transaction journal query API
+#### `nous.journal` — transaction journal query API
 
 - **Layer 1 — `read-journal`** — decode a SQLite journal file to a vector of
   `:tx/`-namespaced maps. All persistence artifacts are sealed at this
@@ -60,10 +60,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `diff-sessions` — compare final parameter state of two SQLite files;
     returns `{:added :removed :changed :unchanged}`.
 
-#### `cljseq.seq` — unified IStepSequencer protocol
+#### `nous.seq` — unified IStepSequencer protocol
 
 - **`IStepSequencer` protocol** — single interface for all step-based note
-  generators in cljseq. Two operations:
+  generators in nous. Two operations:
   - `(next-event sq)` → `{:event note-map-or-nil :beats duration}` — advance
     one step; `:event nil` means rest.
   - `(seq-cycle-length sq)` → long (steps per cycle) or nil (infinite/generative).
@@ -75,13 +75,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `{:running? atom :future f}`.
 - **`stop-seq! handle`** — signal stop and cancel the future.
 - Both `run-cycle!` and `run-step!` accept `{:xf transformer}` — applies an
-  `ITransformer` (from `cljseq.transform`) to each event before dispatch.
+  `ITransformer` (from `nous.transform`) to each event before dispatch.
 
-#### `cljseq.arp` — ArpState rewrite + parameter locks
+#### `nous.arp` — ArpState rewrite + parameter locks
 
 - **`ArpState` defrecord** — replaces the plain atom returned by the old
   `make-arp-state`. Implements `IStepSequencer` directly; use with any of the
-  `cljseq.seq` runners.
+  `nous.seq` runners.
 - **`make-arp-state`** — updated factory; now returns an `ArpState` record.
   Same arguments and options (`:vel`, `:oct`, `:rate`) as before.
 - **`reset-chord!`** — update the chord voicing of a running `ArpState` without
@@ -107,7 +107,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   used to return.
 - **`play!`** — unchanged convenience one-shot; internally uses `run-cycle!`.
 
-#### `cljseq.pattern` — MotifState + Locks (IStepSequencer for Pattern×Rhythm motifs)
+#### `nous.pattern` — MotifState + Locks (IStepSequencer for Pattern×Rhythm motifs)
 
 - **`Locks` defrecord** — per-step parameter override data, cycling
   independently of `Pattern` and `Rhythm`. A 4-step `Locks` against a 5-note
@@ -124,7 +124,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `run-cycle!`. Accepts the same options as before, plus `:locks` and `:xf`.
   Behaviour is identical to the previous implementation.
 
-#### `cljseq.fractal` — FractalSeq (IStepSequencer wrapper)
+#### `nous.fractal` — FractalSeq (IStepSequencer wrapper)
 
 - **`FractalSeq` defrecord** — wraps a fractal context atom as an
   `IStepSequencer`. `seq-cycle-length` returns nil (infinite). Use with
@@ -133,7 +133,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the default velocity injected into each step event (default 100). Steps
   with `:gate/on? false` are returned as rest events (`{:event nil}`).
 
-#### `cljseq.stochastic` — StochasticSeq (IStepSequencer wrapper)
+#### `nous.stochastic` — StochasticSeq (IStepSequencer wrapper)
 
 - **`StochasticSeq` defrecord** — wraps a stochastic context as an
   `IStepSequencer`. `seq-cycle-length` returns nil (infinite). Use with
@@ -143,7 +143,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `1/8`), `:gate` (default `0.9`). Draws `next-t!` (gate) then `next-x!`
   (pitch) per step.
 
-#### Web control surface Tier 3 (`cljseq-ui`)
+#### Web control surface Tier 3 (`nous-ui`)
 
 - **Beat pulse** — single dot in the header alternates bright/dim on every beat,
   synced to the running BPM via client-side `setInterval`.
@@ -154,8 +154,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **`cljseq.arp`** — `arp-loop!`, `stop-arp!`, and `next-step!` removed.
-  Replaced by `seq-loop!`, `stop-seq!`, and `next-event` from `cljseq.seq`.
+- **`nous.arp`** — `arp-loop!`, `stop-arp!`, and `next-step!` removed.
+  Replaced by `seq-loop!`, `stop-seq!`, and `next-event` from `nous.seq`.
   `user.clj` exports updated accordingly; `reset-arp-chord!` added.
 - **`motif!`** — now delegates to `MotifState` + `run-cycle!` internally.
   The external signature and behaviour are unchanged; `:xf` and `:locks`
@@ -167,10 +167,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### First-class arpeggiator (`cljseq.arp`)
+#### First-class arpeggiator (`nous.arp`)
 
-- **`cljseq.arp` namespace** — first-class arpeggiator engine with a named
-  pattern library. Replaces the isolated arp engine in `cljseq.ivk` with a
+- **`nous.arp` namespace** — first-class arpeggiator engine with a named
+  pattern library. Replaces the isolated arp engine in `nous.ivk` with a
   shared, composable subsystem usable from live-loops, ostinati, and the REPL.
 - **Two pattern formats**:
   - `:chord` patterns (R&R §22.5) — `:order` (chord-tone indices or
@@ -206,7 +206,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - User-facing exports in `user.clj`: `arp-ls`, `arp-get`, `arp-register!`,
   `arp-play!`, `arp-loop!`, `arp-stop!`, `make-arp-state`, `next-arp-step!`.
 
-#### `cljseq.ivk` arp timing fix
+#### `nous.ivk` arp timing fix
 
 - `start-arp!` now uses `loop-ns/sleep!` instead of raw `Thread/sleep` — the
   arp cycle respects virtual time inside live-loops and falls back gracefully
@@ -214,12 +214,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **`cljseq.dsl` → `cljseq.live`** — renamed to reflect its actual role as an
+- **`nous.dsl` → `nous.live`** — renamed to reflect its actual role as an
   execution-context layer for live performance (dynamic vars, synth routing,
   tuning, modulation) rather than a DSL sugar layer. All dependent namespaces
   (`ensemble`, `m21`, `pattern`, `loop`, `rhythm`) and tests updated.
-  `user.clj` re-exports updated; `dsl/arp!` removed (superseded by `cljseq.arp`).
-- **`choose-from-scale`** moved from `cljseq.live` to `cljseq.scale` — no
+  `user.clj` re-exports updated; `dsl/arp!` removed (superseded by `nous.arp`).
+- **`choose-from-scale`** moved from `nous.live` to `nous.scale` — no
   live-context dependency; now lives alongside the Scale record and named-scale
   registry it operates on.
 
@@ -229,14 +229,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### Browser control surface (`cljseq-ui`) — Step 2 of the web UI story
+#### Browser control surface (`nous-ui`) — Step 2 of the web UI story
 
 - **`shadow-cljs.edn`** — ClojureScript build config (`:browser` target, `reagent
   1.2.0` dep, output to `resources/public/js/`). Run `npx shadow-cljs watch app`
   during development for hot-reload; `npx shadow-cljs release app` for production.
 - **`package.json`** — npm manifest declaring `shadow-cljs`, `react 18`, and
   `react-dom 18` as devDependencies.
-- **`src/cljseq_ui/core.cljs`** — Reagent control surface:
+- **`src/nous_ui/core.cljs`** — Reagent control surface:
   - Connects to `/ws` on load; reconnects automatically after 3 s if closed.
   - Fetches full ctrl-tree snapshot via `GET /ctrl` on startup.
   - Displays live **ctrl-tree table** (sorted path → value) and a **recent-changes
@@ -248,7 +248,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`resources/public/css/style.css`** — dark monospace theme with flash animation
   on new log entries; native CSS variables, no external framework.
 
-#### Static file serving (`cljseq.server`)
+#### Static file serving (`nous.server`)
 
 - **`GET /`** — serves `resources/public/index.html` from the classpath.
 - **`GET /css/*`** — serves stylesheets with `text/css` content-type.
@@ -268,7 +268,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### WebSocket ctrl-tree broadcast (`cljseq.server`)
+#### WebSocket ctrl-tree broadcast (`nous.server`)
 
 - **http-kit dependency** (`2.8.0`) — replaces `com.sun.net.httpserver`;
   Ring-compatible, WebSocket-native, single JAR. All existing HTTP routes
@@ -280,12 +280,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Inbound writes from browser** — a `/ws` client may send
   `{"path": [...], "value": v}` to write into the ctrl tree via `ctrl/set!`,
   enabling bidirectional control surface semantics.
-- **`watch-global!` / `unwatch-global!`** in `cljseq.ctrl` — register a
+- **`watch-global!` / `unwatch-global!`** in `nous.ctrl` — register a
   callback `(fn [path value])` that fires on every ctrl-tree change regardless
   of path. `start-server!` wires `broadcast-ctrl!` as `::ws-broadcast`; 
-  `stop-server!` removes it. Both functions re-exported from `cljseq.user`.
+  `stop-server!` removes it. Both functions re-exported from `nous.user`.
 
-#### `cljseq.ctrl` global watchers
+#### `nous.ctrl` global watchers
 
 - **`watch-global!`** — register a named global watcher. Distinct from the
   existing per-path `watch!`; re-registering the same key replaces the
@@ -297,7 +297,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **`design-studio-orchestration.md`** — updated to three-host model: Mac Mini
-  (cljseq brain), Ubuntu pair (Bitwig + MixBus), Windows NUC (RME Digiface
+  (nous brain), Ubuntu pair (Bitwig + MixBus), Windows NUC (RME Digiface
   32×32 routing hub, VCVRack, GigPerformer). Confirmed channel map for the
   Digiface ADAT/SPDIF connections and ExpertSleepers Eurorack bridge.
 
@@ -307,7 +307,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### SC process management (`cljseq.sc`)
+#### SC process management (`nous.sc`)
 
 - **`start-sc!`** — launches sclang as a managed subprocess and waits for
   the `/sc-lang-ready` OSC boot gate before calling `connect-sc!`. Stores the
@@ -364,9 +364,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### Process supervisor (`cljseq.supervisor`)
+#### Process supervisor (`nous.supervisor`)
 
-- **`cljseq.supervisor` namespace** — Erlang-style background watchdog that
+- **`nous.supervisor` namespace** — Erlang-style background watchdog that
   monitors registered services (SC server, sidecar, live loop threads), emits
   lifecycle events, optionally auto-restarts failed services, and restores
   last-known state after recovery
@@ -387,7 +387,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   restart=`restart-sidecar!`) wire up the two primary external processes with
   a single call
 - **Watchdog thread** — `start-watchdog!` / `stop-watchdog!` control a named
-  daemon thread (`cljseq-supervisor-watchdog`) that runs health checks and,
+  daemon thread (`nous-supervisor-watchdog`) that runs health checks and,
   optionally, dead loop-thread detection on each tick
 - **BPM-derived scan interval** — when `:interval-ms` is not provided the
   watchdog sleeps one bar's worth of ms at the current BPM, re-derived each
@@ -400,14 +400,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   when a dependency is `:down` the loop sleeps one `:resume-on-bar` period and
   retries, maintaining virtual-time continuity without playing into silence; on
   recovery the loop re-enters at the next beat boundary automatically
-- **29 tests, 34 assertions** in `cljseq.supervisor-test`
+- **29 tests, 34 assertions** in `nous.supervisor-test`
 
 #### Global beats-per-bar (`core/system-state`)
 
 - **`:beats-per-bar` in `core/system-state :config`** — global time-signature
   numerator stored alongside `:bpm`; defaults to `4`
 - **`get-beats-per-bar` / `set-beats-per-bar!`** — accessors exported from
-  `cljseq.user`; `set-beats-per-bar! 3` switches to waltz time globally
+  `nous.user`; `set-beats-per-bar! 3` switches to waltz time globally
 - **`start!` `:beats-per-bar` option** — `(start! :bpm 100 :beats-per-bar 3)`
   sets both clock and meter at boot; pattern for future meter-aware namespaces
 - **`journey/start-bar-counter!` default** — the no-arg arity now reads
@@ -463,9 +463,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### Keyboard input framework (`cljseq.ivk`)
+#### Keyboard input framework (`nous.ivk`)
 
-- **`cljseq.ivk` namespace** — extensible computer-keyboard control surface for
+- **`nous.ivk` namespace** — extensible computer-keyboard control surface for
   live performance; the laptop keyboard becomes a real-time note/harmony input
   device without any additional hardware
 - **Layout registry** — layouts are pure Clojure data maps (`{char action-map}`);
@@ -501,14 +501,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   values or phasor functions for automated sweeps
 - **`render-layout`** — renders any layout as a two-row ASCII keyboard cheatsheet
   (key labels + action labels); works on any registered keyword or inline layout map;
-  exported as `(render-layout :harmonic)` from `cljseq.user`
+  exported as `(render-layout :harmonic)` from `nous.user`
 - **Sidecar integration** — keyboard events arrive as `0x21 KbdEvent` frames from
   the C++ sidecar (macOS `CGEventTap`); `start-kbd!` registers the push handler
   and optionally restarts the sidecar with `--kbd` flag
 
-#### MIDI input (`cljseq.midi-in`)
+#### MIDI input (`nous.midi-in`)
 
-- **`cljseq.midi-in` namespace** — JVM MIDI input via `javax.sound.midi`;
+- **`nous.midi-in` namespace** — JVM MIDI input via `javax.sound.midi`;
   independent of the C++ sidecar; opens any available MIDI input port by index
   or name substring
 - **`open-input!` / `close-input!` / `close-all-inputs!`** — lifecycle for MIDI
@@ -564,14 +564,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### MCP bridge (`cljseq.mcp`)
+#### MCP bridge (`nous.mcp`)
 
-- **`cljseq.mcp` namespace** — MCP (Model Context Protocol) server that exposes
-  the cljseq API as AI-legible compositional tools; runs as a standalone process
+- **`nous.mcp` namespace** — MCP (Model Context Protocol) server that exposes
+  the nous API as AI-legible compositional tools; runs as a standalone process
   communicating over stdio JSON-RPC with any MCP client (Claude Code, etc.)
 - **`lein mcp` alias** — start the MCP server: `lein mcp [--nrepl-host H] [--nrepl-port P]`
 - **`connect-nrepl!` / `disconnect-nrepl!`** — lifecycle for the nREPL connection to
-  a running cljseq session (default: `localhost:7888`)
+  a running nous session (default: `localhost:7888`)
 - **`process-message`** — public single-message entry point (used by tests and
   the main loop)
 - **`run-server!`** — main loop; reads JSON-RPC messages from stdin until EOF
@@ -602,10 +602,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   *Topology (3 tools):*
   - `list-peers` — peer topology registry: all discovered nodes with backends
   - `evaluate-on-peer` — eval on any named node in the topology; proxied through
-    `cljseq.remote/eval-on-peer!` on the primary nREPL
+    `nous.remote/eval-on-peer!` on the primary nREPL
 - **`*eval-fn*` / `*io-fns*` dynamic vars** — test injection for nREPL eval and
   stdin/stdout; no live network required in tests
-- **26 tests, 144 assertions** in `cljseq.mcp-test`
+- **26 tests, 144 assertions** in `nous.mcp-test`
 
 ---
 
@@ -613,14 +613,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### cljseq.composition (renamed from cljseq.midi-repair)
+#### nous.composition (renamed from nous.midi-repair)
 
-- **Namespace renamed** — `cljseq.midi-repair` → `cljseq.composition`; framing changed from
+- **Namespace renamed** — `nous.midi-repair` → `nous.composition`; framing changed from
   "repair" to "composition": capturing a musical idea from hardware, working it as a Clojure
-  value with the full cljseq vocabulary
+  value with the full nous vocabulary
 - **`ingest!` replaces `repair-pipeline!`** — same pipeline, clearer name
 
-#### Leviasynth 8-op FM (`cljseq.fm`)
+#### Leviasynth 8-op FM (`nous.fm`)
 
 - **Per-operator waveforms** — `:waveform` key per op; `:sin`, `:saw`, `:tri`, `:pulse`,
   `:sin-fb` (auto-selects `SinOscFB.ar` with `:feedback` depth)
@@ -642,20 +642,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`unsubscribe-all!`** — clear all subscribers for a path
 - **`subscribers`** — return the subscriber registry snapshot
 - **`ctrl-path->osc-address`** — convert `[:filter/cutoff]` → `"/ctrl/filter%2Fcutoff"` (inverse
-  of the existing `parse-ctrl-path`); exported from `cljseq.user`
+  of the existing `parse-ctrl-path`); exported from `nous.user`
 - **`/sub` wire route** — inbound OSC: `/sub <ctrl-addr> <callback-host> <callback-port>`;
   registers a subscription the same way as `subscribe!`
 - **`/unsub` wire route** — inbound OSC: `/unsub <ctrl-addr> <callback-host> <callback-port>`
 - **`/tree` wire route** — pull-on-demand: `/tree <ctrl-addr>`; server pushes the current value
   back to the packet's sender address; complements HTTP GET `/ctrl/<path>`
 - **`*push-fn*` dynamic var** — injectable for tests; defaults to `osc-send!`
-- All functions exported from `cljseq.user` as `osc-subscribe!`, `osc-unsubscribe!`,
+- All functions exported from `nous.user` as `osc-subscribe!`, `osc-unsubscribe!`,
   `osc-unsubscribe-all!`, `osc-subscribers`, `ctrl-path->osc-address`, plus the existing
   `start-osc-server!`, `stop-osc-server!`, `osc-running?`, `osc-port`, `osc-send!`
 
 #### Configuration Registry (§25)
 
-- **`cljseq.config`** — new namespace: registry of all §25 tunable parameters with
+- **`nous.config`** — new namespace: registry of all §25 tunable parameters with
   defaults, types, docs, and validation functions
 - **`get-config`** / **`set-config!`** / **`all-configs`** / **`all-param-keys`** / **`param-info`** —
   Clojure API for reading and writing config values with validation
@@ -674,7 +674,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`core/start!` resets config and undo stack** — each `start!` call resets `:config`
   to registry defaults (with BPM overridden by the `:bpm` argument) and clears
   `:undo-stack`, ensuring no state leaks between sessions
-- All functions exported from `cljseq.user` as `get-config`, `set-config!`,
+- All functions exported from `nous.user` as `get-config`, `set-config!`,
   `all-configs`, `all-param-keys`, `param-info`
 
 #### Ableton Link Phase 2 — bidirectional BPM sync + transport control
@@ -695,25 +695,25 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`core/start!` clears Link state** — `start!` now dissocs `:link-state` and `:link-timeline`
   so a fresh system session always begins with Link inactive (prevents stale timeline leaking
   into tests)
-- All new functions exported from `cljseq.user` as `link-enable!`, `link-disable!`, `link-bpm`,
+- All new functions exported from `nous.user` as `link-enable!`, `link-disable!`, `link-bpm`,
   `link-peers`, `link-playing?`, `link-active?`, `link-set-bpm!`, `link-start-transport!`,
   `link-stop-transport!`, `link-on-transport-change!`, `link-remove-transport-hook!`,
   `link-transport-hooks`
 
 #### Topology Layer 3 — nREPL remote eval + backend registry
 
-- **`cljseq.bencode`** — minimal hand-rolled bencode encoder/decoder; implements the nREPL
+- **`nous.bencode`** — minimal hand-rolled bencode encoder/decoder; implements the nREPL
   wire protocol without adding nREPL as a dependency (see namespace docstring for rationale)
-- **`cljseq.remote`** — nREPL client: `connect!`, `disconnect!`, `remote-eval!`,
+- **`nous.remote`** — nREPL client: `connect!`, `disconnect!`, `remote-eval!`,
   `eval-on-peer!`, `with-peer` macro; `*open-connection*` dynamic var for test injection
-- **Backend registry in `cljseq.peer`** — `register-backend!`, `deregister-backend!`,
+- **Backend registry in `nous.peer`** — `register-backend!`, `deregister-backend!`,
   `active-backends`, `peer-backends`; beacon now includes `:backends` map so peers see
   what synthesis backends are reachable
 - **`publish-session-profile!`** — pushes a session profile map to `[:session :profile]`
   in the ctrl tree for peer discovery
 - **`connect-sc!` / `disconnect-sc!`** now auto-register / deregister the `:sc` backend
   in the peer backend registry
-- All new public functions exported from `cljseq.user`:
+- All new public functions exported from `nous.user`:
   `connect-peer!`, `disconnect-peer!`, `remote-eval!`, `eval-on-peer!`, `with-peer`,
   `register-backend!`, `deregister-backend!`, `active-backends`, `peer-backends`,
   `publish-session-profile!`
@@ -737,9 +737,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 #### Spectral bridge
 
-- **`bind-spectral!`** — connects `cljseq.spectral` SAM output to any live SC node parameter
-  via `ctrl/watch!`; fires on every SAM tick; returns a cancel fn; available in `cljseq.user`
-- **`unbind-spectral!`** — detaches binding by node id and param key; available in `cljseq.user`
+- **`bind-spectral!`** — connects `nous.spectral` SAM output to any live SC node parameter
+  via `ctrl/watch!`; fires on every SAM tick; returns a cancel fn; available in `nous.user`
+- **`unbind-spectral!`** — detaches binding by node id and param key; available in `nous.user`
 - Spectral keys available: `:spectral/centroid` (Hz brightness), `:spectral/density` (0–1
   busyness), `:spectral/blur` (0–1 spread)
 
@@ -802,7 +802,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`:chaos-ensemble` patch** — two Lorenz voices (s=10 / s=12 for organic attractor divergence)
   + Hénon voice + reverb; all chaos/filter params externally addressable
 
-#### Scale additions (`cljseq.scale`)
+#### Scale additions (`nous.scale`)
 
 - `:pelog` — Balinese pelog (7-note equal-temperament approximation)
 - `:slendro` — Javanese slendro (same intervals as `:yo`, named for gamelan context)
@@ -812,7 +812,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `:persian` — Persian maqam [1 3 1 1 2 3 1]; Dune palette scale, genuinely new interval pattern
 - `:dune` — Double harmonic / Byzantine alias [1 3 1 2 1 3 1]; the "Arrakis sound"
 
-#### Sample player (`cljseq.sample`)
+#### Sample player (`nous.sample`)
 
 - `defbuffer!` / `load-sample!` / `unload-sample!` — SC buffer lifecycle; idempotent by path
 - `sample!` / `loop-sample!` — one-shot and looping playback
@@ -820,10 +820,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `play!` `:sample` dispatch — routes `:sample` step-map key to SC buffer player
 - `:granular-cloud` patch registered at load time (granular voice → reverb bus)
 
-#### Freesound integration (`cljseq.freesound`)
+#### Freesound integration (`nous.freesound`)
 
 - `set-freesound-key!` / `FREESOUND_API_KEY` env var — API authentication
-- `fetch-sample! id kw` — downloads by Freesound ID to `~/.cache/cljseq/samples/`, registers buffer
+- `fetch-sample! id kw` — downloads by Freesound ID to `~/.cache/nous/samples/`, registers buffer
 - `fetch-and-load! id kw` — fetch + SC buffer allocation in one call
 - `sound-info id` — fetch and cache Freesound metadata (JSON)
 - `search-freesound query opts` — text search; returns candidates with license/tag info
@@ -851,7 +851,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `user.clj` — exports `cljseq.freesound` API (`set-freesound-key!`, `fetch-sample!`,
+- `user.clj` — exports `nous.freesound` API (`set-freesound-key!`, `fetch-sample!`,
   `fetch-and-load!`, `freesound-info`, `search-freesound`, `load-essentials!`,
   `load-and-prime-essentials!`, `curate-essentials!`)
 - User manual §25 (Reference) renumbered to §27
@@ -862,8 +862,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### SuperCollider integration (`cljseq.sc`)
-- SC dispatch bridge — `register-sc-dispatch!` in `cljseq.core` allows `sc` to hook
+#### SuperCollider integration (`nous.sc`)
+- SC dispatch bridge — `register-sc-dispatch!` in `nous.core` allows `sc` to hook
   `play!` at load time without a compile-time circular dependency
 - `play!` routes events with `:synth` key to `sc-play-dispatch!` automatically;
   non-SC events are unaffected
@@ -879,7 +879,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `sc-status` — query SC server status map
 - `midi->freq` private helper (440 × 2^((midi−69)/12))
 
-#### Synthesis graph vocabulary (`cljseq.synth`)
+#### Synthesis graph vocabulary (`nous.synth`)
 - `defsynth!` / `get-synth` / `synth-names` — named synthesis graph registry
 - `compile-synth` — compile a graph map to a SynthDef string (`:sc` target)
 - `load-synth-map` — load a synth library from an EDN resource file
@@ -887,12 +887,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `synth-ugens` — extract the set of UGen types used in a graph
 - `transpose-synth` / `scale-amp` / `replace-arg` — composable graph transformers
 
-#### FM synthesis (`cljseq.fm`)
+#### FM synthesis (`nous.fm`)
 - `def-fm!` / `get-fm` / `fm-names` — named FM algorithm registry
 - `fm-algorithm` — declare operator topology (modulation matrix + ratios + indices)
 - `compile-fm` — emit SynthDef SClang string from FM algorithm
 
-#### Physics particle field (`cljseq.spatial-field`)
+#### Physics particle field (`nous.spatial-field`)
 - N-gon geometry — `ngon-walls` builds walls for any N; decimal N (e.g. `4.7`) uses
   angular spacing 2π/N with `ceil(N)` vertices producing asymmetric reflection angles
   and polyrhythmic character
@@ -926,7 +926,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `:instrument-quad` — quad-gains–mapped spatial panning
 
 #### Rosetta Stone (`examples/rosetta_stone.clj`)
-- Side-by-side translation guide: Sonic Pi and Overtone vocabulary → cljseq
+- Side-by-side translation guide: Sonic Pi and Overtone vocabulary → nous
 - 13 sections covering: single notes, tempo/timing, live loops, scales, chords,
   randomization, synth selection, harmony context, FX/device control, analysis,
   pattern sequencing, note transformers, multi-loop ensemble
@@ -935,7 +935,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `core/apply-trajectory!` (2-arity) — new overload drives any setter-fn with a
   trajectory at ~50 ms ticks on a daemon thread; returns a cancel function
-- `cljseq.user/with-dur` and `phrase!` — were incorrectly re-exported as `def`
+- `nous.user/with-dur` and `phrase!` — were incorrectly re-exported as `def`
   (macros cannot be `def`'d); changed to `defmacro` wrappers
 
 ---
@@ -944,17 +944,17 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### ITexture protocol (`cljseq.texture`)
+#### ITexture protocol (`nous.texture`)
 - `ITexture` protocol — `freeze!/thaw!/frozen?/texture-state/texture-set!/texture-fade!`
   unified interface for software and hardware temporal devices
 - Shadow state registry — `shadow-init!/shadow-update!/shadow-get` for write-only hardware
   devices (NightSky, Volante, etc.) that have no readback
-- `TemporalBufferTexture` — ITexture wrapper delegating to `cljseq.temporal-buffer`
+- `TemporalBufferTexture` — ITexture wrapper delegating to `nous.temporal-buffer`
 - `texture-transition!` — multi-device ops map `{device-id {:target params :beats N}}`;
   calls `texture-fade!` when `:beats` is present, `texture-set!` otherwise
 - `deftexture!/get-texture/texture-names` — named texture registry
 
-#### Spectral analysis model (`cljseq.spectral`)
+#### Spectral analysis model (`nous.spectral`)
 - `SpectralState` record implementing ITexture — derives three spectral fields from
   live Temporal Buffer snapshots: `:spectral/density` (distinct pitch classes / 12),
   `:spectral/centroid` (mean MIDI / 127), `:spectral/blur` (0 = live, 1 = frozen)
@@ -966,7 +966,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Ctrl tree publish — `run-sam-tick!` writes `[:spectral :state]` after each cycle
   for peer sharing via the HTTP server
 
-#### Ensemble improvisation agent (`cljseq.ensemble-improv`)
+#### Ensemble improvisation agent (`nous.ensemble-improv`)
 - `start-improv!` / `stop-improv!` — single named live loop (`:improv-agent`) driven
   entirely by an atom; profile and routing changes take effect without restart
 - `default-profile` — `:step-beats`, `:gate`, `:dur-beats`, `:velocity`, `:vel-variance`,
@@ -979,7 +979,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `improv-gesture-fn` — returns an `:on-start`-compatible `(fn [])` for conductor sections;
   merges profile, updates routing, fires an immediate texture transition at the boundary
 
-#### Peer discovery and ctrl-tree mounting (`cljseq.peer`)
+#### Peer discovery and ctrl-tree mounting (`nous.peer`)
 - UDP multicast beacon — group `239.255.43.99:7743`; 5 s interval; EDN payload with
   node-id, role, http-port, version, timestamp-ms; daemon sender thread
 - Discovery listener — `MulticastSocket` joined to the group; 1 s SO_TIMEOUT so
@@ -993,10 +993,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `ctx->serial` / `serial->scale` — lossless round-trip between ImprovisationContext
   (containing Scale/Pitch records) and a JSON-safe primitive map
 - `*http-get*` dynamic var — injectable for unit tests; no live network required
-- `cljseq.ensemble` — `run-ear-tick!` now publishes `[:ensemble :harmony-ctx]` to the
+- `nous.ensemble` — `run-ear-tick!` now publishes `[:ensemble :harmony-ctx]` to the
   ctrl tree after each analysis cycle (try-wrapped; ctrl not starting does not break tests)
 
-#### Note transformers (`cljseq.transform`)
+#### Note transformers (`nous.transform`)
 - `ITransformer` protocol — `(transform [xf event] → seq of {:event map :delay-beats num})`
 - `play-transformed!` — plays immediate events via `core/play!`; daemon threads for
   delayed events (beats→ms via current BPM)
@@ -1022,7 +1022,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### Ensemble harmony groundwork (`cljseq.ensemble`)
+#### Ensemble harmony groundwork (`nous.ensemble`)
 - `analyze-buffer` — pure fn: Temporal Buffer snapshot → ImprovisationContext map
   (`{:harmony/key Scale :harmony/tension float :harmony/chord map
      :ensemble/register kw :ensemble/density float …}`)
@@ -1030,12 +1030,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`:harmony-ear`) that continuously updates `*harmony-ctx*` from a named buffer;
   supports `:cadence`, `:key-scale` pin, `:transform` fn, `:on-ctx` callback
 
-#### Topology Layer 1 (`cljseq.topology`)
+#### Topology Layer 1 (`nous.topology`)
 - Logical MIDI device aliases — `defdevice-alias!`, `resolve-alias`, `device-aliases`
 - Port-pattern resolution — substring match at sidecar startup; works with `start-sidecar!`
 - `doc/topology-example.edn` — annotated 3-host studio topology configuration
 
-#### Threshold extractor (`cljseq.extractor`)
+#### Threshold extractor (`nous.extractor`)
 - `IThresholdExtractor` protocol — Schmitt trigger hysteresis; configurable high/low bands
 - `defextractor!` / `get-extractor` / `extractor-names` — named registry
 - `watch-ctrl!` — watches a ctrl tree path; fires callbacks on threshold crossings
@@ -1047,7 +1047,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-#### Temporal Buffer (`cljseq.temporal-buffer`) — Phases 1–5
+#### Temporal Buffer (`nous.temporal-buffer`) — Phases 1–5
 - Named, zoned ring buffers for live event capture; Mimeophon/Cosmos-inspired design
 - Phase 1 — core buffer and zones: `deftemporal-buffer!`, `temporal-buffer-push!`,
   `temporal-buffer-snapshot`, `temporal-buffer-info`, zone configuration
@@ -1107,7 +1107,7 @@ Linux (Ubuntu Studio, Fedora) and device CC map verification are targeted for 0.
 - `sync!` — align to the next beat-grid boundary before proceeding
 
 #### Real-time MIDI sidecar
-- Native C++ sidecar process (`cljseq-sidecar`) — priority-queue scheduler delivers
+- Native C++ sidecar process (`nous-sidecar`) — priority-queue scheduler delivers
   notes at wall-clock time, independent of JVM GC
 - Full MIDI output: NoteOn/Off, CC, pitch bend, channel pressure, program change
 - SysEx output: `send-sysex!` with F0/F7 framing validation; `send-mts!` for MTS
@@ -1133,7 +1133,7 @@ Linux (Ubuntu Studio, Fedora) and device CC map verification are targeted for 0.
   `play!` snaps pitches to the active scale
 
 #### Microtonal tuning
-- `cljseq.scala` — parse `.scl` and `.kbm` (Scala) files; full library compatible
+- `nous.scala` — parse `.scl` and `.kbm` (Scala) files; full library compatible
 - `*tuning-ctx*` — per-loop tuning context; `play!` auto-translates MIDI note numbers
   to nearest scale degree + pitch-bend offset
 - `scale->mts-bytes` — generate standards-compliant MTS Bulk Dump SysEx
@@ -1146,7 +1146,7 @@ Linux (Ubuntu Studio, Fedora) and device CC map verification are targeted for 0.
 - `send-pitch-bend!` / `send-channel-pressure!` — direct per-channel expression sends
 
 #### Ableton Link
-- `cljseq.link` — join / leave Link sessions; `link/enable!`, `link/bpm`,
+- `nous.link` — join / leave Link sessions; `link/enable!`, `link/bpm`,
   `link/peers`, `link/set-bpm!`, `link/disable!`
 - All loops phase-quantize to the bar boundary on Link-enabled sessions
 - MIDI clock output derived from Link timeline (zero drift)
@@ -1175,39 +1175,39 @@ Linux (Ubuntu Studio, Fedora) and device CC map verification are targeted for 0.
 - `with-dur` / `set-default-dur!` — scoped and global default duration
 
 #### Generative
-- `cljseq.stochastic` — `make-stochastic-context`, `next-x!`, `stochastic-rhythm`
+- `nous.stochastic` — `make-stochastic-context`, `next-x!`, `stochastic-rhythm`
   (Euclidean rhythms); Markov-chain note generation
-- `cljseq.fractal` — `make-fractal-context`, `next-step!`; branch tree with
+- `nous.fractal` — `make-fractal-context`, `next-step!`; branch tree with
   `:reverse`, `:inverse`, `:transpose`, `:mutate`, `:randomize` transforms
-- `cljseq.random` — `weighted-scale` — scale-biased random pitch selection
-- `cljseq.flux` — evolving parameter sequences; `freeze!` / `thaw!` read head
-- `cljseq.trajectory` — smooth automation curves: `:linear`, `:breathe`,
+- `nous.random` — `weighted-scale` — scale-biased random pitch selection
+- `nous.flux` — evolving parameter sequences; `freeze!` / `thaw!` read head
+- `nous.trajectory` — smooth automation curves: `:linear`, `:breathe`,
   `:smooth-step`, `:bounce`; named gestures: `buildup`, `trance-buildup`,
   `breakdown`, `anticipation`, `groove-lock`, `swell`, `tension-peak`
-- `cljseq.conductor` — `defconductor!`, `fire!`, `cue!`, `abort!`; section-based
+- `nous.conductor` — `defconductor!`, `fire!`, `cue!`, `abort!`; section-based
   compositional arc with per-section `:gesture`, `:repeat`, `:when`, `:on-transition`
 
 #### Control tree
-- `cljseq.ctrl` — hierarchical parameter store: `set!`, `send!`, `get`,
+- `nous.ctrl` — hierarchical parameter store: `set!`, `send!`, `get`,
   `defnode!`, `bind!`, `unbind!`
 - MIDI CC and NRPN binding: `ctrl/bind!` with `{:type :midi-cc ...}` /
   `{:type :midi-nrpn ...}`; 14-bit NRPN with full CC99/98/6/38 wire encoding
 - `checkpoint!` / `panic!` / `undo!` — snapshot and revert
 
 #### Bach corpus (Music21)
-- `cljseq.m21` — load and play Bach chorales from the Music21 corpus;
+- `nous.m21` — load and play Bach chorales from the Music21 corpus;
   chordified or SATB per-voice on separate MIDI channels
 - Persistent Python server with two-level cache (memory + disk at
-  `~/.local/share/cljseq/corpora/m21/`)
+  `~/.local/share/nous/corpora/m21/`)
 - `list-chorales`, `play-chorale!`, `play-chorale-parts!`, `load-chorale`,
   `stop-server!`
 
 #### Mod routing and arc automation
-- `cljseq.mod` — `mod-route!` / `mod-unroute!`; LFO-to-ctrl-path automation
-- `cljseq.arc` — `arc-bind!`, `arc-send!`; trajectory-to-ctrl-path wiring
+- `nous.mod` — `mod-route!` / `mod-unroute!`; LFO-to-ctrl-path automation
+- `nous.arc` — `arc-bind!`, `arc-send!`; trajectory-to-ctrl-path wiring
 
 #### Ardour DAW integration
-- `cljseq.ardour` — transport control (play/stop/record/goto-start), marker
+- `nous.ardour` — transport control (play/stop/record/goto-start), marker
   insertion, session save, capture lifecycle
 
 #### Infrastructure
@@ -1215,8 +1215,8 @@ Linux (Ubuntu Studio, Fedora) and device CC map verification are targeted for 0.
   no manual dependency installation on macOS
 - REUSE-compliant SPDX headers on all 112 source files; `LICENSES/` directory
   with EPL-2.0, LGPL-2.1, GPL-2.0 canonical texts
-- `cljseq.user` — single REPL convenience namespace;
-  `(require '[cljseq.user :refer :all])` gives the complete public API
+- `nous.user` — single REPL convenience namespace;
+  `(require '[nous.user :refer :all])` gives the complete public API
 
 ### Known limitations (targeted for 0.1.1)
 - Tested on macOS only; Linux (Ubuntu Studio, Fedora) build verification pending
@@ -1234,21 +1234,21 @@ Linux (Ubuntu Studio, Fedora) and device CC map verification are targeted for 0.
 
 ---
 
-[Unreleased]: https://github.com/rodgert/cljseq/compare/v0.16.0...HEAD
-[0.16.0]: https://github.com/rodgert/cljseq/compare/v0.15.0...v0.16.0
-[0.15.0]: https://github.com/rodgert/cljseq/compare/v0.14.0...v0.15.0
-[0.14.0]: https://github.com/rodgert/cljseq/compare/v0.13.0...v0.14.0
-[0.13.0]: https://github.com/rodgert/cljseq/compare/v0.12.0...v0.13.0
-[0.12.0]: https://github.com/rodgert/cljseq/compare/v0.11.0...v0.12.0
-[0.11.0]: https://github.com/rodgert/cljseq/compare/v0.10.0...v0.11.0
-[0.10.0]: https://github.com/rodgert/cljseq/compare/v0.9.1...v0.10.0
-[0.9.1]: https://github.com/rodgert/cljseq/compare/v0.9.0...v0.9.1
-[0.9.0]: https://github.com/rodgert/cljseq/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/rodgert/cljseq/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/rodgert/cljseq/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/rodgert/cljseq/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/rodgert/cljseq/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/rodgert/cljseq/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/rodgert/cljseq/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/rodgert/cljseq/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/rodgert/cljseq/releases/tag/v0.1.0
+[Unreleased]: https://github.com/rodgert/nous/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/rodgert/nous/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/rodgert/nous/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/rodgert/nous/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/rodgert/nous/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/rodgert/nous/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/rodgert/nous/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/rodgert/nous/compare/v0.9.1...v0.10.0
+[0.9.1]: https://github.com/rodgert/nous/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/rodgert/nous/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/rodgert/nous/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/rodgert/nous/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/rodgert/nous/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/rodgert/nous/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/rodgert/nous/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/rodgert/nous/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/rodgert/nous/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/rodgert/nous/releases/tag/v0.1.0

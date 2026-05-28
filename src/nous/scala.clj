@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.scala
+(ns nous.scala
   "Microtonal scale support via the Scala (.scl) file format.
 
   The Scala format (.scl) is a standard for describing microtonal and
@@ -19,7 +19,7 @@
     (scala/degree->cents ms 7)  ; cents above root for scale degree 7
     (scala/all-degrees ms)      ; all degrees as cents vector
 
-  ## Playing microtonal notes with cljseq
+  ## Playing microtonal notes with nous
 
   `degree->step` returns a step map with :pitch/midi and :pitch/bend-cents
   suitable for passing directly to `play!`:
@@ -68,7 +68,7 @@
   ## MTS Bulk Dump (MIDI Tuning Standard)
 
   `scale->mts-bytes` generates a 408-byte MTS Bulk Dump SysEx message that
-  retunes all 128 MIDI keys simultaneously. Send it via `cljseq.sidecar/send-mts!`
+  retunes all 128 MIDI keys simultaneously. Send it via `nous.sidecar/send-mts!`
   to retune any MTS-capable synth (including the Hydrasynth Explorer).
 
     (def ms  (scala/load-scl \"31edo.scl\"))
@@ -85,7 +85,7 @@
   that don't fit the 12-semitone grid."
   (:require [clojure.java.io :as io]
             [clojure.string  :as str]
-            [cljseq.dirs     :as dirs]))
+            [nous.dirs     :as dirs]))
 
 ;; ---------------------------------------------------------------------------
 ;; MicrotonalScale record

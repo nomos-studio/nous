@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.random-test
-  "Unit tests for cljseq.random — distribution primitives and weighted scales."
+(ns nous.random-test
+  "Unit tests for nous.random — distribution primitives and weighted scales."
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.random :as random]
-            [cljseq.scale  :as scale]))
+            [nous.random :as random]
+            [nous.scale  :as scale]))
 
 ;; ---------------------------------------------------------------------------
 ;; rand-gaussian — statistical sanity

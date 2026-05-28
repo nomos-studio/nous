@@ -1,9 +1,9 @@
-# cljseq Memory Field — Design Document
+# nous Memory Field — Design Document
 
 **Status:** Superseded — see `design-temporal-buffer.md`
 **Author:** Thomas Rodgers  
 **Date:** 2026-04-07  
-**Branch:** TBD — Memory Field is now a named preset of `cljseq.temporal-buffer`
+**Branch:** TBD — Memory Field is now a named preset of `nous.temporal-buffer`
 
 > **Note:** The Memory Field concept is fully preserved and extended in
 > `design-temporal-buffer.md` (2026-04-07). The Cosmos preset in that document
@@ -13,7 +13,7 @@
 
 ## 1. Motivation
 
-Every sequencer in cljseq is a *generator* — it produces note events from patterns,
+Every sequencer in nous is a *generator* — it produces note events from patterns,
 algorithms, or stochastic processes. The Memory Field introduces a second paradigm:
 the *temporal transformer*. It takes note events as input, stores them in a living
 buffer, and emits a drifted, smeared, decaying version of that material through one
@@ -24,10 +24,10 @@ device that achieves a similar effect in the audio domain — and by Mutable Ins
 Clouds / VCVRack Texture Synthesizer patches that approximate it in Eurorack. The
 Memory Field is the note-event analog: structurally equivalent, but operating on
 discrete MIDI events rather than audio samples. This gives it properties audio cannot
-offer: harmonic awareness, scale-degree gravity, and full integration with cljseq's
+offer: harmonic awareness, scale-degree gravity, and full integration with nous's
 music theory and tuning infrastructure.
 
-The closest existing cljseq primitive is `cljseq.flux` — a buffer with a single
+The closest existing nous primitive is `nous.flux` — a buffer with a single
 read cursor. Flux is a degenerate Memory Field. The goal is to generalize the
 abstraction so that Flux, loopers, tape-echo patterns, and the full Cosmos-style
 drifting memory are all instances of one concept.
@@ -184,7 +184,7 @@ output_cents   = drifted_cents + gravity_pull
 
 ### 4.2 Tuning and Non-Equal-Temperament
 
-Scale-gravity is where the Memory Field connects directly to cljseq's tuning
+Scale-gravity is where the Memory Field connects directly to nous's tuning
 infrastructure. Gravity wells sit at scale degree positions — which in non-ET
 tunings are *not* at 12-TET semitone positions.
 
@@ -432,9 +432,9 @@ by the hardware equivalents:
 | Audio | Soma Cosmos | No | No | No |
 | Audio/CV | VCVRack Clouds patch | Yes (CV) | No | No |
 | Eurorack | MakeNoise ReSynthesizer | Yes (CV) | No | No |
-| Note-event | cljseq Memory Field | Yes (memory-set!) | Yes | Yes |
+| Note-event | nous Memory Field | Yes (memory-set!) | Yes | Yes |
 
-All four layers can coexist. cljseq generates note material → Memory Field
+All four layers can coexist. nous generates note material → Memory Field
 transforms it → output drives Cascadia → CV feeds Eurorack → audio goes
 through VCVRack/Cosmos.
 
@@ -473,8 +473,8 @@ smarter.
    Dynamic is more flexible — tuning changes during a piece affect gravity.
    *Proposed: dynamic; read `*tuning-ctx*` at event-fire time.*
 
-6. **Flux migration**: Does `cljseq.flux` remain a separate namespace
-   (backwards compatibility) or become a thin wrapper over `cljseq.memory`?
+6. **Flux migration**: Does `nous.flux` remain a separate namespace
+   (backwards compatibility) or become a thin wrapper over `nous.memory`?
    *Proposed: keep flux as a separate namespace, implement it as a preset
    internally, expose the same public API. No breaking change.*
 
@@ -483,7 +483,7 @@ smarter.
 ## 11. Implementation Phases
 
 ### Phase 1 — Core (Flux generalization)
-- `cljseq.memory` namespace
+- `nous.memory` namespace
 - Buffer data structure (beat-timestamped event store)
 - Single read cursor, no drift, no decay (Flux parity)
 - `defmemory-field`, `memory-send!`, `memory-info`, `memory-clear!`
@@ -498,7 +498,7 @@ smarter.
 
 ### Phase 3 — Scale Gravity
 - `:scale-gravity` pitch mode
-- Integration with `*tuning-ctx*` and `cljseq.scala`
+- Integration with `*tuning-ctx*` and `nous.scala`
 - Tests: gravity pull toward JI degrees, maqam neutral intervals
 
 ### Phase 4 — Decay and Feedback
@@ -524,7 +524,7 @@ smarter.
 - **Omri Cohen VCVRack patch** — concrete Clouds-based approximation of Cosmos
   behavior; the VCVRack implementation in the studio's Windows host
 - **MakeNoise ReSynthesizer** — Eurorack approximation in Case 1
-- **cljseq.flux** — existing single-cursor buffer; the direct predecessor
-- **cljseq.scala / *tuning-ctx*** — tuning infrastructure that scale-gravity extends
-- **cljseq.trajectory** — provides the curve functions that will drive `memory-set!`
+- **nous.flux** — existing single-cursor buffer; the direct predecessor
+- **nous.scala / *tuning-ctx*** — tuning infrastructure that scale-gravity extends
+- **nous.trajectory** — provides the curve functions that will drive `memory-set!`
   parameters in composition arcs

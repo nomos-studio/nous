@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.analyze-test
-  "Unit tests for cljseq.analyze — key detection, chord identification,
+(ns nous.analyze-test
+  "Unit tests for nous.analyze — key detection, chord identification,
   Roman numeral analysis, and scale fitness."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.analyze :as analyze]
-            [cljseq.chord   :as chord-ns]
-            [cljseq.pitch   :as pitch]
-            [cljseq.scale   :as scale-ns]))
+            [nous.analyze :as analyze]
+            [nous.chord   :as chord-ns]
+            [nous.pitch   :as pitch]
+            [nous.scale   :as scale-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers

@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.terrain
-  "cljseq terrain sequencer — 3D fractal sequence space.
+(ns nous.terrain
+  "nous terrain sequencer — 3D fractal sequence space.
 
-  Lifts the cljseq.fractal 2D chain into 3D by giving each node N children
+  Lifts the nous.fractal 2D chain into 3D by giving each node N children
   (one per transform). The space is addressed by three continuous phasors:
 
     X ∈ [0,1) — position within the sequence (step index = floor(X × trunk-len))
@@ -39,12 +39,12 @@
     (deflive-loop :depth {}
       (run-step! (make-terrain-seq seabed)))
 
-  Attribution: the terrain sequencer concept is original to cljseq.
+  Attribution: the terrain sequencer concept is original to nous.
   See doc/design/design-seed-terrain.md."
-  (:require [cljseq.ctrl    :as ctrl]
-            [cljseq.fractal :as frac]
-            [cljseq.phasor  :as phasor]
-            [cljseq.seq     :as sq]))
+  (:require [nous.ctrl    :as ctrl]
+            [nous.fractal :as frac]
+            [nomos.maths.phasor  :as phasor]
+            [nous.seq     :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry
@@ -278,7 +278,7 @@
   Options:
     :vel — default velocity 0–127 (default 100)
 
-  Returns a TerrainSeq. Use with run-step! from cljseq.seq.
+  Returns a TerrainSeq. Use with run-step! from nous.seq.
   seq-cycle-length returns nil (infinite, continuously varying)."
   [ctx-atom & {:keys [vel] :or {vel 100}}]
   (->TerrainSeq ctx-atom (long vel)))

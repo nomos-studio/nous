@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.rhythm-test
-  "Tests for cljseq.rhythm — Euclidean rhythms and utilities."
+(ns nous.rhythm-test
+  "Tests for nous.rhythm — Euclidean rhythms and utilities."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.rhythm :as r]))
+            [nous.rhythm :as r]))
 
 ;; ---------------------------------------------------------------------------
 ;; euclidean — canonical patterns

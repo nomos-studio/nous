@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.mpe
+(ns nous.mpe
   "MPE (MIDI Polyphonic Expression) voice allocator and per-note dispatch.
 
   Implements the MPE lower zone protocol:
@@ -31,8 +31,8 @@
     0x04 MSG-PITCH-BEND   — [int64 ns][ch][lsb][msb][0]
     0x05 MSG-CHAN-PRESSURE — [int64 ns][ch][0][pressure][0]
   C++ sidecar handling for 0x04/0x05 is tracked in doc/handoff-sprint23-cpp.md."
-  (:require [cljseq.clock   :as clock]
-            [cljseq.sidecar :as sidecar]))
+  (:require [nous.clock   :as clock]
+            [nous.sidecar :as sidecar]))
 
 ;; ---------------------------------------------------------------------------
 ;; Configuration

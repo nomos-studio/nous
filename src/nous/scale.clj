@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.scale
+(ns nous.scale
   "Scale as a rich value type (§4.3).
 
   A Scale pairs a root Pitch with an interval sequence that defines its
@@ -25,8 +25,8 @@
 
   Key design decisions: R&R §4.3."
   (:require [clojure.string  :as str]
-            [cljseq.pitch    :as pitch]
-            [cljseq.interval :as iv]))
+            [nous.pitch    :as pitch]
+            [nous.interval :as iv]))
 
 ;; ---------------------------------------------------------------------------
 ;; IScale protocol
@@ -226,7 +226,7 @@
   "Return a Scale record for `scale-name` at root C4.
 
   The record's :intervals field matches the :intervals key in the legacy
-  weighted-scale maps used by cljseq.random, so existing (:intervals s) calls
+  weighted-scale maps used by nous.random, so existing (:intervals s) calls
   continue to work without modification."
   [scale-name]
   (when-let [intervals (get scale-library scale-name)]

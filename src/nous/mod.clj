@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.mod
-  "cljseq modulation subsystem — LFOs, envelopes, and one-shot signals.
+(ns nous.mod
+  "nous modulation subsystem — LFOs, envelopes, and one-shot signals.
 
   All modulators are `ITemporalValue` instances produced by composing a
-  `Phasor` with a shape function from `cljseq.phasor`.
+  `Phasor` with a shape function from `nomos.maths.phasor`.
 
   ## LFO
     (lfo (->Phasor 1/16 0) phasor/sine-uni)    ; slow sine, unipolar [0,1]
@@ -29,20 +29,20 @@
   When a one-shot's `next-edge` returns ##Inf the runner auto-stops.
 
   Key design decisions: R&R §28.7, Q30 (LFO rate — empirical during impl)."
-  (:require [cljseq.clock  :as clock]
-            [cljseq.ctrl   :as ctrl]
-            [cljseq.loop   :as loop-ns]
-            [cljseq.phasor :as phasor])
+  (:require [nous.clock  :as clock]
+            [nous.ctrl   :as ctrl]
+            [nous.loop   :as loop-ns]
+            [nomos.maths.phasor :as phasor])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
-;; System state reference (injected by cljseq.core/start!)
+;; System state reference (injected by nous.core/start!)
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private system-ref (atom nil))
 
 (defn -register-system!
-  "Called by cljseq.core/start! to inject the system-state atom.
+  "Called by nous.core/start! to inject the system-state atom.
   Not part of the public API."
   [state-atom]
   (reset! system-ref state-atom))
@@ -74,8 +74,8 @@
 (defn lfo
   "Construct an LFO from a Phasor and a shape function.
 
-  `ph`       — a Phasor (from cljseq.clock) controlling rate and phase offset
-  `shape-fn` — a function [0.0, 1.0) -> number (from cljseq.phasor or user-defined)
+  `ph`       — a Phasor (from nous.clock) controlling rate and phase offset
+  `shape-fn` — a function [0.0, 1.0) -> number (from nomos.maths.phasor or user-defined)
 
   The same Phasor instance can drive multiple LFOs; they will be phase-locked.
 
@@ -213,7 +213,7 @@
       (let [t (Thread.
                (fn [] (runner-loop path running?)))]
         (.setDaemon t true)
-        (.setName t (str "cljseq-mod-" (clojure.string/join "/" (map name path))))
+        (.setName t (str "nous-mod-" (clojure.string/join "/" (map name path))))
         (swap! routes assoc-in [path :thread] t)
         (.start t))))
   path)
@@ -232,7 +232,7 @@
   nil)
 
 (defn mod-unroute-all!
-  "Stop all active mod runners. Called by cljseq.core/stop!."
+  "Stop all active mod runners. Called by nous.core/stop!."
   []
   (doseq [path (keys @routes)]
     (mod-unroute! path))

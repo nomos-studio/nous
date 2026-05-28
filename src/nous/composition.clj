@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.composition
-  "Composition pipeline — capture an idea, work it with the full cljseq vocabulary.
+(ns nous.composition
+  "Composition pipeline — capture an idea, work it with the full nous vocabulary.
 
   The entry point is a recorded MIDI idea (from hardware like the TheoryBoard or
   NDLR), but the namespace is not about fixing recordings — it is about treating
   a musical idea as a Clojure value that can be analyzed, transformed, serialised,
-  and fed into live loops with all of cljseq's synthesis vocabulary and generative
+  and fed into live loops with all of nous's synthesis vocabulary and generative
   tooling.
 
   The ingestion pipeline handles the TheoryBoard + NDLR user story: a single-
@@ -18,7 +18,7 @@
   then operates on the score as a plain Clojure map — no special query language.
 
   ## Quick start
-    (require '[cljseq.composition :as comp])
+    (require '[nous.composition :as comp])
 
     ;; Full pipeline — returns the score map
     (def score (comp/ingest! \"recording.mid\" {:structure :ndlr}))
@@ -38,12 +38,12 @@
 
     ;; Save the score as EDN
     (spit \"shipwreck-piano.edn\" (pr-str score))"
-  (:require [cljseq.analyze   :as analyze]
-            [cljseq.scale     :as scale]
-            [cljseq.pitch     :as pitch]
-            [cljseq.m21       :as m21]
-            [cljseq.loop      :as loop-ns]
-            [cljseq.sidecar   :as sidecar]
+  (:require [nous.analyze   :as analyze]
+            [nous.scale     :as scale]
+            [nous.pitch     :as pitch]
+            [nous.m21       :as m21]
+            [nous.loop      :as loop-ns]
+            [nous.sidecar   :as sidecar]
             [clojure.edn      :as edn]
             [clojure.string   :as str]))
 
@@ -82,7 +82,7 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private mode->scale-name
-  "Map from detect-mode output names to cljseq scale library names.
+  "Map from detect-mode output names to nous scale library names.
   detect-mode returns church mode names; the scale library uses :major and
   :natural-minor for the diatonic endpoints."
   {:ionian     :major
@@ -104,7 +104,7 @@
      :mode         :dorian
      :confidence   0.84
      :ks-score     0.91
-     :scale        #Scale{...}   ; cljseq Scale record, ready for use
+     :scale        #Scale{...}   ; nous Scale record, ready for use
      :alternatives [{:mode :aeolian :modal-score 0.38} ...]}"
   [notes-or-parsed]
   (let [midi-ints (if (map? notes-or-parsed)
@@ -623,7 +623,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn play-score!
-  "Play back a composition score via cljseq live loops.
+  "Play back a composition score via nous live loops.
 
   Starts one live loop per voice. Plays the original voices followed by
   the resolution passage.
@@ -685,7 +685,7 @@
 
 (defn- add-note-events!
   "Emit NOTE_ON + NOTE_OFF pair onto `track` at the given tick positions.
-  `ch` is 1-based (as used throughout cljseq); MIDI API is 0-based."
+  `ch` is 1-based (as used throughout nous); MIDI API is 0-based."
   [^javax.sound.midi.Track track ch midi vel start-tick dur-ticks]
   (let [ch0     (dec (int ch))
         on-msg  (doto (javax.sound.midi.ShortMessage.)
@@ -856,7 +856,7 @@
 ;; --- Public API -------------------------------------------------------------
 
 (defn to-score
-  "Normalise an ingest! output map to a canonical EDN-serializable cljseq score.
+  "Normalise an ingest! output map to a canonical EDN-serializable nous score.
 
   The score is the composition as a Clojure value: simultaneously the analysis
   and the artefact. Standard Clojure operates on it directly — no special API,

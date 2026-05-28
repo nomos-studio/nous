@@ -17,7 +17,7 @@
 ;;   Load this file into a REPL in the explore/kosmische worktree.
 ;;   Evaluate sections top-to-bottom. Comments mark what to listen for.
 ;;
-;;   lein repl  (from ~/Documents/org/areas/cljseq/worktrees/cljseq/explore-kosmische)
+;;   lein repl  (from ~/Documents/org/areas/nous/worktrees/nous/explore-kosmische)
 ;;
 ;; AUDIO PATHS:
 ;;
@@ -71,7 +71,7 @@
                       :out clojure.string/trim
                       (clojure.java.io/file "..")
                       .getCanonicalPath)]
-    (str main-root "/build/cpp/cljseq-sidecar/cljseq-sidecar")))
+    (str main-root "/build/cpp/nous-sidecar/nous-sidecar")))
 
 ;; IAC Driver Bus 2 = port index 1 (use (list-midi-ports) to verify).
 ;; Voice A on MIDI Ch 1, Voice B on Ch 2, Voice C on Ch 3.

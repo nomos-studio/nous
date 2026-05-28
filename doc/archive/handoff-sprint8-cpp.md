@@ -1,31 +1,31 @@
-# cljseq Sprint 8 — C++ Native Handoff for GitHub Copilot
+# nous Sprint 8 — C++ Native Handoff for GitHub Copilot
 
 **Date**: 2026-03-31
 **Prepared by**: Claude (Anthropic) for GitHub Copilot handoff
-**Scope**: CMake build, `libcljseq-rt`, `cljseq-sidecar` — Phase 1 MIDI output
+**Scope**: CMake build, `libnous-rt`, `nous-sidecar` — Phase 1 MIDI output
 
 ---
 
-## What cljseq is
+## What nous is
 
-cljseq is a music-theory-aware Clojure sequencer targeting MIDI and OSC, designed
+nous is a music-theory-aware Clojure sequencer targeting MIDI and OSC, designed
 for live coding at an nREPL. The JVM process is the user-facing layer (DSL, live
-loops, control tree). A companion C++ sidecar process (`cljseq-sidecar`) handles
-real-time MIDI hardware output. A second C++ binary (`cljseq-audio`) handles CLAP
+loops, control tree). A companion C++ sidecar process (`nous-sidecar`) handles
+real-time MIDI hardware output. A second C++ binary (`nous-audio`) handles CLAP
 plugin hosting — that is out of scope for Sprint 8.
 
 ```
 ┌─────────────────────────────────────────┐
 │  JVM (Clojure)                          │
-│  cljseq.core / cljseq.loop / cljseq.dsl │
+│  nous.core / nous.loop / nous.dsl │
 │  deflive-loop, play!, ctrl/send!        │
 │                    │                    │
-│          cljseq.sidecar (Clojure ns)    │
+│          nous.sidecar (Clojure ns)    │
 │          spawns + monitors processes    │
 └────────────────────┬────────────────────┘
                      │  TCP localhost IPC
           ┌──────────▼──────────┐
-          │  cljseq-sidecar     │
+          │  nous-sidecar     │
           │  (C++ executable)   │
           │  ipc.cpp            │
           │  midi_dispatch.cpp  │
@@ -40,19 +40,19 @@ plugin hosting — that is out of scope for Sprint 8.
 ```
 CMakeLists.txt                        Root build — Asio FetchContent, options
 cpp/
-  libcljseq-rt/
-    CMakeLists.txt                    Shared library target (cljseq-rt)
-    include/cljseq/temporal.h         C++ mirror of ITemporalValue — NEEDS UPDATE
+  libnous-rt/
+    CMakeLists.txt                    Shared library target (nous-rt)
+    include/nous/temporal.h         C++ mirror of ITemporalValue — NEEDS UPDATE
     src/clock.cpp                     Stub
     src/scheduler.cpp                 Stub
     src/osc.cpp                       Stub
-  cljseq-sidecar/
+  nous-sidecar/
     CMakeLists.txt                    Executable target
     src/main.cpp                      Stub (int main() { return 0; })
     src/ipc.cpp                       Stub
     src/midi_dispatch.cpp             Stub
     src/osc_dispatch.cpp              Stub
-  cljseq-audio/
+  nous-audio/
     CMakeLists.txt                    (Out of scope for Sprint 8)
     src/main.cpp                      Stub
     src/audio_io.cpp                  Stub
@@ -82,7 +82,7 @@ doc/
 
 ### Process topology (Q16 — RESOLVED)
 - The JVM talks **directly** to each sidecar/audio process. There is no router.
-- `cljseq.sidecar` (Clojure namespace) is responsible for spawning, monitoring,
+- `nous.sidecar` (Clojure namespace) is responsible for spawning, monitoring,
   and restarting child processes.
 - Event routing (which note goes to which process) is decided in the JVM.
 
@@ -136,11 +136,11 @@ struct Beat {
 };
 ```
 
-**b) Phasor operations** as `constexpr` free functions in `namespace cljseq::phasor`
-(mirrors `cljseq.phasor` Clojure namespace — R&R §28.3):
+**b) Phasor operations** as `constexpr` free functions in `namespace nous::phasor`
+(mirrors `nous.phasor` Clojure namespace — R&R §28.3):
 
 ```cpp
-namespace cljseq::phasor {
+namespace nous::phasor {
     constexpr double wrap(double x) noexcept;
     constexpr double fold(double p) noexcept;
     constexpr double scale(double p, double lo, double hi) noexcept;
@@ -170,10 +170,10 @@ inline Phasor clock_mul(double n)        { return {n, 0.0}; }
 inline Phasor clock_shift(double n, double offset) { return {1.0 / n, offset}; }
 ```
 
-**d) Shape functions** in `namespace cljseq::phasor` (mirrors Clojure shape fns):
+**d) Shape functions** in `namespace nous::phasor` (mirrors Clojure shape fns):
 
 ```cpp
-namespace cljseq::phasor {
+namespace nous::phasor {
     double sine_uni(double p) noexcept;
     double sine_bi(double p) noexcept;
     double triangle(double p) noexcept;   // = fold(p)
@@ -259,7 +259,7 @@ set(RTMIDI_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(rtmidi)
 ```
 
-Then in `cljseq-sidecar/CMakeLists.txt`, add `rtmidi` to `target_link_libraries`.
+Then in `nous-sidecar/CMakeLists.txt`, add `rtmidi` to `target_link_libraries`.
 
 **What `midi_dispatch.cpp` must implement for Phase 1:**
 
@@ -287,7 +287,7 @@ Phase 2 will add named port selection via `defdevice` EDN maps.
 
 ---
 
-### 4. Scheduler stub (`scheduler.cpp` in `libcljseq-rt`)
+### 4. Scheduler stub (`scheduler.cpp` in `libnous-rt`)
 
 For Phase 1, the scheduler's only job is **timed dispatch**: hold a priority queue
 of events sorted by `time_ns`, sleep until the next event's scheduled time, then
@@ -337,8 +337,8 @@ int main(int argc, char* argv[]) {
 
 | File | Reason |
 |------|--------|
-| `src/cljseq/*.clj` | Clojure side — separate work stream |
-| `cpp/cljseq-audio/**` | Out of scope; CLAP hosting is Phase 3+ |
+| `src/nous/*.clj` | Clojure side — separate work stream |
+| `cpp/nous-audio/**` | Out of scope; CLAP hosting is Phase 3+ |
 | `doc/research-and-requirements.md` | Design doc — no code changes needed |
 | `doc/open-design-questions.md` | Already reflects all decisions |
 | `CMakeLists.txt` root | OK to add FetchContent for rtmidi; do not change Asio pin |
@@ -351,7 +351,7 @@ int main(int argc, char* argv[]) {
 
 1. `cmake -S . -B build && cmake --build build` succeeds on macOS and Linux
    with no warnings at `-Wall -Wextra`.
-2. `./build/cpp/cljseq-sidecar/cljseq-sidecar --port 7777` starts, logs available
+2. `./build/cpp/nous-sidecar/nous-sidecar --port 7777` starts, logs available
    MIDI ports to stderr, and waits for a connection.
 3. Sending a `NoteOn` message over TCP to port 7777 causes the note to sound on
    the first available MIDI output (verified with a soft-synth or MIDI monitor).
@@ -381,11 +381,11 @@ int main(int argc, char* argv[]) {
 
 ## What the Clojure side will do (for context — do not implement)
 
-When Phase 1 is complete, `cljseq.core/play!` will stop printing to stdout and
+When Phase 1 is complete, `nous.core/play!` will stop printing to stdout and
 instead:
 1. Convert beat duration to `time_ns` using current BPM and `System/nanoTime`
 2. Serialise a `NoteOn` + `NoteOff` pair into the IPC wire format
-3. Send both messages to the sidecar via the TCP socket managed by `cljseq.sidecar`
+3. Send both messages to the sidecar via the TCP socket managed by `nous.sidecar`
 
-The Clojure IPC client (`cljseq.sidecar`) is not yet implemented — it will be
+The Clojure IPC client (`nous.sidecar`) is not yet implemented — it will be
 written after the sidecar binary is proven to accept and dispatch events correctly.

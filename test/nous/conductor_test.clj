@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.conductor-test
-  "Unit tests for cljseq.conductor — section sequencing, gesture resolution,
+(ns nous.conductor-test
+  "Unit tests for nous.conductor — section sequencing, gesture resolution,
   fire!/abort!/state lifecycle."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
-            [cljseq.conductor :as conductor]
-            [cljseq.core      :as core]
-            [cljseq.ctrl      :as ctrl]
-            [cljseq.mod       :as mod]))
+            [nous.conductor :as conductor]
+            [nous.core      :as core]
+            [nous.ctrl      :as ctrl]
+            [nous.mod       :as mod]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixture — run at 60000 BPM so sleep! durations are in microseconds
@@ -201,7 +201,7 @@
 (deftest map-gesture-routes-trajectories-test
   (testing "map gesture routes each entry via mod-route!"
     (let [routed (atom #{})]
-      (with-redefs [cljseq.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
+      (with-redefs [nous.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
         (conductor/defconductor! :test-map-gesture
           [{:bars 0
             :gesture {[:arc/tension] :fake-traj
@@ -214,7 +214,7 @@
 (deftest nil-gesture-routes-nothing-test
   (testing "nil gesture routes no trajectories"
     (let [route-count (atom 0)]
-      (with-redefs [cljseq.mod/mod-route! (fn [_ _] (swap! route-count inc))]
+      (with-redefs [nous.mod/mod-route! (fn [_ _] (swap! route-count inc))]
         (conductor/defconductor! :test-nil-gesture
           [{:bars 0 :gesture nil}])
         (conductor/fire! :test-nil-gesture)
@@ -236,7 +236,7 @@
 (deftest builtin-buildup-routes-arc-paths-test
   (testing ":buildup gesture routes to arc paths"
     (let [routed (atom #{})]
-      (with-redefs [cljseq.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
+      (with-redefs [nous.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
         (conductor/defconductor! :test-buildup-smoke
           [{:bars 0 :gesture :buildup}])
         (conductor/fire! :test-buildup-smoke)
@@ -247,7 +247,7 @@
 (deftest builtin-drop-routes-arc-paths-test
   (testing ":drop gesture routes tension/density/momentum"
     (let [routed (atom #{})]
-      (with-redefs [cljseq.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
+      (with-redefs [nous.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
         (conductor/defconductor! :test-drop-smoke
           [{:bars 0 :gesture :drop}])
         (conductor/fire! :test-drop-smoke)
@@ -316,7 +316,7 @@
 (deftest builtin-swell-routes-arc-paths-test
   (testing ":swell gesture routes tension, density, register"
     (let [routed (atom #{})]
-      (with-redefs [cljseq.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
+      (with-redefs [nous.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
         (conductor/defconductor! :test-swell-smoke
           [{:bars 0 :gesture :swell}])
         (conductor/fire! :test-swell-smoke)
@@ -328,7 +328,7 @@
 (deftest builtin-tension-peak-routes-arc-paths-test
   (testing ":tension-peak gesture routes tension, density, momentum"
     (let [routed (atom #{})]
-      (with-redefs [cljseq.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
+      (with-redefs [nous.mod/mod-route! (fn [path _tr] (swap! routed conj path) path)]
         (conductor/defconductor! :test-tension-peak-smoke
           [{:bars 0 :gesture :tension-peak}])
         (conductor/fire! :test-tension-peak-smoke)

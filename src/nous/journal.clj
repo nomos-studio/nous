@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.journal
+(ns nous.journal
   "Transaction journal — read and query the SQLite session log written by the sidecar.
 
   Layer 1: `read-journal` decodes every persistence artifact at the boundary.
@@ -17,7 +17,7 @@
   Layer 2: named folds over the seq returned by `read-journal`.
 
   Source kind vocabulary: `source-kind->int` and `int->source-kind` are the
-  canonical encoding shared with the sidecar write path (cljseq.sidecar).
+  canonical encoding shared with the sidecar write path (nous.sidecar).
 
   Key design decisions: Q80."
   (:require [clojure.edn :as edn]
@@ -26,7 +26,7 @@
             [java.util   UUID]))
 
 ;; ---------------------------------------------------------------------------
-;; Source kind vocabulary  (shared with cljseq.sidecar — must match C++ enum)
+;; Source kind vocabulary  (shared with nous.sidecar — must match C++ enum)
 ;; ---------------------------------------------------------------------------
 
 (def source-kind->int

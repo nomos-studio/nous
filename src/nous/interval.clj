@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.interval
+(ns nous.interval
   "Interval as a rich value type (§4.2).
 
   An Interval captures a diatonic distance between two pitches: quality,
@@ -23,7 +23,7 @@
     (add-interval p iv) ; apply interval to a Pitch → Pitch
 
   Key design decisions: R&R §4.2."
-  (:require [cljseq.pitch :as pitch]))
+  (:require [nous.pitch :as pitch]))
 
 ;; ---------------------------------------------------------------------------
 ;; Interval record

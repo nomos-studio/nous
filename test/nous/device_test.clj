@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.device-test
-  "Unit tests for cljseq.device — device registration, CC routing, semantic resolution."
+(ns nous.device-test
+  "Unit tests for nous.device — device registration, CC routing, semantic resolution."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
-            [cljseq.core   :as core]
-            [cljseq.ctrl   :as ctrl]
-            [cljseq.device :as device]))
+            [nous.core   :as core]
+            [nous.ctrl   :as ctrl]
+            [nous.device :as device]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures — start/stop system around tests that touch ctrl tree

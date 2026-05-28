@@ -1,26 +1,26 @@
 # Design: Note Transformer Vocabulary
 
-*Gap analysis from Bitwig Studio Note FX library (22 devices). Documents transformer concepts not yet present in cljseq, to be evaluated for implementation priority.*
+*Gap analysis from Bitwig Studio Note FX library (22 devices). Documents transformer concepts not yet present in nous, to be evaluated for implementation priority.*
 
 ---
 
-## What cljseq Already Has
+## What nous Already Has
 
-| Bitwig device | cljseq equivalent |
+| Bitwig device | nous equivalent |
 |---|---|
-| Arpeggiator | `cljseq.pattern` |
-| Humanize | `cljseq.mod` humanise |
-| Key Filter | `cljseq.scale` snap-to-scale |
-| Micro-pitch | `cljseq.scala` + `*tuning-ctx*` |
-| Note Transpose | `cljseq.pitch` / `cljseq.interval` |
+| Arpeggiator | `nous.pattern` |
+| Humanize | `nous.mod` humanise |
+| Key Filter | `nous.scale` snap-to-scale |
+| Micro-pitch | `nous.scala` + `*tuning-ctx*` |
+| Note Transpose | `nous.pitch` / `nous.interval` |
 | Transpose Map | DSL step mods (partial) |
 | Note Length | DSL duration |
-| Multi-note | `cljseq.chord` + DSL |
+| Multi-note | `nous.chord` + DSL |
 | Note Delay | DSL timing offset |
-| Randomize (pitch/vel) | `cljseq.random` + `cljseq.stochastic` |
+| Randomize (pitch/vel) | `nous.random` + `nous.stochastic` |
 | Note Filter | DSL pitch/velocity gate |
 
-The remaining concepts below have no cljseq equivalent.
+The remaining concepts below have no nous equivalent.
 
 ---
 
@@ -114,7 +114,7 @@ A chord fragmenter with a **grace period** concept: notes arriving within a time
   :rate          (/ 1 32))     ; 32nd-note strum speed
 ```
 
-**The grace period as a general concept**: Collecting events within a time window before processing is broadly useful — it could apply to chord identification in `cljseq.analyze`, harmonizer resolution, and voice assignment.
+**The grace period as a general concept**: Collecting events within a time window before processing is broadly useful — it could apply to chord identification in `nous.analyze`, harmonizer resolution, and voice assignment.
 
 ---
 
@@ -157,24 +157,24 @@ Burst(hits=3, steps=8)  → [1 1 1 0 0 0 0 0]   ; 3 hits at start
 
 Incoming notes are snapped to the nearest pitch from a set of pitches defined by *another track's current live notes* — not a static scale.
 
-**The key distinction**: `cljseq.scale` snaps to a predefined scale. Harmonize snaps to whatever the sidechain track is playing *right now*. As the sidechain track changes chords, the allowed pitch set changes with it.
+**The key distinction**: `nous.scale` snaps to a predefined scale. Harmonize snaps to whatever the sidechain track is playing *right now*. As the sidechain track changes chords, the allowed pitch set changes with it.
 
-This is the follower-side complement to what `cljseq.analyze` + ImprovisationContext does from the leader's side. In ensemble improvisation terms:
-- Leader: plays freely; `cljseq.analyze` builds harmonic context
+This is the follower-side complement to what `nous.analyze` + ImprovisationContext does from the leader's side. In ensemble improvisation terms:
+- Leader: plays freely; `nous.analyze` builds harmonic context
 - Follower (Harmonize analog): receives that context, snaps all output notes to it
 
 **Implementation sketch**:
 
 ```clojure
 ;; The sidechain source is a shared atom updated by the leader's loop
-;; (or by cljseq.analyze streaming the ImprovisationContext)
+;; (or by nous.analyze streaming the ImprovisationContext)
 (defharmonize ensemble-follower
   :source     harmony-ctx-atom    ; shared ImprovisationContext
   :snap       :nearest            ; or :above :below :random-weighted
   :passthrough false)             ; or true: pass unsnapped + snapped
 ```
 
-**Connection to Ensemble Improvisation design**: This is the concrete mechanism for the "harmonic complement" and "call and response" behaviors described in `design-ensemble-improvisation.md`. The ImprovisationContext (built from `cljseq.analyze` + Temporal Buffer) *is* the sidechain source.
+**Connection to Ensemble Improvisation design**: This is the concrete mechanism for the "harmonic complement" and "call and response" behaviors described in `design-ensemble-improvisation.md`. The ImprovisationContext (built from `nous.analyze` + Temporal Buffer) *is* the sidechain source.
 
 ---
 
@@ -218,7 +218,7 @@ breakpoints: [(in₁, out₁), (in₂, out₂), (in₃, out₃)]
 
 Allows: soft bottom (compress low velocities), hard top (limit peaks), or S-curve (compress midrange, expand extremes). Any arbitrary three-segment velocity response.
 
-**cljseq enhancement**: `cljseq.mod` has velocity curves but likely uses named curve types (linear, exponential). Adding piecewise breakpoints would allow per-instrument velocity response calibration — essential for devices with non-linear response (the Hydrasynth's envelope depth perception, for instance).
+**nous enhancement**: `nous.mod` has velocity curves but likely uses named curve types (linear, exponential). Adding piecewise breakpoints would allow per-instrument velocity response calibration — essential for devices with non-linear response (the Hydrasynth's envelope depth perception, for instance).
 
 ---
 
@@ -236,7 +236,7 @@ Shifts notes toward the next timing interval with an amount parameter (0–100% 
 1. `Echo` — time + pitch decay; composable with Temporal Buffer input
 2. `Strum` — grace period + stride; needed for chord-playback loops
 3. `Bend` — per-note pitch envelope; complements `*tuning-ctx*`
-4. `Note Repeats (Euclid)` — Euclidean repeat distribution; extends `cljseq.rhythm`
+4. `Note Repeats (Euclid)` — Euclidean repeat distribution; extends `nous.rhythm`
 
 **Medium-term:**
 5. `Harmonize (sidechain)` — requires ensemble-harmony-groundwork first
@@ -253,7 +253,7 @@ Shifts notes toward the next timing interval with an amount parameter (0–100% 
 ## Namespace Sketch
 
 ```clojure
-;; cljseq.transform — new namespace for these transformer types
+;; nous.transform — new namespace for these transformer types
 ;; All implement a common Transformer protocol:
 ;;   (transform [this event context] => [event*])
 

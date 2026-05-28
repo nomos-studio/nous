@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.analyze
+(ns nous.analyze
   "Music analysis tools — key detection, chord identification, Roman numeral
-  annotation, tension scoring, and mode-mixture detection, built on the cljseq
+  annotation, tension scoring, and mode-mixture detection, built on the nous
   theory layer (pitch/scale/chord).
 
   All functions are pure and work on plain collections of MIDI integers, Pitch
@@ -67,9 +67,9 @@
   Key design decisions: Krumhansl & Kessler (1982) pitch-class profiles;
   coverage-precision scoring for chord matching; §4 theory layer integration."
   (:require [clojure.set   :as set]
-            [cljseq.chord  :as chord-ns]
-            [cljseq.pitch  :as pitch]
-            [cljseq.scale  :as scale-ns]))
+            [nous.chord  :as chord-ns]
+            [nous.pitch  :as pitch]
+            [nous.scale  :as scale-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; Input coercion — accept MIDI ints, Pitch records, Chord records, or colls
@@ -81,8 +81,8 @@
   [input]
   (cond
     (integer? input)                     [input]
-    (instance? cljseq.pitch.Pitch input) [(pitch/pitch->midi input)]
-    (instance? cljseq.chord.Chord input) (chord-ns/chord->midis input)
+    (instance? nous.pitch.Pitch input) [(pitch/pitch->midi input)]
+    (instance? nous.chord.Chord input) (chord-ns/chord->midis input)
     (sequential? input)                  (mapcat ->midi-ints input)
     :else                                []))
 

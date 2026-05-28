@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.extractor-test
-  "Tests for cljseq.extractor — Phase 1: threshold arithmetic, hysteresis,
+(ns nous.extractor-test
+  "Tests for nous.extractor — Phase 1: threshold arithmetic, hysteresis,
   direction filter, and event dispatch."
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.extractor :as ext]))
+            [nous.extractor :as ext]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers — access private vars

@@ -72,7 +72,7 @@ Characteristics:
 - Device is essentially a MIDI router: any CC can be mapped to any CV/gate output
 - `defdevice` for a converter describes the available outputs and their types
   (V/oct pitch, gate, trigger, clock-div CV, etc.) rather than a fixed CC list
-- The user's FH-2 configuration determines which CCs to target from cljseq
+- The user's FH-2 configuration determines which CCs to target from nous
 
 This is the most challenging archetype for `defdevice`. The right model is a
 device template with configurable CC→output bindings, filled in per-user-setup.
@@ -87,7 +87,7 @@ Characteristics:
 - DIN MIDI output only (no input) in the case of the KeyStep
 - Touch strip is the primary CC source (assignable via MIDI Control Center)
 - `defdevice` for a controller describes what it *emits*, not what it receives
-  — used to configure cljseq's `ctrl/bind!` source mappings
+  — used to configure nous's `ctrl/bind!` source mappings
 
 ---
 
@@ -137,7 +137,7 @@ map should express this with a `:channels` configuration block.
 ### 7. Controllers Emit, Not Receive
 
 Controllers need a `:role :controller` designation and a `:transmits` block
-rather than the usual `:receives` CC map. cljseq uses `:transmits` to configure
+rather than the usual `:receives` CC map. nous uses `:transmits` to configure
 `ctrl/bind!` source mappings for incoming controller data.
 
 ---
@@ -153,9 +153,9 @@ for those CCs per step.
 
 This means a `defdevice` for the Digitakt as a *sequencer* (driving external
 gear) is different from a `defdevice` for the Digitakt as a *target* (being
-driven by cljseq). The EDN format handles this with:
+driven by nous). The EDN format handles this with:
 - `:role :sequencer` — Digitakt drives external gear; describe its CC slot model
-- `:role :target` — cljseq drives the Digitakt's audio engine; fixed CC map for the sampler
+- `:role :target` — nous drives the Digitakt's audio engine; fixed CC map for the sampler
 
 ### Expert Sleepers FH-2 — Configuration-Dependent Map
 
@@ -164,7 +164,7 @@ manufacturer. A `defdevice` for the FH-2 is therefore a *user-specific template*
 capturing the user's current routing configuration. The EDN format uses
 `:configurable-by :fh2-editor` to flag this.
 
-cljseq's `defdevice` for FH-2 would look like:
+nous's `defdevice` for FH-2 would look like:
 
 ```clojure
 (defdevice :fh2-eurorack
@@ -179,7 +179,7 @@ cljseq's `defdevice` for FH-2 would look like:
 
 ### Moog Subsequent 37 — DIN Only
 
-The Subsequent 37 has no USB MIDI. cljseq's `:connectivity :din-only` flag
+The Subsequent 37 has no USB MIDI. nous's `:connectivity :din-only` flag
 ensures the sidecar always routes through a DIN MIDI interface rather than
 attempting USB MIDI direct connection.
 

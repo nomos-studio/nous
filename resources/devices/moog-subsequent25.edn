@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Moog Subsequent 25 — cljseq device map
+;; Moog Subsequent 25 — nous device map
 ;;
 ;; NOTE: The Subsequent 25 has a different MIDI implementation from the
 ;; Subsequent 37. Key differences:

@@ -1,4 +1,4 @@
-# Distributed and Embedded cljseq — Design Notes
+# Distributed and Embedded nous — Design Notes
 
 *Captured 2026-04-04. Status: exploratory design / pre-sprint.*
 
@@ -6,7 +6,7 @@
 
 ## Motivation
 
-The standard cljseq deployment is a JVM process on a laptop, connected to synthesizers via
+The standard nous deployment is a JVM process on a laptop, connected to synthesizers via
 a USB-MIDI interface (e.g. iConnectivity Mio). This works well for a single-musician setup
 at a desk, but two failure modes and one opportunity drove us to think further:
 
@@ -20,7 +20,7 @@ at a desk, but two failure modes and one opportunity drove us to think further:
    introduces a master/slave topology and cable routing constraints. Ableton Link solves
    this over LAN without a master.
 
-3. **Embedded appliances.** A Raspberry Pi (or similar SBC) running cljseq as headless
+3. **Embedded appliances.** A Raspberry Pi (or similar SBC) running nous as headless
    firmware, with MIDI devices attached directly via USB, is a natural evolution of the
    §1.1 vision. The JVM runs fine on a Pi 4/5. The Pi connects to the LAN via Wi-Fi or
    Ethernet and participates in a Link session. Local MIDI devices are never routed over
@@ -41,7 +41,7 @@ without MPE.
 ### Proposed API
 
 ```clojure
-;; cljseq.scala — extend with MTS generation
+;; nous.scala — extend with MTS generation
 
 (defn scale->mts-bytes
   "Generate an MTS Bulk Dump SysEx byte array (408 bytes) for `ms`.
@@ -59,7 +59,7 @@ without MPE.
   ([ms]       (scale->mts-bytes ms nil))
   ([ms kbm]   ...))
 
-;; cljseq.sidecar — new MTS helper
+;; nous.sidecar — new MTS helper
 
 (defn send-mts!
   "Retune the connected synth using MTS Bulk Dump SysEx.
@@ -89,7 +89,7 @@ fine-msb   = (fine_14bit >> 7) & 0x7F
 fine-lsb   = fine_14bit & 0x7F
 ```
 
-This is a direct extension of the `midi->note` math already in `cljseq.scala`.
+This is a direct extension of the `midi->note` math already in `nous.scala`.
 
 ### Hydrasynth Integration
 
@@ -109,14 +109,14 @@ device can be retuned via `ctrl/send!`:
 
 ### Problem
 
-On an embedded Linux node (Pi or otherwise), cljseq should recover automatically
+On an embedded Linux node (Pi or otherwise), nous should recover automatically
 from:
 - Software crashes / JVM hangs → **systemd watchdog** restarts the process
 - Hardware lockups (kernel freeze, USB storm) → **hardware watchdog** reboots the board
 
 ### Design
 
-The cljseq MIDI clock thread already produces a regular heartbeat (24 PPQN from the
+The nous MIDI clock thread already produces a regular heartbeat (24 PPQN from the
 Link timeline). We tap this as the watchdog keepalive source, so **the heartbeat and
 the watchdog are the same thing**: if the clock thread freezes, both consumers stop
 getting fed.
@@ -140,20 +140,20 @@ Conditional build:
 find_package(PkgConfig)
 pkg_check_modules(SYSTEMD libsystemd)
 if(SYSTEMD_FOUND)
-    target_compile_definitions(cljseq_sidecar PRIVATE HAVE_SYSTEMD)
-    target_link_libraries(cljseq_sidecar ${SYSTEMD_LIBRARIES})
+    target_compile_definitions(nous_sidecar PRIVATE HAVE_SYSTEMD)
+    target_link_libraries(nous_sidecar ${SYSTEMD_LIBRARIES})
 endif()
 ```
 
-Systemd unit (`cljseq.service`):
+Systemd unit (`nous.service`):
 ```ini
 [Unit]
-Description=cljseq sequencer node
+Description=nous sequencer node
 After=network.target sound.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/cljseq-start
+ExecStart=/usr/local/bin/nous-start
 WatchdogSec=10s
 Restart=on-failure
 RestartSec=3s
@@ -199,14 +199,14 @@ attached directly becomes a self-contained, LAN-connected MIDI node — essentia
 a custom hardware appliance in a form factor smaller than most MIDI interfaces.
 
 Pi 3B is sufficient for single-device MIDI routing and basic sequencing. Pi 4 is
-preferred for full cljseq (JVM heap + real-time scheduling). Pi 5 is headroom if
+preferred for full nous (JVM heap + real-time scheduling). Pi 5 is headroom if
 needed.
 
 ### JVM considerations
 
 - Pi 4/5: JVM 17+ (OpenJDK Temurin ARM64) runs well. Use `-server -XX:+UseG1GC`.
 - Audio/MIDI latency: use the `hw:` ALSA device directly from the sidecar (not JACK).
-  JACK adds latency and complexity that buys nothing when cljseq is the only audio
+  JACK adds latency and complexity that buys nothing when nous is the only audio
   process.
 - USB-MIDI: devices attached to the Pi appear as standard ALSA MIDI ports. The
   sidecar's `list-midi-ports` already enumerates them.
@@ -220,7 +220,7 @@ needed.
 ### Boot-to-performance
 
 The Pi boots into a headless Clojure nREPL. A default init script loads a `session.clj`
-from `~/.cljseq/` (or `/etc/cljseq/session.clj`) and starts the session. SSH or a
+from `~/.nous/` (or `/etc/nous/session.clj`) and starts the session. SSH or a
 local touchscreen REPL provides interactive access.
 
 ---
@@ -229,12 +229,12 @@ local touchscreen REPL provides interactive access.
 
 ### Overview
 
-Each cljseq node advertises itself on the LAN via mDNS (Avahi on Linux, built-in on
+Each nous node advertises itself on the LAN via mDNS (Avahi on Linux, built-in on
 macOS via `dns-sd`). Peers discover each other without a central registry.
 
 ### Service advertisement
 
-Service type: `_cljseq._udp.local`
+Service type: `_nous._udp.local`
 
 TXT record payload:
 ```
@@ -247,7 +247,7 @@ ctrl-tree-path=<OSC path prefix for this node's ctrl tree>
 ```
 
 The `node-id` UUID is generated once at first boot and stored at
-`~/.cljseq/node-id` (or `/var/lib/cljseq/node-id` for system-wide installs).
+`~/.nous/node-id` (or `/var/lib/nous/node-id` for system-wide installs).
 It persists across restarts, letting peers distinguish "same node restarted"
 from "new node appeared."
 
@@ -274,7 +274,7 @@ just a network hiccup — we resume without clearing state.
 ### Clojure API (sketch)
 
 ```clojure
-;; cljseq.discovery (new namespace)
+;; nous.discovery (new namespace)
 
 (defn start-discovery!
   "Advertise this node via mDNS and begin listening for peers.
@@ -306,13 +306,13 @@ just a network hiccup — we resume without clearing state.
 
 ### Model
 
-Each cljseq node owns a subtree of the global ctrl tree rooted at its `node-id`:
+Each nous node owns a subtree of the global ctrl tree rooted at its `node-id`:
 
 ```
-/cljseq/<node-id>/midi/...      ; MIDI ports on this node
-/cljseq/<node-id>/device/...    ; Named devices (Hydrasynth, etc.)
-/cljseq/<node-id>/loop/...      ; Running live loops
-/cljseq/<node-id>/status        ; {:bpm ... :beat ... :started ...}
+/nous/<node-id>/midi/...      ; MIDI ports on this node
+/nous/<node-id>/device/...    ; Named devices (Hydrasynth, etc.)
+/nous/<node-id>/loop/...      ; Running live loops
+/nous/<node-id>/status        ; {:bpm ... :beat ... :started ...}
 ```
 
 A peer's subtree is populated by reading from its OSC control endpoint. Changes to
@@ -320,7 +320,7 @@ our own subtree are broadcast to subscribed peers via OSC.
 
 ### Two-plane protocol: OSC (control) + EDN (data)
 
-Because this is a cljseq-to-cljseq protocol — both ends are JVM/Clojure processes —
+Because this is a nous-to-nous protocol — both ends are JVM/Clojure processes —
 we are not constrained to OSC's type system for everything. We define a clean split:
 
 | Plane        | Protocol     | Use cases                                              |
@@ -333,7 +333,7 @@ we are not constrained to OSC's type system for everything. We define a clean sp
 - EDN naturally represents the ctrl tree (nested maps, keywords, vectors)
 - No schema definition, no code generation, no serialization library to maintain
 - Human-readable — a peer's tree snapshot can be inspected directly at the REPL
-- Extensible via tagged literals when needed (e.g. `#cljseq/trajectory {...}`)
+- Extensible via tagged literals when needed (e.g. `#nous/trajectory {...}`)
 
 **OSC blob for small structured payloads:**
 Where the data is small and fits naturally in an OSC message, it can be carried as
@@ -341,8 +341,8 @@ an OSC blob argument (`b` typetag): a length-prefixed byte array. The blob conte
 is EDN UTF-8 bytes. This avoids a second connection for small queries.
 
 ```
-→ OSC /cljseq/query "tree" ""                    ; request ctrl-tree snapshot
-← OSC /cljseq/reply "tree" <blob: EDN bytes>     ; response as OSC blob
+→ OSC /nous/query "tree" ""                    ; request ctrl-tree snapshot
+← OSC /nous/reply "tree" <blob: EDN bytes>     ; response as OSC blob
 ```
 
 **Separate TCP port for large payloads:**
@@ -368,7 +368,7 @@ a fresh dump.
 ;; => {:async true :on-result (fn [edn-map] ...)}
 
 ;; OSC control plane — unchanged, used for real-time values
-(osc/send! peer-osc-addr "/cljseq/beat" 42.0)
+(osc/send! peer-osc-addr "/nous/beat" 42.0)
 ```
 
 ### OSC query convention (control plane)
@@ -376,10 +376,10 @@ a fresh dump.
 For real-time queries that fit in OSC, we follow the `liblo`/TouchOSC convention:
 
 ```
-→ /cljseq/<node-id>/status                        ; request status
-← /cljseq/<node-id>/status <bpm> <beat> <started> ; response
-→ /cljseq/<node-id>/sub <path>                    ; subscribe to path changes
-← /cljseq/<node-id>/val <path> <value>            ; pushed update
+→ /nous/<node-id>/status                        ; request status
+← /nous/<node-id>/status <bpm> <beat> <started> ; response
+→ /nous/<node-id>/sub <path>                    ; subscribe to path changes
+← /nous/<node-id>/val <path> <value>            ; pushed update
 ```
 
 The `started` epoch from mDNS lets a re-subscribing peer know whether to trust its
@@ -399,7 +399,7 @@ both ends. There is no mechanism in MIDI 1.0 for a device to describe itself to 
 peer; you either hard-code the device knowledge or ship a separate spec document.
 
 This matters not just for hardware devices (Hydrasynth EDN maps), but for **virtual
-devices defined in cljseq's own sequencer vocabulary** — a live loop, a conductor
+devices defined in nous's own sequencer vocabulary** — a live loop, a conductor
 pattern, a fractal context, a flux sequence. These are rich structures that can be
 serialized as EDN, pushed to a peer, and reconstructed there as live Clojure values.
 A peer could receive a running loop definition and hot-swap it into its own session.
@@ -417,14 +417,14 @@ what we're describing, but:
 - It targets interoperability between *any* MIDI 2.0 devices, so it necessarily
   operates at a lowest-common-denominator level
 
-cljseq's EDN plane is opinionated and cljseq-native — a deliberate trade-off. We
+nous's EDN plane is opinionated and nous-native — a deliberate trade-off. We
 get full expressiveness (arbitrary Clojure data, tagged literals, lazy sequences)
-at the cost of requiring a cljseq peer on both ends. MIDI 2.0 PE is the right path
+at the cost of requiring a nous peer on both ends. MIDI 2.0 PE is the right path
 for interop with third-party hardware when PE support matures; EDN is the right path
-for cljseq-to-cljseq capability exchange.
+for nous-to-nous capability exchange.
 
 **Research note (future sprint):** Track MIDI 2.0 PE adoption and evaluate whether
-cljseq devices should publish a PE property set for third-party interop alongside
+nous devices should publish a PE property set for third-party interop alongside
 the native EDN interface. Estimated horizon: when major hardware vendors ship PE
 support and there is a testable device on the bench.
 
@@ -460,7 +460,7 @@ The timetag specifies the absolute wall-clock time at which all messages in the 
 should be executed. The receiver holds the bundle and fires it at the right moment —
 network latency is fully absorbed as long as the bundle arrives before its timetag.
 
-cljseq already has the bridge: `clock/beat->epoch-ms` converts any beat position to an
+nous already has the bridge: `clock/beat->epoch-ms` converts any beat position to an
 absolute wall-clock millisecond on the Link timeline. The mapping is the same on all Link
 peers. Converting to NTP (seconds + fractional seconds since 1900-01-01) is arithmetic.
 
@@ -469,13 +469,13 @@ peers. Converting to NTP (seconds + fractional seconds since 1900-01-01) is arit
 (discovery/send-at! peer-node-id
                     :beat       42.0    ; → absolute epoch-ms via Link
                     :headroom-ms 100    ; send early enough to always arrive in time
-                    (osc/msg "/cljseq/play" {:pitch/midi 60 :dur/beats 1/4}))
+                    (osc/msg "/nous/play" {:pitch/midi 60 :dur/beats 1/4}))
 
 ;; Node B: hold bundle until timetag, then execute
 ;; → fires at exactly beat 42.0 on the shared Link timeline
 ```
 
-This is a **distributed `sleep!`**: the cljseq virtual-time model extended across the
+This is a **distributed `sleep!`**: the nous virtual-time model extended across the
 network. Both nodes reference the same Link timeline; no further negotiation is required.
 
 ### Scheduling headroom as a design parameter
@@ -510,17 +510,17 @@ The three-mode protocol:
 ### Sonic Pi interop
 
 Sonic Pi 4.x has Ableton Link support and a logical-time model (virtual beat counter +
-drift-free `sleep`) isomorphic to cljseq's. However, Sonic Pi's OSC runtime (JRuby /
+drift-free `sleep`) isomorphic to nous's. However, Sonic Pi's OSC runtime (JRuby /
 `osc-ruby`) strips bundle timetags before surfacing messages to user code. Sonic Pi cannot
-consume cljseq's timetag bundles directly.
+consume nous's timetag bundles directly.
 
-For cljseq ↔ Sonic Pi interop:
+For nous ↔ Sonic Pi interop:
 - Both join the same Link session — beat alignment is automatic
-- cljseq sends plain OSC messages (not bundles); Sonic Pi receives them and routes into
+- nous sends plain OSC messages (not bundles); Sonic Pi receives them and routes into
   its own `sync`/`cue` mechanism for musical scheduling
-- The timetag discipline is a cljseq-to-cljseq protocol; Sonic Pi sees ordinary OSC
+- The timetag discipline is a nous-to-nous protocol; Sonic Pi sees ordinary OSC
 
-This is the general boundary: timetag scheduling is most powerful as a native cljseq peer
+This is the general boundary: timetag scheduling is most powerful as a native nous peer
 protocol. Third-party tools that understand Link but not timetags get Link synchronization;
 tools that understand neither get approximate synchronization.
 
@@ -559,14 +559,14 @@ a future research item if the use case arises.
 ### Link as the backbone
 
 Ableton Link is peer-to-peer, discovery-automatic (same mDNS underpinning), and
-handles tempo/beat/phase agreement without a master. All cljseq nodes join the same
+handles tempo/beat/phase agreement without a master. All nous nodes join the same
 Link session.
 
 ### MIDI clock as a leaf output
 
 MIDI clock (24 PPQN) is produced **from** the Link timeline, not the other way around.
 This is already implemented in Sprint 32 (MIDI clock output from Link anchor). Each
-cljseq node produces MIDI clock independently for its locally attached hardware. There
+nous node produces MIDI clock independently for its locally attached hardware. There
 is no MIDI clock routing between nodes.
 
 ### Consequence for the Mio
@@ -580,13 +580,13 @@ moves fully to Link and the network.
 ## 8. Beat Clock Synchronization (Summary)
 
 See §7 for the full analysis. MIDI clock over WiFi is not viable. Link is the clock
-backbone for all cljseq nodes. MIDI clock is a leaf output, produced per-node from
+backbone for all nous nodes. MIDI clock is a leaf output, produced per-node from
 the local Link timeline for locally attached hardware — never routed between nodes.
 
 ## 9. Implementation Phasing
 
 ### Phase 1 (Clojure-only, no hardware required)
-- [ ] `cljseq.scala/scale->mts-bytes` + `cljseq.sidecar/send-mts!`
+- [ ] `nous.scala/scale->mts-bytes` + `nous.sidecar/send-mts!`
 - [ ] Hydrasynth device EDN: `:mts/retune` trigger node
 - [ ] Tests: MTS byte encoding (known values from Scala reference)
 
@@ -594,13 +594,13 @@ the local Link timeline for locally attached hardware — never routed between n
 - [ ] C++ sidecar: `sd_notify` keepalive from MIDI clock thread
 - [ ] C++ sidecar: `/dev/watchdog` keepalive
 - [ ] CMakeLists: conditional `libsystemd` link
-- [ ] `cljseq.service` systemd unit template
+- [ ] `nous.service` systemd unit template
 
 ### Phase 3 (Distributed)
-- [ ] `cljseq.discovery` namespace: mDNS advertisement + peer listener
+- [ ] `nous.discovery` namespace: mDNS advertisement + peer listener
   - macOS: `dns-sd` / `NSNetService` via JNI or subprocess
   - Linux: Avahi D-Bus or `avahi-publish` subprocess
-- [ ] node-id persistence (`~/.cljseq/node-id`)
+- [ ] node-id persistence (`~/.nous/node-id`)
 - [ ] Peer subtree mounting in ctrl tree
 - [ ] `on-peer-change!` callback + stale tombstoning
 - [ ] OSC `/tree` query + `/sub` subscription protocol
@@ -610,7 +610,7 @@ the local Link timeline for locally attached hardware — never routed between n
 
 ### Phase 4 (Operational)
 - [ ] Pi boot scripts / Ansible playbook for headless deployment
-- [ ] `~/.cljseq/session.clj` auto-load on start
+- [ ] `~/.nous/session.clj` auto-load on start
 - [ ] SSH REPL + optional touchscreen UI
 
 ---

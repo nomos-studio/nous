@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.target
+(ns nous.target
   "Audio target protocols and registry — ITarget / ITriggerTarget / IParamTarget.
 
-  Every audio target in cljseq (synthesizer, FX processor, sample player,
+  Every audio target in nous (synthesizer, FX processor, sample player,
   external hardware) implements the protocols that match its capabilities:
 
     ITarget         — base: identity and connectivity (all targets)
@@ -35,11 +35,11 @@
 
   ## Registration pattern for backend namespaces
 
-  Backend namespaces (cljseq.sc, cljseq.sample) register themselves at load
+  Backend namespaces (nous.sc, nous.sample) register themselves at load
   time. The protocols are defined here; implementations live in each backend
   to avoid compile-time circular dependencies.
 
-    ;; In cljseq.sc, at namespace load time:
+    ;; In nous.sc, at namespace load time:
     (target/register! :sc
       (target/fn-target :sc
         :trigger-fn  sc-trigger-impl
@@ -56,7 +56,7 @@
 
     (play! {:synth :my-pd-patch :pitch/midi 60 :dur/beats 2})
     ;; → looks up :my-pd-patch → calls trigger-note! → OSC to Pd"
-  (:require [cljseq.ctrl :as ctrl]))
+  (:require [nous.ctrl :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Protocols
@@ -73,7 +73,7 @@
   "Capability: accepts triggered note events with voice lifecycle.
   Implemented by synthesizers and anything that responds to note-on/off."
   (trigger-note!  [t event]
-    "Fire a note. `event` is a standard cljseq step map:
+    "Fire a note. `event` is a standard nous step map:
        {:pitch/midi N :dur/beats D :mod/velocity V :synth kw ...}
      Returns an opaque handle suitable for release-note!, or nil.")
   (release-note!  [t handle]

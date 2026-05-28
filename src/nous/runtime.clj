@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.runtime
+(ns nous.runtime
   "Ephemeral runtime state — process health, errors, subsystem status.
 
-  Same observability model as cljseq.ctrl (path-based, watchable) but never
+  Same observability model as nous.ctrl (path-based, watchable) but never
   persisted. Nothing here survives a JVM restart; nothing here belongs in a
-  .cljseq export or crystallize output.
+  .nous export or crystallize output.
 
   Path convention:
     [:sc :status]       — :stopped :starting :running :error

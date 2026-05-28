@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.random
-  "cljseq probability and distribution primitives.
+(ns nous.random
+  "nous probability and distribution primitives.
 
-  Provides the stochastic building blocks used by `cljseq.stochastic`:
+  Provides the stochastic building blocks used by `nous.stochastic`:
   spread/bias distributions, weighted scales, progressive quantization,
   and scale-weight learning from note sequences.
 
@@ -20,7 +20,7 @@
     (progressive-quantize 61 (weighted-scale :major) 0.7) ; C# -> C or D
 
   Key design decisions: R&R §23.4-23.5, Q36 (weighted scale as map extension)."
-  (:require [cljseq.pitch :as pitch]))
+  (:require [nous.pitch :as pitch]))
 
 ;; ---------------------------------------------------------------------------
 ;; Scale definitions
@@ -130,7 +130,7 @@
 
 (defn- scale->intervals-weights
   "Extract [intervals weights] from either a weighted-scale map or a
-  cljseq.scale/Scale record. Scale records get uniform weights (1.0 each).
+  nous.scale/Scale record. Scale records get uniform weights (1.0 each).
 
   weighted-scale maps already store cumulative offsets in :intervals.
   Scale records store step intervals in :intervals — these are converted."
@@ -146,7 +146,7 @@
   "Quantize `midi-note` to a scale controlled by `steps`.
 
   `midi-note` — integer MIDI note [0-127]
-  `s`         — weighted-scale map (from weighted-scale) OR a cljseq.scale/Scale
+  `s`         — weighted-scale map (from weighted-scale) OR a nous.scale/Scale
                 record. Scale records use uniform weights (every degree equally
                 likely). Weighted-scale maps honour per-degree weights.
   `steps`     — quantization depth [0.0-1.0]

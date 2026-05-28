@@ -1,4 +1,4 @@
-# cljseq User Manual
+# nous User Manual
 
 Version 0.14.0 · April 2026
 
@@ -40,15 +40,15 @@ Version 0.14.0 · April 2026
 32. [nREPL Remote Eval](#32-nrepl-remote-eval)
 33. [Configuration Registry](#33-configuration-registry)
 34. [MCP Bridge (AI Compositional Collaborator)](#34-mcp-bridge)
-35. [Keyboard Performance (`cljseq.ivk`)](#35-keyboard-performance-cljseqivk)
-36. [MIDI Input (`cljseq.midi-in`)](#36-midi-input-cljseqmidi-in)
-37. [Process Supervisor (`cljseq.supervisor`)](#37-process-supervisor-cljseqsupervisor)
-38. [Arpeggiator (`cljseq.arp`)](#38-arpeggiator-cljseqarp)
+35. [Keyboard Performance (`nous.ivk`)](#35-keyboard-performance-nousivk)
+36. [MIDI Input (`nous.midi-in`)](#36-midi-input-nousmidi-in)
+37. [Process Supervisor (`nous.supervisor`)](#37-process-supervisor-noussupervisor)
+38. [Arpeggiator (`nous.arp`)](#38-arpeggiator-nousarp)
 39. [Reference: REPL Commands and Step Keys](#39-reference)
-40. [Browser Control Surface (`cljseq-ui`)](#40-browser-control-surface)
-41. [Step Sequencer Protocol (`cljseq.seq`)](#41-step-sequencer-protocol-cljseqseq)
-42. [Pattern × Rhythm Motifs (`cljseq.pattern`)](#42-pattern--rhythm-motifs-cljseqpattern)
-43. [Transaction Journal (`cljseq.journal`)](#43-transaction-journal-cljseqjournal)
+40. [Browser Control Surface (`nous-ui`)](#40-browser-control-surface)
+41. [Step Sequencer Protocol (`nous.seq`)](#41-step-sequencer-protocol-nousseq)
+42. [Pattern × Rhythm Motifs (`nous.pattern`)](#42-pattern--rhythm-motifs-nouspattern)
+43. [Transaction Journal (`nous.journal`)](#43-transaction-journal-nousjournal)
 
 ---
 
@@ -84,8 +84,8 @@ sudo dnf install alsa-lib-devel cmake gcc-c++ make
 ## 2. Build
 
 ```bash
-git clone https://github.com/rodgert/cljseq.git
-cd cljseq
+git clone https://github.com/rodgert/nous.git
+cd nous
 
 # Build the real-time MIDI sidecar
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCLJSEQ_BUILD_AUDIO=OFF
@@ -95,7 +95,7 @@ cmake --build build --parallel
 lein test
 ```
 
-The build produces `build/cpp/cljseq-sidecar/cljseq-sidecar` (or `.exe` on
+The build produces `build/cpp/nous-sidecar/nous-sidecar` (or `.exe` on
 Windows). The Clojure side finds it automatically.
 
 ### Build with Ableton Link
@@ -125,8 +125,8 @@ lein repl
 ```
 
 ```clojure
-;; Load the cljseq API (convenience REPL namespace — exports everything)
-(require '[cljseq.user :refer :all])
+;; Load the nous API (convenience REPL namespace — exports everything)
+(require '[nous.user :refer :all])
 
 ;; Connect MIDI output (opens port 0 by default)
 (start-sidecar!)
@@ -164,7 +164,7 @@ lein repl
 
 ### Virtual Time
 
-cljseq runs on *virtual time*: a beat counter that advances strictly from the
+nous runs on *virtual time*: a beat counter that advances strictly from the
 clock. `sleep!` parks the loop thread until the target beat, using
 `LockSupport/parkUntil` for sub-millisecond accuracy. The JVM GC cannot cause
 timing drift.
@@ -193,12 +193,12 @@ with the sidecar.
 
 ### The Sidecar
 
-All MIDI output goes to the `cljseq-sidecar` process — a native C++ program
+All MIDI output goes to the `nous-sidecar` process — a native C++ program
 that runs a scheduler and delivers notes at precise wall-clock times, independent
 of JVM GC. The Clojure REPL and sidecar communicate over a local TCP socket.
 
 ```
-REPL  ──(TCP)──  cljseq-sidecar  ──(RtMidi)──  MIDI hardware
+REPL  ──(TCP)──  nous-sidecar  ──(RtMidi)──  MIDI hardware
 ```
 
 ---
@@ -232,7 +232,7 @@ REPL  ──(TCP)──  cljseq-sidecar  ──(RtMidi)──  MIDI hardware
 ### IAC Driver (macOS virtual ports)
 
 Open **Audio MIDI Setup → MIDI Studio → IAC Driver** and create a Bus.
-Start cljseq targeting that bus, then route it to a software synth (Surge XT,
+Start nous targeting that bus, then route it to a software synth (Surge XT,
 VCV Rack, Ableton Live) in your DAW or audio router.
 
 ---
@@ -290,7 +290,7 @@ or without Ableton Link active.
 ```
 
 When used with the Torso T-1 as a Link peer, `:restart-on-bar true` snaps to
-the T-1's phrase boundary — new cljseq loops enter phase-locked to T-1 patterns
+the T-1's phrase boundary — new nous loops enter phase-locked to T-1 patterns
 without manual timing.
 
 ### Playing chords and voicings
@@ -395,7 +395,7 @@ and device-specific helpers.
 ### Loading a device
 
 ```clojure
-(require '[cljseq.device :as device])
+(require '[nous.device :as device])
 
 (device/load-device-map "hydrasynth-explorer.edn")
 ```
@@ -446,7 +446,7 @@ the device map), and a value (integer 0–127 or a semantic keyword).
 
 ### MPE (MIDI Polyphonic Expression)
 
-cljseq supports MPE for controllers and synths that use per-note expression.
+nous supports MPE for controllers and synths that use per-note expression.
 The Hydrasynth and LinnStrument ship with full MPE device maps. MPE events
 (per-note pitch bend, CC 74 slide, channel pressure) are routed via the
 sidecar's pitch-bend and channel-pressure IPC frames.
@@ -465,7 +465,7 @@ Load `.scl` (scale definition) and `.kbm` (keyboard mapping) files from the
 Scala scale archive or your own tuning files:
 
 ```clojure
-(require '[cljseq.scala :as scala])
+(require '[nous.scala :as scala])
 
 (def ms  (scala/load-scl "31edo.scl"))
 (def kbm (scala/load-kbm "31edo.kbm"))   ; optional
@@ -509,7 +509,7 @@ same LAN (Ableton Live, Bitwig, Sonic Pi, VCV Rack, and any other
 Link-enabled software).
 
 ```clojure
-(require '[cljseq.link :as link])
+(require '[nous.link :as link])
 
 ;; Join the Link session (creates one if no peers are present)
 (link/enable!)
@@ -588,7 +588,7 @@ default is 4 beats; change it via the configuration registry:
 
 ## 11. FX Automation
 
-cljseq treats MIDI-addressable FX units (delays, reverbs, modulators) as
+nous treats MIDI-addressable FX units (delays, reverbs, modulators) as
 first-class devices. Load their EDN maps and automate parameters with the
 same tools used for synth parameters.
 
@@ -646,7 +646,7 @@ The control tree is a hierarchical parameter store with MIDI CC binding, undo,
 and checkpoints. Bind a physical knob to a named path and read it from any loop.
 
 ```clojure
-(require '[cljseq.ctrl :as ctrl])
+(require '[nous.ctrl :as ctrl])
 
 ;; Set a value
 (ctrl/set! [:filter/cutoff] 64)
@@ -673,7 +673,7 @@ The ctrl tree is also exposed over HTTP so that peer nodes can poll it. Start
 the server before calling `peer/mount-peer!` on a remote host.
 
 ```clojure
-(require '[cljseq.server :as server])
+(require '[nous.server :as server])
 
 ;; Start on default port 7177
 (server/start-server!)
@@ -748,7 +748,7 @@ cross-cutting reaction:
 Distinct from per-path `watch!` (fires only when a specific path changes) and
 `unwatch-all!` (removes all per-path watchers on a given path).
 
-### Browser control surface (`cljseq-ui`)
+### Browser control surface (`nous-ui`)
 
 `start-server!` also serves a browser control surface at `http://localhost:7177/`.
 The UI connects via `/ws` and displays two live panels:
@@ -778,7 +778,7 @@ server; it is not committed to the repository (listed in `.gitignore`). If the b
 has not been run, `GET /js/main.js` returns 404 and the page loads without
 JavaScript.
 
-The CLJS source lives in `src/cljseq_ui/core.cljs`. It uses only the native
+The CLJS source lives in `src/nous_ui/core.cljs`. It uses only the native
 `js/WebSocket` and `js/fetch` APIs plus Reagent — no additional runtime dependencies.
 
 ---
@@ -788,7 +788,7 @@ The CLJS source lives in `src/cljseq_ui/core.cljs`. It uses only the native
 ### Scale-weighted random pitch
 
 ```clojure
-(require '[cljseq.random :as r])
+(require '[nous.random :as r])
 
 ;; Random pitch biased toward a scale's characteristic degrees
 (r/weighted-scale (make-scale :C 4 :pentatonic-minor))
@@ -803,8 +803,8 @@ The CLJS source lives in `src/cljseq_ui/core.cljs`. It uses only the native
 ### Stochastic sequences
 
 ```clojure
-(require '[cljseq.stochastic :as stoch]
-         '[cljseq.seq        :as sq])
+(require '[nous.stochastic :as stoch]
+         '[nous.seq        :as sq])
 
 ;; Build a stochastic generator context
 (defstochastic marble
@@ -834,8 +834,8 @@ The CLJS source lives in `src/cljseq_ui/core.cljs`. It uses only the native
 ### Fractal sequences
 
 ```clojure
-(require '[cljseq.fractal :as frac]
-         '[cljseq.seq     :as sq])
+(require '[nous.fractal :as frac]
+         '[nous.seq     :as sq])
 
 ;; Define a fractal context with deffractal
 (deffractal melody
@@ -888,7 +888,7 @@ are returned as rest events. `seq-cycle-length` returns nil — always use
 
 The studio topology file declares the logical layout of your MIDI studio --
 which synthesizers, controllers, and FX units you have, and which substring
-of the OS MIDI port name to use to find each one. This decouples cljseq
+of the OS MIDI port name to use to find each one. This decouples nous
 scripts from fragile port indices that change across reboots and USB reconnects.
 
 ### Creating your topology file
@@ -897,7 +897,7 @@ Copy the schema reference and fill in your hardware:
 
 ```bash
 # Linux / macOS (XDG default)
-cp doc/topology-example.edn ~/.config/cljseq/topology.edn
+cp doc/topology-example.edn ~/.config/nous/topology.edn
 ```
 
 The path can also be set explicitly:
@@ -909,9 +909,9 @@ export CLJSEQ_TOPOLOGY=/path/to/my-studio.edn
 ### Loading and using the topology
 
 ```clojure
-(require '[cljseq.topology :as topology])
+(require '[nous.topology :as topology])
 
-;; Load from default path (~/.config/cljseq/topology.edn or CLJSEQ_TOPOLOGY)
+;; Load from default path (~/.config/nous/topology.edn or CLJSEQ_TOPOLOGY)
 (topology/load-topology!)
 
 ;; Or load from an explicit path
@@ -959,7 +959,7 @@ structure:
 
  ;; Optional: document your interfaces and hosts (used in Layer 2+ routing)
  :interfaces  {:hub-1 {:manufacturer "Example" :model "USB Hub" ...}}
- :hosts       {:main {:role :cljseq-host :os :macos}}}
+ :hosts       {:main {:role :nous-host :os :macos}}}
 ```
 
 `port-pattern` is matched case-insensitively as a substring of the OS MIDI
@@ -993,7 +993,7 @@ Eight overlapping zones define the depth of history available for playback:
 ### Quick start
 
 ```clojure
-(require '[cljseq.temporal-buffer :as tbuf])
+(require '[nous.temporal-buffer :as tbuf])
 
 ;; Create a buffer with default settings (zone :z3, 8 beats deep)
 (tbuf/deftemporal-buffer :echo)
@@ -1163,7 +1163,7 @@ Channels: ch1    ch2    ch3    ch4    ch5    ch6
 ### Quick start
 
 ```clojure
-(require '[cljseq.extractor :as ext])
+(require '[nous.extractor :as ext])
 
 ;; A phasor cycling every 4 beats crosses 7 thresholds per cycle
 (def my-phasor (make-phasor {:cycle-beats 4}))
@@ -1283,7 +1283,7 @@ All parameters can be changed on a running extractor:
 
 ## 17. Ensemble Harmony
 
-`cljseq.ensemble` provides a shared harmonic context derived from what the
+`nous.ensemble` provides a shared harmonic context derived from what the
 music is actually playing, rather than what the programmer has declared in
 advance. A background *harmony ear* watches a named Temporal Buffer, analyzes
 its note content on a phrase boundary, and publishes an `ImprovisationContext`
@@ -1313,8 +1313,8 @@ loops using `:harmony (scale/scale ...)` are unaffected.
 ### Quick start
 
 ```clojure
-(require '[cljseq.ensemble :as ensemble]
-         '[cljseq.temporal-buffer :refer [deftemporal-buffer
+(require '[nous.ensemble :as ensemble]
+         '[nous.temporal-buffer :refer [deftemporal-buffer
                                           temporal-buffer-send!]])
 
 ;; 1. A Temporal Buffer accumulates what you play
@@ -1408,8 +1408,8 @@ first call before any events have arrived, `analyze-buffer` returns nil.
 
 ## 18. ITexture and Spectral Analysis
 
-`cljseq.texture` provides `ITexture` — a unified protocol for any device or
-subsystem whose state can be set, faded, frozen, and thawed. `cljseq.spectral`
+`nous.texture` provides `ITexture` — a unified protocol for any device or
+subsystem whose state can be set, faded, frozen, and thawed. `nous.spectral`
 implements `ITexture` as a Spectral Analysis Model (SAM) that continuously
 derives harmonic-texture characteristics from a live Temporal Buffer.
 
@@ -1435,7 +1435,7 @@ state registry tracks the last-sent values so you can query them without
 re-reading hardware:
 
 ```clojure
-(require '[cljseq.texture :as tx])
+(require '[nous.texture :as tx])
 
 ;; Declare a shadow node for a hardware device
 (tx/shadow-init! :nightsky {:reverb/size 0.5 :reverb/mix 0.7})
@@ -1482,7 +1482,7 @@ is used by `apply-texture-routing!` in the ensemble improv agent:
 | `:spectral/blur` | 0–1 | 0 = live analysis, 1 = fully frozen |
 
 ```clojure
-(require '[cljseq.spectral :as spectral])
+(require '[nous.spectral :as spectral])
 
 ;; Start the SAM loop watching a Temporal Buffer
 (def sam (spectral/start-spectral! :main))
@@ -1529,7 +1529,7 @@ so it can be merged directly:
 
 ## 19. Ensemble Improvisation Agent
 
-`cljseq.ensemble-improv` combines the harmony ear, the spectral SAM, and the
+`nous.ensemble-improv` combines the harmony ear, the spectral SAM, and the
 texture routing system into a single generative loop — the *improv agent* —
 that responds to the live musical context and drives both MIDI output and
 effects-device state from the same snapshot.
@@ -1537,8 +1537,8 @@ effects-device state from the same snapshot.
 ### Quick start
 
 ```clojure
-(require '[cljseq.ensemble-improv :as improv]
-         '[cljseq.spectral        :as spectral])
+(require '[nous.ensemble-improv :as improv]
+         '[nous.spectral        :as spectral])
 
 ;; Start the harmony ear first
 (ensemble/start-harmony-ear! :main)
@@ -1633,14 +1633,14 @@ optionally replaces routing, and fires an immediate texture transition:
 
 ## 20. Peer Discovery
 
-`cljseq.peer` enables a multi-host cljseq studio: each node broadcasts a UDP
+`nous.peer` enables a multi-host nous studio: each node broadcasts a UDP
 beacon so peers can discover it, and `mount-peer!` starts a background poll
 that mounts the peer's harmony and spectral context into the local ctrl tree.
 
 ### Node identity
 
 ```clojure
-(require '[cljseq.peer :as peer])
+(require '[nous.peer :as peer])
 
 ;; Call before start-discovery!
 (peer/set-node-profile!
@@ -1737,7 +1737,7 @@ updated automatically when `connect-sc!` / `disconnect-sc!` is called; you can
 also register arbitrary backends manually:
 
 ```clojure
-(require '[cljseq.peer :as peer])
+(require '[nous.peer :as peer])
 
 ;; Register a backend (done automatically by connect-sc!)
 (peer/register-backend! :sc {:host "localhost" :sc-port 57110 :lang-port 57120})
@@ -1775,7 +1775,7 @@ multi-node sessions:
 
 ## 21. Note Transformers
 
-`cljseq.transform` provides composable per-event processing that sits between
+`nous.transform` provides composable per-event processing that sits between
 note generation and `play!`. Each transformer receives a note event map and
 returns zero, one, or many `{:event map :delay-beats number}` results. An
 empty result silently drops the event; multiple results produce multiple sounds.
@@ -1783,7 +1783,7 @@ empty result silently drops the event; multiple results produce multiple sounds.
 ### Quick start
 
 ```clojure
-(require '[cljseq.transform :as xf])
+(require '[nous.transform :as xf])
 
 ;; Single transformer
 (def my-echo (xf/echo {:repeats 3 :decay 0.7 :delay-beats 1/4}))
@@ -1934,7 +1934,7 @@ You can define custom transformers:
 ## 22. Bach Corpus (Music21)
 
 
-cljseq integrates with [Music21](https://web.mit.edu/music21/) for the Bach
+nous integrates with [Music21](https://web.mit.edu/music21/) for the Bach
 chorale corpus. Requires Python 3.x with `music21` installed:
 
 ```bash
@@ -1942,7 +1942,7 @@ pip install music21
 ```
 
 ```clojure
-(require '[cljseq.m21 :as m21])
+(require '[nous.m21 :as m21])
 
 ;; List available chorales (BWV numbers)
 (m21/list-chorales)   ; => [1 2 3 ... 371 ...]
@@ -1965,13 +1965,13 @@ pip install music21
 
 The first call starts a persistent Python server that stays alive for the JVM
 session. Repeat calls are instant (in-memory cache). Results are also cached
-to disk in `~/.local/share/cljseq/corpora/m21/`.
+to disk in `~/.local/share/nous/corpora/m21/`.
 
 ---
 
 ## 23. SuperCollider Integration
 
-cljseq talks to SuperCollider on two ports:
+nous talks to SuperCollider on two ports:
 
 - **sclang** (default 57120) — receives sclang code strings for SynthDef compilation
 - **scsynth** (default 57110) — receives OSC node control messages
@@ -1979,7 +1979,7 @@ cljseq talks to SuperCollider on two ports:
 ### Connecting
 
 ```clojure
-(require '[cljseq.user :refer :all])
+(require '[nous.user :refer :all])
 (session!)
 
 (connect-sc!)                           ; localhost, defaults
@@ -1989,7 +1989,7 @@ cljseq talks to SuperCollider on two ports:
 
 ### SynthDef lifecycle
 
-cljseq ships built-in synths (`:beep`, `:sine`, `:saw-pad`, `:blade`, `:prophet`,
+nous ships built-in synths (`:beep`, `:sine`, `:saw-pad`, `:blade`, `:prophet`,
 `:supersaw`, `:dull-bell`, `:fm`, `:tb303`, `:perc`). Load them into a running SC
 server with `send-synthdef!`:
 
@@ -2035,7 +2035,7 @@ Step maps without `:synth` continue to route through MIDI as before.
 ### Trajectory control
 
 `apply-trajectory!` drives a live SC node parameter continuously over time using
-cljseq's temporal vocabulary:
+nous's temporal vocabulary:
 
 ```clojure
 ;; 3-arity: drive node-id param with an ITemporalValue
@@ -2125,7 +2125,7 @@ pan/mix (`:pan2`, `:mix`), and math operators (`:*`, `:+`, `:-`, `:/`).
 
 ## 24. Spatial Field
 
-`cljseq.spatial-field` models bouncing particles inside an N-sided polygon. Wall
+`nous.spatial-field` models bouncing particles inside an N-sided polygon. Wall
 collisions generate MIDI events (`:generation` mode) or sweep modulation parameters
 (`:modulation` mode). The geometry is continuous — non-integer N values like `4.7`
 produce asymmetric rooms with irrational reflection angles, creating natural polyrhythm.
@@ -2248,7 +2248,7 @@ Available axes: `:x`, `:y`, `:r` (radius from centre), `:θ` (angle),
 
 ## 25. Sample Player and Freesound
 
-`cljseq.sample` manages SC audio buffers and provides playback, looping, and granular synthesis. `cljseq.freesound` adds fetch-on-use sample acquisition from the Freesound archive, with a bundled essentials catalog that mirrors the Sonic-Pi sample vocabulary.
+`nous.sample` manages SC audio buffers and provides playback, looping, and granular synthesis. `nous.freesound` adds fetch-on-use sample acquisition from the Freesound archive, with a bundled essentials catalog that mirrors the Sonic-Pi sample vocabulary.
 
 ### Loading samples
 
@@ -2312,7 +2312,7 @@ Set a Freesound API key (free account at freesound.org):
 Fetch and immediately load a sample by Freesound ID:
 
 ```clojure
-;; Download to ~/.cache/cljseq/samples/12345.wav, register as :my/kick
+;; Download to ~/.cache/nous/samples/12345.wav, register as :my/kick
 (fetch-and-load! 12345 :my/kick)
 (sample! :my/kick)
 ```
@@ -2570,7 +2570,7 @@ brightness, second fold adds density, deep folds create percussive texture.
 
 ### bind-spectral! — audio-reactive parameter control
 
-`bind-spectral!` connects spectral analysis output (from `cljseq.spectral`) to
+`bind-spectral!` connects spectral analysis output (from `nous.spectral`) to
 any live SC node parameter. It watches the `[:spectral :state]` ctrl path and
 fires a callback after every SAM tick, mapping the spectral value through a
 user-supplied transform function.
@@ -2606,7 +2606,7 @@ complementary `unbind-spectral!` detaches by node id and param:
 | `:spectral/density` | 0–1 | Normalised harmonic density (busyness) |
 | `:spectral/blur` | 0–1 | Spectral spread / diffuseness |
 
-Both `bind-spectral!` and `unbind-spectral!` are available in `cljseq.user`
+Both `bind-spectral!` and `unbind-spectral!` are available in `nous.user`
 without a namespace prefix.
 
 See `examples/waveshaper_demo.clj` for a complete session including saturation
@@ -2751,15 +2751,15 @@ the `bind-spectral!` audio-reactive decay sculpting example.
 
 ## 29. Composition from Hardware
 
-`cljseq.composition` (renamed from `cljseq.midi-repair` in v0.8.0) captures a
+`nous.composition` (renamed from `nous.midi-repair` in v0.8.0) captures a
 musical idea played on a hardware controller, cleans up timing and duplicate
 notes, and returns it as a plain Clojure sequence of step maps that you can
-play back, transform, and evolve using the full cljseq vocabulary.
+play back, transform, and evolve using the full nous vocabulary.
 
 ### Recording a phrase
 
 ```clojure
-(require '[cljseq.composition :as comp])
+(require '[nous.composition :as comp])
 
 ;; Capture MIDI input on channel 1 for 4 beats at 120 BPM
 (def raw (comp/record! :channel 1 :beats 4))
@@ -2802,8 +2802,8 @@ the standard library applies directly:
 ;; Reverse
 (def retrograde (reverse phrase))
 
-;; Apply a cljseq transformer
-(require '[cljseq.transform :as xf])
+;; Apply a nous transformer
+(require '[nous.transform :as xf])
 (def echoed (xf/apply-transforms phrase [(xf/echo :repeats 2 :decay 0.5 :delay-beats 1/2)]))
 ```
 
@@ -2811,18 +2811,18 @@ the standard library applies directly:
 
 ## 30. 8-op FM Synthesis
 
-`cljseq.fm` extends the existing 4-operator FM engine to 8 operators, adding
+`nous.fm` extends the existing 4-operator FM engine to 8 operators, adding
 per-operator waveforms, Through-Zero FM (TZFM) routing, and cross-operator
 feedback loops.  All operators are SuperCollider UGens compiled to SC synth
-definitions via `cljseq.sc`.  The `:8op-cc` backend (Leviasynth-inspired) emits
+definitions via `nous.sc`.  The `:8op-cc` backend (Leviasynth-inspired) emits
 per-OSC CC maps for hardware 8-operator FM synths; see `doc/attribution.md` for
 the hardware sources that shaped this design.
 
 ### Quick start
 
 ```clojure
-(require '[cljseq.fm :as fm])
-(require '[cljseq.sc :as sc])
+(require '[nous.fm :as fm])
+(require '[nous.sc :as sc])
 
 ;; Load a named 8-op preset
 (def synth (sc/sc-synth! (fm/build-synth :8op-brass) {:freq 220 :amp 0.4}))
@@ -2896,13 +2896,13 @@ enabling inter-operator feedback loops:
 ## 31. OSC push-subscribe
 
 The OSC push-subscribe mechanism lets external clients (TouchOSC, Max/MSP,
-custom GUIs, remote cljseq instances) receive live updates whenever a ctrl tree
+custom GUIs, remote nous instances) receive live updates whenever a ctrl tree
 path changes — without polling.
 
 ### Starting the OSC server
 
 ```clojure
-(require '[cljseq.osc :as osc])
+(require '[nous.osc :as osc])
 
 (osc/start-osc-server! :port 57121)   ; default port
 (osc/osc-running?)                    ; => true
@@ -2934,7 +2934,7 @@ removed automatically so there is no overhead for idle paths.
 ### Wire routes (for external clients)
 
 Any OSC-capable device can subscribe without writing Clojure code by sending
-OSC messages to the cljseq control port:
+OSC messages to the nous control port:
 
 | Message | Arguments | Effect |
 |---------|-----------|--------|
@@ -2953,7 +2953,7 @@ Example from TouchOSC (OSC send on connect):
 
 ### Push message format
 
-When a subscribed path changes, cljseq sends an OSC message to each registered
+When a subscribed path changes, nous sends an OSC message to each registered
 address:
 
 ```
@@ -2974,18 +2974,18 @@ stay strings, other values are serialised with `pr-str`.
 
 ## 32. nREPL Remote Eval
 
-`cljseq.remote` provides a minimal nREPL TCP client for evaluating Clojure
-expressions on remote cljseq instances.  This is Topology Layer 3: once peers
+`nous.remote` provides a minimal nREPL TCP client for evaluating Clojure
+expressions on remote nous instances.  This is Topology Layer 3: once peers
 are discovered (§20) and their backends are known, you can script cross-node
 automation entirely from the REPL.
 
-`cljseq.bencode` (the underlying codec) is hand-rolled to keep the dependency
+`nous.bencode` (the underlying codec) is hand-rolled to keep the dependency
 list at just `org.clojure/clojure` and `org.clojure/data.json`.
 
 ### Connecting to a peer
 
 ```clojure
-(require '[cljseq.remote :as remote])
+(require '[nous.remote :as remote])
 
 ;; Open a connection and clone an nREPL session
 (def conn (remote/connect! "192.168.1.10" 7888))
@@ -3038,14 +3038,14 @@ connection per call:
 
 ## 33. Configuration Registry
 
-`cljseq.config` exposes all §25 tunable system parameters through a validated
+`nous.config` exposes all §25 tunable system parameters through a validated
 registry.  Parameters are seeded into the ctrl tree on `start!` so every value
 is immediately readable and writable via HTTP and OSC — no extra wiring needed.
 
 ### Reading configuration
 
 ```clojure
-(require '[cljseq.config :as config])
+(require '[nous.config :as config])
 
 (config/get-config :bpm)                       ; => 120
 (config/get-config :link/quantum)              ; => 4
@@ -3125,15 +3125,15 @@ argument overrides the `:bpm` default:
 
 ## 34. MCP Bridge
 
-`cljseq.mcp` is a standalone MCP (Model Context Protocol) server that exposes
-the running cljseq session as AI-legible tools.  Launch it alongside your REPL
+`nous.mcp` is a standalone MCP (Model Context Protocol) server that exposes
+the running nous session as AI-legible tools.  Launch it alongside your REPL
 and Claude Code can participate in the session as a live compositional collaborator
 — reading harmony context, writing loops, ingesting recordings, and reasoning
 across the full synthesis stack.
 
-### Why cljseq is uniquely suited for MCP
+### Why nous is uniquely suited for MCP
 
-Most live-coding environments expose code to an AI; cljseq exposes *data*.  The
+Most live-coding environments expose code to an AI; nous exposes *data*.  The
 ctrl tree, harmony context, score map, and SynthDef graph are all plain Clojure
 values.  An AI can read them, reason about them musically, and write back without
 any special serialisation layer.
@@ -3141,7 +3141,7 @@ any special serialisation layer.
 ### Setup
 
 ```bash
-# Start cljseq (lein repl or your usual entry point)
+# Start nous (lein repl or your usual entry point)
 lein repl
 
 # In a second terminal — start the MCP server
@@ -3154,7 +3154,7 @@ Register with Claude Code (`.mcp.json` at the repo root, or `claude mcp add`):
 ```json
 {
   "mcpServers": {
-    "cljseq": {
+    "nous": {
       "command": "lein",
       "args": ["-C", "mcp"]
     }
@@ -3216,7 +3216,7 @@ save-score path=~/org/areas/music/shipwreck-piano.edn
 | `list-peers` | Topology registry: all discovered nodes with backends |
 | `evaluate-on-peer` | Eval on any named node (e.g. `:ubuntu`) in the topology |
 
-`evaluate-on-peer` proxies through `cljseq.remote/eval-on-peer!` on the primary
+`evaluate-on-peer` proxies through `nous.remote/eval-on-peer!` on the primary
 node, so the peer registry lookup happens in the running session rather than the
 MCP process.  Use `list-peers` first to discover available node IDs.
 
@@ -3234,9 +3234,9 @@ evaluate code=(compile-fm :sc (fm-algorithm :8op-stack))
 
 ---
 
-## 35. Keyboard Performance (`cljseq.ivk`)
+## 35. Keyboard Performance (`nous.ivk`)
 
-The `cljseq.ivk` namespace turns the computer keyboard into a live performance
+The `nous.ivk` namespace turns the computer keyboard into a live performance
 surface. Keyboard events from the C++ sidecar's `CGEventTap` (macOS) arrive as
 `0x21 KbdEvent` frames and are dispatched through an open multimethod, making
 layouts fully extensible without touching ivk internals.
@@ -3321,7 +3321,7 @@ Layouts are plain Clojure maps — write one and register it:
 types with `defmethod`:
 
 ```clojure
-(defmethod cljseq.ivk/handle-action! :my-action
+(defmethod nous.ivk/handle-action! :my-action
   [{:keys [my-param]} state]
   ;; return updated state
   (assoc state :current-pitch my-param))
@@ -3356,9 +3356,9 @@ keyboard to the T-1's current pitch:
 
 ---
 
-## 36. MIDI Input (`cljseq.midi-in`)
+## 36. MIDI Input (`nous.midi-in`)
 
-`cljseq.midi-in` opens JVM MIDI input ports via `javax.sound.midi` — independent
+`nous.midi-in` opens JVM MIDI input ports via `javax.sound.midi` — independent
 of the C++ sidecar. Multiple ports can be open simultaneously; handlers filter by
 source, channel, and pitch range.
 
@@ -3419,7 +3419,7 @@ Handler maps contain:
 The `resources/devices/torso-t1.edn` device map covers all T-1 MIDI parameters:
 
 ```clojure
-(require '[cljseq.device :as device])
+(require '[nous.device :as device])
 (def t1 (device/load-device "torso-t1"))
 
 ;; Send T-1 parameters via CC
@@ -3430,7 +3430,7 @@ The `resources/devices/torso-t1.edn` device map covers all T-1 MIDI parameters:
 
 ---
 
-## 37. Process Supervisor (`cljseq.supervisor`)
+## 37. Process Supervisor (`nous.supervisor`)
 
 The supervisor is a lightweight Erlang-style watchdog that monitors external
 services (SC server, sidecar process) and live loop threads, emitting lifecycle
@@ -3440,7 +3440,7 @@ restoring last-known state after a recovery.
 ### Quick start
 
 ```clojure
-(require '[cljseq.supervisor :as supervisor])
+(require '[nous.supervisor :as supervisor])
 
 ;; Register the SC server: health check + auto-restart via sc-restart! + synthdef restore.
 ;; Requires start-sc! to have been called so sc-restart! knows the binary/script path.
@@ -3579,7 +3579,7 @@ the others. The event payload always includes `:service` and `:at` (epoch ms).
 
 ### restart-loop!
 
-`restart-loop!` in `cljseq.loop` restarts a dead loop thread aligned to a beat
+`restart-loop!` in `nous.loop` restarts a dead loop thread aligned to a beat
 boundary without requiring a full `deflive-loop` re-evaluation:
 
 ```clojure
@@ -3616,9 +3616,9 @@ without changing the global setting.
 
 ---
 
-## 38. Arpeggiator (`cljseq.arp`)
+## 38. Arpeggiator (`nous.arp`)
 
-`cljseq.arp` provides a first-class arpeggiator engine with a named pattern
+`nous.arp` provides a first-class arpeggiator engine with a named pattern
 library. Patterns can be used one-shot from the REPL, looped in the background,
 or stepped through manually inside a `live-loop` or Berlin ostinato.
 
@@ -3696,7 +3696,7 @@ body or a background thread.
 
 ### Looping arps
 
-`ArpState` implements `IStepSequencer` (§41), so `seq-loop!` from `cljseq.seq`
+`ArpState` implements `IStepSequencer` (§41), so `seq-loop!` from `nous.seq`
 is the standard way to run it in the background:
 
 ```clojure
@@ -3732,7 +3732,7 @@ To change the chord voicing between cycles without resetting the step position:
   (run-cycle! my-arp))
 ```
 
-For manual step-by-step control use `next-event` from `cljseq.seq`:
+For manual step-by-step control use `next-event` from `nous.seq`:
 
 ```clojure
 (let [{:keys [event beats]} (sq/next-event my-arp)]
@@ -3801,7 +3801,7 @@ before the note-on automatically.
 Custom patterns are stored in the same registry as built-ins. They persist
 for the lifetime of the JVM session.
 
-### Keyboard arp (cljseq.ivk integration)
+### Keyboard arp (nous.ivk integration)
 
 The ivk arp mode queues keyboard-pressed notes and cycles through them. It
 now uses `loop-ns/sleep!` for timing (respects virtual time inside live-loops):
@@ -3870,7 +3870,7 @@ All durations are in **beats** (quarter notes at the current BPM).
 ## 40. Browser Control Surface
 
 The browser control surface is a ClojureScript + Reagent application served
-directly by the cljseq HTTP server. It gives you a live view of the ctrl tree
+directly by the nous HTTP server. It gives you a live view of the ctrl tree
 during a session without having to stay in the REPL.
 
 Open `http://localhost:7177/` after starting the server. The page requires the
@@ -3893,7 +3893,7 @@ auto-recovers after 3 seconds.
 
 ### Building the UI
 
-The CLJS source is in `src/cljseq_ui/core.cljs`. It compiles to
+The CLJS source is in `src/nous_ui/core.cljs`. It compiles to
 `resources/public/js/main.js` (gitignored). You need Node.js and npm.
 
 ```sh
@@ -3939,7 +3939,7 @@ The control surface is Step 2 of a planned web UI sequence:
 
 | Step | Version | Feature |
 |------|---------|---------|
-| 1 | v0.13.0 | `/ws` WebSocket endpoint + `watch-global!` in `cljseq.ctrl` |
+| 1 | v0.13.0 | `/ws` WebSocket endpoint + `watch-global!` in `nous.ctrl` |
 | 2 | v0.14.0 | ClojureScript + Reagent frontend served from http-kit |
 | 3 | planned | `defdevice :ui` key — device layout drives control surface generation |
 | 4 | planned | Tauri packaging — `.app` wrapping JVM + scsynth as sidecars |
@@ -3950,10 +3950,10 @@ device model data.
 
 ---
 
-## 41. Step Sequencer Protocol (`cljseq.seq`)
+## 41. Step Sequencer Protocol (`nous.seq`)
 
-`cljseq.seq` defines the `IStepSequencer` protocol — the common interface
-that all step-based note generators in cljseq implement. It provides a
+`nous.seq` defines the `IStepSequencer` protocol — the common interface
+that all step-based note generators in nous implement. It provides a
 uniform way to drive `ArpState`, `MotifState`, `FractalSeq`, `StochasticSeq`,
 and any custom sequencer you write.
 
@@ -3998,7 +3998,7 @@ parameter locks that `play!` routes via ctrl bindings.
 
 ### ITransformer composition
 
-The `:xf` option applies a `cljseq.transform` `ITransformer` to each event
+The `:xf` option applies a `nous.transform` `ITransformer` to each event
 before dispatch — harmonies, echoes, octave doublings etc.:
 
 ```clojure
@@ -4040,9 +4040,9 @@ Because all sources speak the same protocol, they compose:
 
 ---
 
-## 42. Pattern × Rhythm Motifs (`cljseq.pattern`)
+## 42. Pattern × Rhythm Motifs (`nous.pattern`)
 
-`cljseq.pattern` provides the NDLR-style Pattern × Rhythm motif engine.
+`nous.pattern` provides the NDLR-style Pattern × Rhythm motif engine.
 Pattern and Rhythm are orthogonal — they cycle at their own lengths. When
 they differ, the combined phrase repeats every `lcm(len-pat, len-rhy)` steps,
 generating emergent complexity from simple data.
@@ -4094,7 +4094,7 @@ Options:
 ### Stateful step engine with `make-motif-state`
 
 `make-motif-state` returns a `MotifState` that implements `IStepSequencer`,
-usable with all `cljseq.seq` runners:
+usable with all `nous.seq` runners:
 
 ```clojure
 (def my-motif
@@ -4200,10 +4200,10 @@ Built-in rhythms: `:tresillo`, `:cinquillo`, `:son-clave`, `:rumba-clave`,
 
 ---
 
-## 43. Transaction Journal (`cljseq.journal`)
+## 43. Transaction Journal (`nous.journal`)
 
 Every parameter write goes through the sidecar, which appends a row to a
-WAL-mode SQLite `changes` table. `cljseq.journal` reads and queries that log
+WAL-mode SQLite `changes` table. `nous.journal` reads and queries that log
 from Clojure, with no IPC round-trip — it opens the file directly via
 `sqlite-jdbc`.
 
@@ -4212,7 +4212,7 @@ from Clojure, with no IPC round-trip — it opens the file directly via
 ```clojure
 (def txs (read-journal "/path/to/session.sqlite"))
 ;; => [{:tx/id #uuid "..." :tx/beat 0.0 :tx/wall-ns 1234 :tx/source :schema
-;;      :tx/path [:cljseq/schema :device-models :arp2600]
+;;      :tx/path [:nous/schema :device-models :arp2600]
 ;;      :tx/before nil :tx/after {...} :tx/parent nil} ...]
 ```
 
@@ -4263,7 +4263,7 @@ to turn a live-performance window into trajectory or step-sequence material.
 
 Options:
 - `:source` — restrict to one source kind keyword
-- `:schema?` — include `[:cljseq/schema ...]` paths (default `false`)
+- `:schema?` — include `[:nous/schema ...]` paths (default `false`)
 
 #### `diff-sessions` — compare two journal files
 
@@ -4277,33 +4277,33 @@ Options:
 
 ### Session lifecycle
 
-Four functions in `cljseq.core` (re-exported via `cljseq.user`) wrap the
+Four functions in `nous.core` (re-exported via `nous.user`) wrap the
 journal for session save/restore:
 
 | Function | Description |
 |---|---|
-| `export-session!` | Write live ctrl/schema tree to a `.cljseq` EDN file |
-| `restore-session!` | Load a `.cljseq` file and re-apply BPM, devices, params |
-| `export-from-journal!` | Reconstruct final state from a SQLite file → `.cljseq` |
+| `export-session!` | Write live ctrl/schema tree to a `.nous` EDN file |
+| `restore-session!` | Load a `.nous` file and re-apply BPM, devices, params |
+| `export-from-journal!` | Reconstruct final state from a SQLite file → `.nous` |
 | `load-session!` | Open a SQLite journal and restore final state in-process |
 
 ```clojure
 ;; Save the current session
-(export-session! "friday-ambient.cljseq")
+(export-session! "friday-ambient.nous")
 
 ;; Restore it next session
-(restore-session! "friday-ambient.cljseq")
+(restore-session! "friday-ambient.nous")
 
 ;; Or rebuild from the raw journal if you forgot to export
-(export-from-journal! "/path/to/session.sqlite" "friday-ambient.cljseq")
+(export-from-journal! "/path/to/session.sqlite" "friday-ambient.nous")
 (load-session! "/path/to/session.sqlite")
 ```
 
-The `.cljseq` export format is fully-qualified, human-readable Clojure forms
-(`cljseq.schema/defdevice-model`, `cljseq.ctrl/set!`, etc.) — diff-friendly
+The `.nous` export format is fully-qualified, human-readable Clojure forms
+(`nous.schema/defdevice-model`, `nous.ctrl/set!`, etc.) — diff-friendly
 and safe to commit to version control.
 
 ---
 
-*cljseq is released under EPL-2.0 (Clojure library) and LGPL-2.1 (C++ sidecar).*
+*nous is released under EPL-2.0 (Clojure library) and LGPL-2.1 (C++ sidecar).*
 *See [doc/licensing.md](licensing.md) for the full licensing strategy.*

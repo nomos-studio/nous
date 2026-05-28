@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.synth
+(ns nous.synth
   "Synthesis graph vocabulary — engine-agnostic synth definitions.
 
   A synth definition is a Clojure map with two required keys:
@@ -94,7 +94,7 @@
 (defn register-precompiled!
   "Register a named synth whose SC SynthDef string is already compiled.
 
-  Used by `cljseq.sc/send-fm-synthdef!` to make FM synths available via
+  Used by `nous.sc/send-fm-synthdef!` to make FM synths available via
   `sc-synth!` and `sc-play!` without going through the graph compiler.
 
   `synth-name` — keyword name the synth will be addressable as
@@ -172,7 +172,7 @@
   "Compile a registered synth to a backend-specific representation.
 
   Dispatch on `backend` keyword. Built-in backends:
-    :sc  — returns a sclang SynthDef string (from cljseq.sc)
+    :sc  — returns a sclang SynthDef string (from nous.sc)
 
   Example:
     (compile-synth :sc :blade)
@@ -197,7 +197,7 @@
   [path]
   (if-let [url (io/resource path)]
     (edn/read-string (slurp url))
-    (throw (ex-info "cljseq.synth/load-synth-map: file not found"
+    (throw (ex-info "nous.synth/load-synth-map: file not found"
                     {:path path}))))
 
 (defn- load-builtin! [filename]

@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.mpe-test
-  "Tests for cljseq.mpe — MPE voice allocator, pitch bend math, and dispatch routing."
+(ns nous.mpe-test
+  "Tests for nous.mpe — MPE voice allocator, pitch bend math, and dispatch routing."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.core  :as core]
-            [cljseq.mpe   :as mpe]))
+            [nous.core  :as core]
+            [nous.mpe   :as mpe]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.trajectory
+(ns nous.trajectory
   "Trajectory primitives — time-bounded, curve-shaped transitions.
 
   A `Trajectory` is an `ITemporalValue` that moves a value from `from` to
   `to` over `beats` beats starting at `start-beat`, following a named curve.
   Once complete it clamps at `to` and `next-edge` returns ##Inf, so mod-route!
-  runners auto-stop — identical behaviour to a `cljseq.mod/OneShot`.
+  runners auto-stop — identical behaviour to a `nous.mod/OneShot`.
 
   ## Curve shapes
 
@@ -21,9 +21,9 @@
 
   ## Usage
 
-    (require '[cljseq.trajectory :as traj]
-             '[cljseq.mod        :as mod]
-             '[cljseq.loop       :refer [now]])
+    (require '[nous.trajectory :as traj]
+             '[nous.mod        :as mod]
+             '[nous.loop       :refer [now]])
 
     ;; 32-bar trance buildup — filter cutoff 0→1
     (mod-route! [:filter1/cutoff]
@@ -53,7 +53,7 @@
     (traj/time-warp (traj/buildup :bars 16) 8 :start (now))
 
   Key design decisions: R&R §31 (trajectory primitive), Track C EDM vocabulary."
-  (:require [cljseq.clock :as clock]))
+  (:require [nous.clock :as clock]))
 
 ;; ---------------------------------------------------------------------------
 ;; Curve functions

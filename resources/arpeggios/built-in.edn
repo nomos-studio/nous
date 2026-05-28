@@ -1,4 +1,4 @@
-;; cljseq built-in chord arpeggio patterns (R&R §22.5)
+;; nous built-in chord arpeggio patterns (R&R §22.5)
 ;;
 ;; Format — :type :chord
 ;;   :order   — indices into the chord's pitch vector (0=root, 1=3rd, 2=5th, ...)

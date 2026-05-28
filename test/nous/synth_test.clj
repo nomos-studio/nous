@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.synth-test
-  "Tests for cljseq.synth — synthesis graph vocabulary."
+(ns nous.synth-test
+  "Tests for nous.synth — synthesis graph vocabulary."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.synth  :as synth]
-            [cljseq.sc     :as sc]))
+            [nous.synth  :as synth]
+            [nous.sc     :as sc]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry

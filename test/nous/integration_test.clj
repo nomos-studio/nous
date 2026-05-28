@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.integration-test
+(ns nous.integration-test
   "End-to-end integration test: JVM → sidecar binary → MIDI dispatch.
 
   Verifies the complete pipeline:
@@ -10,24 +10,24 @@
   functional javax.sound.midi input — the latter is unreliable on macOS/OpenJDK.
 
   Requires:
-    cljseq-sidecar binary at build/cpp/cljseq-sidecar/cljseq-sidecar
+    nous-sidecar binary at build/cpp/nous-sidecar/nous-sidecar
 
   Run with:
-    lein test cljseq.integration-test
+    lein test nous.integration-test
 
   Skips gracefully if the binary is not available."
   (:require [clojure.test   :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
             [clojure.string  :as str]
-            [cljseq.core    :as core]
-            [cljseq.loop    :as loop-ns]
-            [cljseq.sidecar :as sidecar]))
+            [nous.core    :as core]
+            [nous.loop    :as loop-ns]
+            [nous.sidecar :as sidecar]))
 
 ;; ---------------------------------------------------------------------------
 ;; Test configuration
 ;; ---------------------------------------------------------------------------
 
-(def ^:private sidecar-binary "build/cpp/cljseq-sidecar/cljseq-sidecar")
+(def ^:private sidecar-binary "build/cpp/nous-sidecar/nous-sidecar")
 
 ;; Timeout for each dispatch assertion
 (def ^:private timeout-ms 2000)

@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.morph-test
-  "Unit tests for cljseq.morph — defmorph, morph-set!, fan-out, inspection."
+(ns nous.morph-test
+  "Unit tests for nous.morph — defmorph, morph-set!, fan-out, inspection."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.core  :as core]
-            [cljseq.ctrl  :as ctrl]
-            [cljseq.morph :as morph]))
+            [nous.core  :as core]
+            [nous.ctrl  :as ctrl]
+            [nous.morph :as morph]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

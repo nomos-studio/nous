@@ -1,14 +1,14 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ensemble-test
-  "Tests for cljseq.ensemble — analyze-buffer, start-harmony-ear!, and
+(ns nous.ensemble-test
+  "Tests for nous.ensemble — analyze-buffer, start-harmony-ear!, and
   ImprovisationContext derivation."
   (:require [clojure.test             :refer [deftest is testing use-fixtures]]
-            [cljseq.ensemble          :as ensemble]
-            [cljseq.live  :as live]
-            [cljseq.loop              :as loop-ns]
-            [cljseq.pitch             :as pitch]
-            [cljseq.scale             :as scale]
-            [cljseq.temporal-buffer   :as tb]))
+            [nous.ensemble          :as ensemble]
+            [nous.live  :as live]
+            [nous.loop              :as loop-ns]
+            [nous.pitch             :as pitch]
+            [nous.scale             :as scale]
+            [nous.temporal-buffer   :as tb]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.config
+(ns nous.config
   "Configuration registry — all tunable system parameters with defaults.
 
   Exposes all §25 parameters through:
@@ -39,7 +39,7 @@
   the timeline — use HTTP PUT /bpm for live tempo changes from external tools.
 
   Key design decisions: §25 of R&R doc."
-  (:require [cljseq.ctrl :as ctrl]))
+  (:require [nous.ctrl :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Parameter registry
@@ -110,7 +110,7 @@
    :osc/control-port
    {:default  57121
     :type     :int
-    :doc      "UDP port for the cljseq OSC control-plane server."
+    :doc      "UDP port for the nous OSC control-plane server."
     :validate #(and (integer? %) (> % 1023) (< % 65536))}
 
    :osc/data-port
@@ -120,13 +120,13 @@
     :validate #(and (integer? %) (> % 1023) (< % 65536))}})
 
 ;; ---------------------------------------------------------------------------
-;; System state reference (injected by cljseq.core/start!)
+;; System state reference (injected by nous.core/start!)
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private system-ref (atom nil))
 
 (defn -register-system!
-  "Called by cljseq.core/start! to inject the system-state atom.
+  "Called by nous.core/start! to inject the system-state atom.
   Not part of the public API."
   [state-atom]
   (reset! system-ref state-atom))
@@ -136,14 +136,14 @@
 ;;
 ;; Params with non-trivial runtime side effects (like :bpm, which must reanchor
 ;; the timeline) register a handler here so that set-config! can apply them.
-;; Registered by cljseq.core/start! — not part of the public API.
+;; Registered by nous.core/start! — not part of the public API.
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private effect-registry (atom {}))
 
 (defn -register-effect!
   "Register a (fn [value]) side-effect for a config key.
-  Called by cljseq.core/start! — not part of the public API."
+  Called by nous.core/start! — not part of the public API."
   [key f]
   (swap! effect-registry assoc key f))
 
@@ -167,7 +167,7 @@
 
 (defn default-config
   "Return a map of all parameters at their registry defaults.
-  Used by cljseq.core/start! to reset :config on each fresh start.
+  Used by nous.core/start! to reset :config on each fresh start.
   Not part of the public API."
   []
   (into {} (map (fn [[k e]] [k (:default e)])) registry))
@@ -241,7 +241,7 @@
 (defn seed-ctrl-tree!
   "Populate the ctrl tree with typed nodes for all configuration parameters.
 
-  Called by cljseq.core/start! after system-ref and ctrl system are both
+  Called by nous.core/start! after system-ref and ctrl system are both
   registered. Creates a CtrlNode for each registry entry using the current
   system-state value (falling back to the registry default).
 

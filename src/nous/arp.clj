@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.arp
-  "cljseq.arp — first-class arpeggiator engine with named pattern library.
+(ns nous.arp
+  "nous.arp — first-class arpeggiator engine with named pattern library.
 
   Two pattern formats:
 
@@ -35,11 +35,11 @@
   make-arp-state  — create an ArpState record (implements IStepSequencer)
   play!           — convenience: play one complete iteration of a pattern
 
-  ArpState implements IStepSequencer (cljseq.seq):
+  ArpState implements IStepSequencer (nous.seq):
     (next-event arp)       — advance one step, return {:event note-map :beats N}
     (seq-cycle-length arp) — steps in one full cycle
 
-  Use seq-loop! / run-cycle! / run-step! from cljseq.seq to drive ArpState.
+  Use seq-loop! / run-cycle! / run-step! from nous.seq to drive ArpState.
 
   Examples
   ────────
@@ -64,9 +64,9 @@
              {:rest true :beats 1}]})"
   (:require [clojure.edn     :as edn]
             [clojure.java.io :as io]
-            [cljseq.core     :as core]
-            [cljseq.loop     :as loop-ns]
-            [cljseq.seq      :as sq]))
+            [nous.core     :as core]
+            [nous.loop     :as loop-ns]
+            [nous.seq      :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Pattern registry
@@ -209,7 +209,7 @@
     :rate  — beat-duration multiplier (default 1.0)
 
   Returns an ArpState record. Use with run-cycle!, run-step!, or seq-loop!
-  from cljseq.seq.
+  from nous.seq.
 
   Example:
     (def my-arp (make-arp-state :bounce (chord/chord :C 4 :maj7) :vel 90))

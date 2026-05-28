@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.texture
+(ns nous.texture
   "ITexture protocol — unified interface for software and hardware temporal/texture
   devices.
 
@@ -46,9 +46,9 @@
                                 ; externally (e.g. front-panel knob turns)
 
   Design notes: doc/design-texture-protocol.md (TBD)"
-  (:require [cljseq.clock          :as clock]
-            [cljseq.core           :as core]
-            [cljseq.temporal-buffer :as tb]))
+  (:require [nous.clock          :as clock]
+            [nous.core           :as core]
+            [nous.temporal-buffer :as tb]))
 
 ;; ---------------------------------------------------------------------------
 ;; ITexture protocol
@@ -58,7 +58,7 @@
   "Unified interface for all temporal/texture devices.
 
   Software implementations (TemporalBuffer, SpectralState) return live state
-  from `texture-state`. Hardware implementations return shadow state — cljseq's
+  from `texture-state`. Hardware implementations return shadow state — nous's
   best record of what was last sent to the device."
 
   (freeze!

@@ -1,13 +1,13 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.link
-  "cljseq Ableton Link integration — Phase 1 + Phase 2.
+(ns nous.link
+  "nous Ableton Link integration — Phase 1 + Phase 2.
 
   Coordinates with the C++ sidecar's LinkEngine via the IPC protocol.
-  When Link is active, cljseq.loop/sleep! uses the Link timeline instead of
+  When Link is active, nous.loop/sleep! uses the Link timeline instead of
   the local BPM formula, providing beat-accurate sync with Link peers.
 
   ## Quick start
-    (require '[cljseq.link :as link])
+    (require '[nous.link :as link])
     (link/enable!)              ; join/create a Link session
     (link/bpm)                  ; => session BPM (from most recent push)
     (link/peers)                ; => number of connected peers
@@ -21,7 +21,7 @@
   time. Each push updates :link-timeline in system-state — a map with the same
   shape as :timeline but anchored to the Link session.
 
-  cljseq.loop/sleep! checks (link/active?) and, when true, uses :link-timeline
+  nous.loop/sleep! checks (link/active?) and, when true, uses :link-timeline
   to compute its wall-clock deadline. BPM changes from other Link peers take
   effect on the next sleep! call with no explicit broadcast (Q60-equivalent).
 
@@ -36,21 +36,21 @@
 
   * **Transport-change hooks**: register a callback with `on-transport-change!`
     to react when the Link session's playing state changes (e.g. start/stop
-    cljseq live loops from a Link peer's transport button).
+    nous live loops from a Link peer's transport button).
 
   Key design decisions: Q7 (Link integration), §15 of R&R doc."
-  (:require [cljseq.sidecar :as sidecar])
+  (:require [nous.sidecar :as sidecar])
   (:import  [java.nio ByteBuffer ByteOrder]
             [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
-;; System state reference (injected by cljseq.core/start!)
+;; System state reference (injected by nous.core/start!)
 ;; ---------------------------------------------------------------------------
 
 (def ^:private system-ref (atom nil))
 
 (defn -register-system!
-  "Called by cljseq.core/start! to inject the system-state atom.
+  "Called by nous.core/start! to inject the system-state atom.
   Not part of the public API."
   [state-atom]
   (reset! system-ref state-atom))
@@ -86,7 +86,7 @@
 
 (defn- link-state->timeline
   "Convert a parsed LinkState into a :timeline-shaped map for use by
-  cljseq.clock/beat->epoch-ms.
+  nous.clock/beat->epoch-ms.
 
   Link's anchor-us is µs; the timeline expects epoch-ms."
   [{:keys [bpm anchor-beat anchor-us]}]
@@ -138,7 +138,7 @@
 
 (defn link-timeline
   "Return the current Link timeline map (same shape as :timeline), or nil
-  when Link is inactive. Used by cljseq.loop/sleep! to compute beat→epoch-ms."
+  when Link is inactive. Used by nous.loop/sleep! to compute beat→epoch-ms."
   []
   (when-let [s @system-ref] (:link-timeline @s)))
 

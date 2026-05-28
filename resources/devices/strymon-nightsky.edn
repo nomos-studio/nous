@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Strymon NightSky Reverb Synthesizer — cljseq device map
+;; Strymon NightSky Reverb Synthesizer — nous device map
 ;;
 ;; Source: Strymon NightSky MIDI Implementation
 ;;         https://www.strymon.net/nightsky-midi-implementation/
@@ -11,7 +11,7 @@
 ;;
 ;; NightSky is a reverb synthesizer rather than a conventional reverb pedal.
 ;; Its parameter space (warp, glimmer, reflect) describes a texture volume
-;; that maps naturally onto cljseq trajectory automation and conductor arcs.
+;; that maps naturally onto nous trajectory automation and conductor arcs.
 ;;
 ;; Connectivity: TRS-MIDI (3.5mm, Type A) or USB MIDI.
 ;;               No DIN 5-pin. TRS-A is compatible with standard TRS-MIDI cables.
@@ -97,7 +97,7 @@
   :assignable  true                    ; target parameter is configurable on the pedal}
 
  ;; -------------------------------------------------------------------------
- ;; Notes for cljseq integration
+ ;; Notes for nous integration
  ;; -------------------------------------------------------------------------
  ;; The NightSky's texture parameters form a 3D space well suited to
  ;; trajectory automation. Suggested conductor arc mappings:

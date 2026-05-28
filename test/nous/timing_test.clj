@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.timing-test
-  "Unit tests for cljseq.timing — swing, humanize, combine, and play! integration."
+(ns nous.timing-test
+  "Unit tests for nous.timing — swing, humanize, combine, and play! integration."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.clock  :as clock]
-            [cljseq.core   :as core]
-            [cljseq.live  :as live]
-            [cljseq.loop   :as loop-ns]
-            [cljseq.timing :as timing]))
+            [nous.clock  :as clock]
+            [nous.core   :as core]
+            [nous.live  :as live]
+            [nous.loop   :as loop-ns]
+            [nous.timing :as timing]))
 
 ;; ---------------------------------------------------------------------------
 ;; Swing — sample values
@@ -97,10 +97,10 @@
     (core/start! :bpm 120)
     (try
       (let [captured (atom [])]
-        (with-redefs [cljseq.sidecar/connected?   (constantly true)
-                      cljseq.sidecar/send-note-on! (fn [t _ _ _]
+        (with-redefs [nous.sidecar/connected?   (constantly true)
+                      nous.sidecar/send-note-on! (fn [t _ _ _]
                                                      (swap! captured conj t))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           ;; Downbeat note — no swing
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*timing-ctx*   nil]
@@ -125,9 +125,9 @@
     (core/start! :bpm 120)
     (try
       (let [captured (atom nil)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [t _ _ _] (reset! captured t))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [t _ _ _] (reset! captured t))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           ;; Use beat 100.0 (a downbeat — even 8th-note index) so that
           ;; beat->epoch-ns is safely in the future and the max(wall,beat)
           ;; clamp in play! picks the beat value, not wall-clock.
@@ -146,9 +146,9 @@
     (core/start! :bpm 120)
     (try
       (let [captured (atom nil)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [t _ _ _] (reset! captured t))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [t _ _ _] (reset! captured t))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.5
                     loop-ns/*timing-ctx*   nil]
             (core/play! :E4 1/4)))
@@ -189,9 +189,9 @@
             observed (promise)]
         ;; Capture *timing-ctx* directly from inside the loop body —
         ;; with-redefs on a protocol fn doesn't reliably intercept daemon threads.
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [& _] nil)
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [& _] nil)
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (core/deflive-loop :timing-test {:timing sw}
             (deliver observed loop-ns/*timing-ctx*)
             (core/stop-loop! :timing-test))

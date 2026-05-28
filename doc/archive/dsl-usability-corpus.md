@@ -1,26 +1,26 @@
-# cljseq DSL Usability Corpus
+# nous DSL Usability Corpus
 
 **Status**: Living document — grows as the DSL design matures
 **Sprint**: Sprint 4 (initial population)
-**Purpose**: Systematic comparison of equivalent musical concepts across cljseq,
+**Purpose**: Systematic comparison of equivalent musical concepts across nous,
 Sonic Pi, Overtone, and TidalCycles. Identifies syntactic sugar opportunities
 and conceptual gaps.
 
 Each entry records the canonical form in each system, annotates verbosity
-asymmetries, and flags sugar candidates for the cljseq DSL backlog.
+asymmetries, and flags sugar candidates for the nous DSL backlog.
 
 ---
 
 ## How to Read This Document
 
-- **cljseq (proposed)** forms are the current design-level API, not yet implemented
-- **Sugar opportunity** marks cases where cljseq requires meaningfully more
+- **nous (proposed)** forms are the current design-level API, not yet implemented
+- **Sugar opportunity** marks cases where nous requires meaningfully more
   keystrokes than a comparator for the same musical intent — these are candidates
   for alias macros or reader conveniences
-- **Advantage** marks cases where cljseq's Clojure foundation is expressively
+- **Advantage** marks cases where nous's Clojure foundation is expressively
   richer than comparators
 - **Gap** marks musical concepts well-covered by comparators with no current
-  cljseq equivalent
+  nous equivalent
 
 ---
 
@@ -33,7 +33,7 @@ asymmetries, and flags sugar candidates for the cljseq DSL backlog.
 | Sonic Pi    | `play 60` / `play :C4`                      | Integer or keyword pitch |
 | Overtone    | `(play (midi->hz 60))` / `(note :C4)`       | Requires synth context |
 | TidalCycles | `d1 $ note "c"`                              | Pattern context always |
-| cljseq      | `(play! {:pitch/midi 60 :dur/beats 1})`      | Explicit step map |
+| nous      | `(play! {:pitch/midi 60 :dur/beats 1})`      | Explicit step map |
 
 **Sugar opportunity**: `(play! :C4)` / `(play! 60)` as shorthands that expand to
 a step map with the system default duration. The explicit step map is the right
@@ -46,9 +46,9 @@ foundation but the shorthand is essential for interactive use.
 | Sonic Pi    | `play :C4, sustain: 0.5`                           |
 | Overtone    | `(at (now) #(piano :note 60)) (at (+ (now) 500) #(piano :note 60 :gate 0))` |
 | TidalCycles | `d1 $ note "c" # sustain 0.5`                      |
-| cljseq      | `(play! {:pitch/midi 60 :dur/beats 1/2})`          |
+| nous      | `(play! {:pitch/midi 60 :dur/beats 1/2})`          |
 
-**Advantage**: cljseq's `dur/beats` is music-time-native; Sonic Pi's `sustain:` is in seconds.
+**Advantage**: nous's `dur/beats` is music-time-native; Sonic Pi's `sustain:` is in seconds.
 
 ---
 
@@ -61,10 +61,10 @@ foundation but the shorthand is essential for interactive use.
 | Sonic Pi    | `sleep 1`         | Seconds (not beats — tempo-independent) |
 | Overtone    | `(Thread/sleep 1000)` | Raw Java; no musical abstraction |
 | TidalCycles | (implicit — cycle-based, no explicit sleep) | |
-| cljseq      | `(sleep! 1)`      | Beat-relative; tied to tempo via Link |
+| nous      | `(sleep! 1)`      | Beat-relative; tied to tempo via Link |
 
-**Advantage**: cljseq and Sonic Pi both sleep in music time (though Sonic Pi uses
-seconds, requiring `use_bpm` for tempo-relative notation). cljseq's `sleep!` is
+**Advantage**: nous and Sonic Pi both sleep in music time (though Sonic Pi uses
+seconds, requiring `use_bpm` for tempo-relative notation). nous's `sleep!` is
 always in beats.
 
 ### Sleep for a fraction of a beat
@@ -73,7 +73,7 @@ always in beats.
 |-------------|-------------------|
 | Sonic Pi    | `sleep 0.25`      |
 | TidalCycles | (implicit)        |
-| cljseq      | `(sleep! 1/4)`    |
+| nous      | `(sleep! 1/4)`    |
 
 **Advantage**: Clojure's ratio literals (`1/4`, `3/16`) are exact and readable.
 No floating-point imprecision accumulation across many sleeps.
@@ -89,11 +89,11 @@ No floating-point imprecision accumulation across many sleeps.
 | Sonic Pi    | `[:C4, :E4, :G4, :C5].each { \|n\| play n; sleep 0.25 }` |
 | Overtone    | `(doseq [n [60 64 67 72]] (play (midi->hz n)) (Thread/sleep 250))` |
 | TidalCycles | `d1 $ note "c e g c5"` |
-| cljseq      | `(doseq [n [60 64 67 72]] (play! {:pitch/midi n :dur/beats 1/4}) (sleep! 1/4))` |
+| nous      | `(doseq [n [60 64 67 72]] (play! {:pitch/midi n :dur/beats 1/4}) (sleep! 1/4))` |
 
 **Sugar opportunity**: `(phrase! [[60 1/4] [64 1/4] [67 1/4] [72 1/4]])` or
 a note-sequence literal form. TidalCycles' mini-notation is extremely compact;
-cljseq needs a concise form for writing melodic lines interactively.
+nous needs a concise form for writing melodic lines interactively.
 
 **Candidate sugar**:
 ```clojure
@@ -110,9 +110,9 @@ cljseq needs a concise form for writing melodic lines interactively.
 |-------------|------|
 | Sonic Pi    | `ring(:C4, :E4, :G4).tick` (inside live_loop) |
 | TidalCycles | `d1 $ note "c e g"` (cycles automatically) |
-| cljseq      | `(nth (cycle [:C4 :E4 :G4]) step)` or `defonce` ring buffer |
+| nous      | `(nth (cycle [:C4 :E4 :G4]) step)` or `defonce` ring buffer |
 
-**Sugar opportunity**: Sonic Pi's `ring` + `tick` is a clean idiom. cljseq should
+**Sugar opportunity**: Sonic Pi's `ring` + `tick` is a clean idiom. nous should
 offer `(ring :C4 :E4 :G4)` that returns an infinite cycling seq, usable inside a
 `deflive-loop` with an internal step counter.
 
@@ -127,9 +127,9 @@ offer `(ring :C4 :E4 :G4)` that returns an infinite cycling seq, usable inside a
 | Sonic Pi    | `live_loop :name do ... end` |
 | Overtone    | (no native live-loop; requires `overtone.music.time/apply-at` + recursion) |
 | TidalCycles | `d1 $ ...` (all patterns are inherently live) |
-| cljseq      | `(deflive-loop :name {} body)` / `(live-loop :name body)` |
+| nous      | `(deflive-loop :name {} body)` / `(live-loop :name body)` |
 
-cljseq and Sonic Pi are directly comparable here. Overtone has a notable gap —
+nous and Sonic Pi are directly comparable here. Overtone has a notable gap —
 live coding requires manual `apply-at` recursion, which is why Overtone is
 largely superseded by SuperCollider + TidalCycles for live performance.
 
@@ -140,9 +140,9 @@ largely superseded by SuperCollider + TidalCycles for live performance.
 | Sonic Pi    | `sync :name` (cue/sync mechanism) |
 | Overtone    | Manual scheduling arithmetic |
 | TidalCycles | Loops are always cycle-synced; no explicit sync needed |
-| cljseq      | `(sync! :bar)` |
+| nous      | `(sync! :bar)` |
 
-**Advantage**: cljseq's `sync!` is beat-aware via Link; it is meaningful in a
+**Advantage**: nous's `sync!` is beat-aware via Link; it is meaningful in a
 multi-machine ensemble context (Sonic Pi's `sync` is within-process only).
 
 ### Modify a running loop
@@ -152,9 +152,9 @@ multi-machine ensemble context (Sonic Pi's `sync` is within-process only).
 | Sonic Pi    | Re-evaluate `live_loop` block in editor |
 | Overtone    | Re-evaluate function at REPL |
 | TidalCycles | Re-evaluate `d1 $ ...` expression |
-| cljseq      | Re-evaluate `deflive-loop` form at nREPL |
+| nous      | Re-evaluate `deflive-loop` form at nREPL |
 
-All systems use re-evaluation. No syntactic difference; the cljseq advantage
+All systems use re-evaluation. No syntactic difference; the nous advantage
 is Clojure's structural editor support and mature nREPL tooling.
 
 ---
@@ -168,9 +168,9 @@ is Clojure's structural editor support and mature nREPL tooling.
 | Sonic Pi    | `play chord(:C4, :major)` |
 | Overtone    | `(chord :C4 :major)` → MIDI note vector → play each |
 | TidalCycles | `d1 $ note "c'maj"` |
-| cljseq      | `(play! {:harmony/chord :I :harmony/mode :major})` |
+| nous      | `(play! {:harmony/chord :I :harmony/mode :major})` |
 
-**Note**: cljseq's chord representation is functional-harmony-relative (Roman numeral)
+**Note**: nous's chord representation is functional-harmony-relative (Roman numeral)
 rather than absolute pitch. This is richer but requires an active key context.
 For interactive use without a key context, an absolute form is needed.
 
@@ -190,9 +190,9 @@ For interactive use without a key context, an absolute form is needed.
 |-------------|------|
 | Sonic Pi    | `play_pattern_timed chord(:C4, :major), [0.25, 0.25, 0.25, 0.25]` |
 | TidalCycles | `d1 $ arp "up" $ note "c'maj"` |
-| cljseq      | `(deffractal ... :ornament-types [:arp-up])` or `defensemble` with `:strum` |
+| nous      | `(deffractal ... :ornament-types [:arp-up])` or `defensemble` with `:strum` |
 
-**Gap**: cljseq has no concise one-liner for arpeggiation outside of ensemble/fractal
+**Gap**: nous has no concise one-liner for arpeggiation outside of ensemble/fractal
 contexts. A `(arp! chord direction dur)` helper should be in the sugar layer.
 
 ---
@@ -206,9 +206,9 @@ contexts. A `(arp! chord direction dur)` helper should be in the sugar layer.
 | Sonic Pi    | `use_scale :C, :dorian` / `scale :C, :major` |
 | Overtone    | `(scale :C :major)` → MIDI note vector |
 | TidalCycles | `d1 $ note (scale "dorian" "0 2 4 6")` |
-| cljseq      | `(scale :C :dorian)` / `:harmony/mode :dorian` in control tree |
+| nous      | `(scale :C :dorian)` / `:harmony/mode :dorian` in control tree |
 
-Parity. cljseq's scale system (including `.scl`/`.kbm` microtonality) is a
+Parity. nous's scale system (including `.scl`/`.kbm` microtonality) is a
 superset of all three comparators.
 
 ### Constrain random notes to a scale
@@ -217,7 +217,7 @@ superset of all three comparators.
 |-------------|------|
 | Sonic Pi    | `play scale(:C, :major).choose` |
 | TidalCycles | `d1 $ note (scale "major" $ irand 7)` |
-| cljseq      | `(sample (stochastic-sequence :scale (scale :C :major)))` |
+| nous      | `(sample (stochastic-sequence :scale (scale :C :major)))` |
 
 **Sugar opportunity**: `(choose-from-scale :C :major)` as a one-liner for
 interactive improvisation. The stochastic-sequence form is powerful but verbose
@@ -234,10 +234,10 @@ for simple "random note in scale" use.
 | Sonic Pi    | `choose [60, 64, 67]` |
 | Overtone    | `(choose [60 64 67])` |
 | TidalCycles | `d1 $ note (choose ["c" "e" "g"])` |
-| cljseq      | `(rand-nth [60 64 67])` (Clojure core) |
+| nous      | `(rand-nth [60 64 67])` (Clojure core) |
 
-cljseq inherits `rand-nth` from Clojure. No sugar needed — Clojure core
-is already concise. The cljseq-specific value-add is seeded/reproducible
+nous inherits `rand-nth` from Clojure. No sugar needed — Clojure core
+is already concise. The nous-specific value-add is seeded/reproducible
 randomness via `defstochastic`.
 
 ### Conditional trigger (probability gate)
@@ -246,7 +246,7 @@ randomness via `defstochastic`.
 |-------------|------|
 | Sonic Pi    | `play 60 if one_in(4)` |
 | TidalCycles | `d1 $ sometimesBy 0.25 (fast 2) $ s "bd"` |
-| cljseq      | `(when (< (rand) 0.25) (play! {:pitch/midi 60}))` |
+| nous      | `(when (< (rand) 0.25) (play! {:pitch/midi 60}))` |
 
 **Sugar opportunity**: `(one-in 4 (play! ...))` matching Sonic Pi's idiom.
 The Clojure `when` form is readable but `one-in` expresses musical intent
@@ -259,9 +259,9 @@ more directly at the REPL.
 | Sonic Pi    | No direct equivalent (use `ring` + external mutation) |
 | TidalCycles | No direct equivalent |
 | Mutable Instruments Marbles | Hardware knob (0=random, 1=locked) |
-| cljseq      | `(defstochastic ... :deja-vu 0.8)` |
+| nous      | `(defstochastic ... :deja-vu 0.8)` |
 
-**Advantage**: cljseq's `defstochastic` DEJA VU is unique among the software
+**Advantage**: nous's `defstochastic` DEJA VU is unique among the software
 comparators — a first-class locking/memory mechanism for probabilistic patterns.
 
 ---
@@ -275,7 +275,7 @@ comparators — a first-class locking/memory mechanism for probabilistic pattern
 | Sonic Pi    | `4.times do ... end` |
 | Overtone    | `(dotimes [_ 4] ...)` |
 | TidalCycles | `d1 $ fast 4 $ note "c"` |
-| cljseq      | `(dotimes [_ 4] ...)` (Clojure core) |
+| nous      | `(dotimes [_ 4] ...)` (Clojure core) |
 
 Clojure's `dotimes` is already concise. No sugar needed for simple repetition.
 
@@ -285,11 +285,11 @@ Clojure's `dotimes` is already concise. No sugar needed for simple repetition.
 |-------------|------|
 | Sonic Pi    | `every 4 ... do` |
 | TidalCycles | `every 4 (fast 2) $ d1 $ ...` |
-| cljseq      | `(when (zero? (mod beat 4)) ...)` |
+| nous      | `(when (zero? (mod beat 4)) ...)` |
 
 **Sugar opportunity**: `(every 4 beats form)` macro — a clean conditional that
 fires every N beats within a live loop. Sonic Pi and TidalCycles both have this
-as a first-class form; cljseq's Clojure `mod`-based form is correct but less
+as a first-class form; nous's Clojure `mod`-based form is correct but less
 expressive of musical intent.
 
 ### Vary on every other bar
@@ -298,7 +298,7 @@ expressive of musical intent.
 |-------------|------|
 | Sonic Pi    | `if bools(1, 0).tick` |
 | TidalCycles | `d1 $ every 2 rev $ note "c d e f"` |
-| cljseq      | `(if (odd? bar) form-a form-b)` |
+| nous      | `(if (odd? bar) form-a form-b)` |
 
 **Advantage**: Clojure's `if`/`when`/`cond` are natural here. `bar` is just
 a value in scope.
@@ -314,9 +314,9 @@ a value in scope.
 | Sonic Pi    | Multiple `live_loop` blocks (independent) |
 | Overtone    | Multiple `future` threads (manual) |
 | TidalCycles | `d1 $ ...`, `d2 $ ...`, ... (numbered tracks) |
-| cljseq      | `(defensemble :name {:voices {:bass ... :melody ...}})` |
+| nous      | `(defensemble :name {:voices {:bass ... :melody ...}})` |
 
-**Advantage**: cljseq's `defensemble` encapsulates shared harmonic context across
+**Advantage**: nous's `defensemble` encapsulates shared harmonic context across
 voices. Sonic Pi's parallel live_loops are independent (no shared harmonic state).
 TidalCycles' numbered tracks (`d1`, `d2`) have no harmonic coupling.
 
@@ -326,9 +326,9 @@ TidalCycles' numbered tracks (`d1`, `d2`) have no harmonic coupling.
 |-------------|------|
 | Sonic Pi    | `play_pattern_timed chord(:C4, :major), [0, 0.05, 0.1, 0.15]` |
 | TidalCycles | No direct equivalent |
-| cljseq      | `(defensemble :guitar {:articulation {:strum :asc :rate 1/32}})` |
+| nous      | `(defensemble :guitar {:articulation {:strum :asc :rate 1/32}})` |
 
-**Advantage**: cljseq's strum is a named articulation parameter separable from
+**Advantage**: nous's strum is a named articulation parameter separable from
 harmonic content. This matches the NDLR's model.
 
 ---
@@ -342,9 +342,9 @@ harmonic content. This matches the NDLR's model.
 | Sonic Pi    | No direct equivalent |
 | Overtone    | Manual: schedule parameter updates with `apply-at` |
 | TidalCycles | `d1 $ note "c" # cutoff (range 200 2000 $ slow 4 sine)` |
-| cljseq      | `(ctrl/bind! [:filter/cutoff] (lfo :rate 0.25))` |
+| nous      | `(ctrl/bind! [:filter/cutoff] (lfo :rate 0.25))` |
 
-**Advantage**: cljseq's `ctrl/bind!` is continuous and sample-accurate; TidalCycles'
+**Advantage**: nous's `ctrl/bind!` is continuous and sample-accurate; TidalCycles'
 pattern-rate parameter modulation is cycle-quantized. Sonic Pi has no equivalent.
 
 ### Set a parameter live
@@ -354,9 +354,9 @@ pattern-rate parameter modulation is cycle-quantized. Sonic Pi has no equivalent
 | Sonic Pi    | `set :cutoff, 800` / `get :cutoff` |
 | Overtone    | `(ctl synth :cutoff 800)` |
 | TidalCycles | `d1 $ note "c" # cutoff 800` |
-| cljseq      | `(ctrl/set! [:filter/cutoff] 800)` |
+| nous      | `(ctrl/set! [:filter/cutoff] 800)` |
 
-All systems support live parameter setting. cljseq's path-based tree addressing
+All systems support live parameter setting. nous's path-based tree addressing
 is more structured than Sonic Pi's global key store; more composable than
 TidalCycles' per-pattern parameters.
 
@@ -366,9 +366,9 @@ TidalCycles' per-pattern parameters.
 |-------------|------|
 | Sonic Pi    | No equivalent |
 | TidalCycles | No equivalent |
-| cljseq      | `(defmorph :xy {:inputs {:x [:float 0 1] :y [:float 0 1]} :targets [...]})` |
+| nous      | `(defmorph :xy {:inputs {:x [:float 0 1] :y [:float 0 1]} :targets [...]})` |
 
-**Advantage**: unique to cljseq.
+**Advantage**: unique to nous.
 
 ---
 
@@ -381,9 +381,9 @@ TidalCycles' per-pattern parameters.
 | Sonic Pi    | `with_fx :reverb, mix: 0.5 do ... end` |
 | Overtone    | `(effect :freeverb synth :room 0.8)` |
 | TidalCycles | `d1 $ s "bd" # room 0.5` |
-| cljseq      | `(ctrl/set! [:fx/reverb :mix] 0.5)` (control tree) |
+| nous      | `(ctrl/set! [:fx/reverb :mix] 0.5)` (control tree) |
 
-**Note**: cljseq routes effects through the control tree (targeting a CLAP plugin
+**Note**: nous routes effects through the control tree (targeting a CLAP plugin
 or SC synth). No syntactic wrapping required; the routing is configured once per
 voice, not per call. This is a different model — closer to a mixing desk than an
 effect block.
@@ -395,9 +395,9 @@ effect block.
 | Sonic Pi    | `use_synth :piano` |
 | Overtone    | `(definst piano ...)` |
 | TidalCycles | `d1 $ s "piano"` |
-| cljseq      | `(defpatch :piano {...})` / `(patch! :piano)` |
+| nous      | `(defpatch :piano {...})` / `(patch! :piano)` |
 
-**Gap**: cljseq lacks a concise "use this synth for all following notes" idiom
+**Gap**: nous lacks a concise "use this synth for all following notes" idiom
 within a live loop. `use-synth!` as a loop-local binding could be useful.
 
 ---
@@ -410,9 +410,9 @@ within a live loop. `use-synth!` as a loop-local binding could be useful.
 |-------------|------|
 | Sonic Pi    | Re-evaluate with different parameters |
 | TidalCycles | Re-evaluate pattern |
-| cljseq      | `(next-patch!)` / `(goto-patch! :chorus)` |
+| nous      | `(next-patch!)` / `(goto-patch! :chorus)` |
 
-**Advantage**: cljseq's `deflive-set` / patch navigation is the most structured
+**Advantage**: nous's `deflive-set` / patch navigation is the most structured
 approach — named sections with beat-aware transitions, undoable.
 
 ### Save and restore a state snapshot
@@ -421,9 +421,9 @@ approach — named sections with beat-aware transitions, undoable.
 |-------------|------|
 | Sonic Pi    | No equivalent |
 | TidalCycles | No equivalent |
-| cljseq      | `(checkpoint! :verse)` / `(panic!)` |
+| nous      | `(checkpoint! :verse)` / `(panic!)` |
 
-**Advantage**: unique to cljseq.
+**Advantage**: unique to nous.
 
 ---
 
@@ -445,15 +445,15 @@ Candidates identified from this corpus, in rough priority order:
 
 ---
 
-## Conceptual Gaps (no cljseq equivalent yet)
+## Conceptual Gaps (no nous equivalent yet)
 
 | Concept | Comparator | Notes |
 |---------|-----------|-------|
 | Mini-notation pattern string | TidalCycles `"[a b] c [d e f]"` | Powerful shorthand for polyrhythm; could be a reader extension |
 | Sample playback | Sonic Pi `sample :bd_haus` | Not in scope for current design (MIDI/OSC focus) |
-| Built-in effects chain | Sonic Pi `with_fx` | cljseq targets external effects via CLAP/SC; no built-in FX |
+| Built-in effects chain | Sonic Pi `with_fx` | nous targets external effects via CLAP/SC; no built-in FX |
 | Pattern transformation operators | TidalCycles `rev`, `fast`, `slow`, `jux` | Fractal sequencer covers some of this; explicit operator library not designed |
-| Generative grammar / L-system | — | Not in current scope; possible future `cljseq.grammar` namespace |
+| Generative grammar / L-system | — | Not in current scope; possible future `nous.grammar` namespace |
 
 ---
 
@@ -463,10 +463,10 @@ Candidates identified from this corpus, in rough priority order:
   (musicians, not programmers). Its strengths are conciseness and approachability;
   its weaknesses are the seconds-based timing model and limited multi-voice composition.
 - **Overtone** is the Clojure precedent. Its nREPL workflow is directly ancestral to
-  cljseq's; its weakness is the absence of native live-loop support.
+  nous's; its weakness is the absence of native live-loop support.
 - **TidalCycles** is the strongest comparator for pattern manipulation and structural
   conciseness. Its mini-notation is uniquely powerful. Its weakness is the functional/Haskell
   programming model being a barrier for musicians.
-- **cljseq** targets a sweet spot: Sonic Pi's approachability + Overtone's Clojure
+- **nous** targets a sweet spot: Sonic Pi's approachability + Overtone's Clojure
   integration + TidalCycles' structural depth, with hardware sequencer-grade timing
   (via Link) and a persistent control tree that none of the comparators have.

@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.patch-test
-  "Tests for cljseq.patch — registry, compile-patch, and cljseq.sc patch lifecycle."
+(ns nous.patch-test
+  "Tests for nous.patch — registry, compile-patch, and nous.sc patch lifecycle."
   (:require [clojure.test   :refer [deftest is testing]]
             [clojure.string :as str]
-            [cljseq.patch   :as patch]
-            [cljseq.sc      :as sc]
-            [cljseq.osc     :as osc]))
+            [nous.patch   :as patch]
+            [nous.sc      :as sc]
+            [nous.osc     :as osc]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry
@@ -195,7 +195,7 @@
       (is (= :dry (get-in c [:nodes 1 :args :in-bus]))  "verb node carries bus-key placeholder"))))
 
 ;; ---------------------------------------------------------------------------
-;; Bus allocation (cljseq.sc)
+;; Bus allocation (nous.sc)
 ;; ---------------------------------------------------------------------------
 
 (deftest sc-bus-allocates-audio-test
@@ -369,19 +369,19 @@
 
 (deftest sine-bus-registered-test
   (testing ":sine-bus is registered in the synth registry"
-    (is (some? (cljseq.synth/get-synth :sine-bus)))))
+    (is (some? (nous.synth/get-synth :sine-bus)))))
 
 (deftest reverb-bus-registered-test
   (testing ":reverb-bus is registered in the synth registry"
-    (is (some? (cljseq.synth/get-synth :reverb-bus)))))
+    (is (some? (nous.synth/get-synth :reverb-bus)))))
 
 (deftest sine-bus-has-out-bus-arg-test
   (testing ":sine-bus has :out-bus in its args"
-    (is (contains? (:args (cljseq.synth/get-synth :sine-bus)) :out-bus))))
+    (is (contains? (:args (nous.synth/get-synth :sine-bus)) :out-bus))))
 
 (deftest reverb-bus-has-in-bus-arg-test
   (testing ":reverb-bus has :in-bus in its args"
-    (is (contains? (:args (cljseq.synth/get-synth :reverb-bus)) :in-bus))))
+    (is (contains? (:args (nous.synth/get-synth :reverb-bus)) :in-bus))))
 
 (deftest sine-bus-compiles-sc-test
   (testing ":sine-bus compiles to valid SC with Out.ar(out_bus, ...)"

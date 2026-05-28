@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.patch
+(ns nous.patch
   "Signal graph patches — backend-agnostic multi-node synthesis chains.
 
   A patch is a Clojure map describing a directed graph of synthesis nodes
@@ -41,9 +41,9 @@
     (compile-patch :pd :reverb-chain)
     ;=> {:pd-text \"#N canvas...\" :patch {...}}
 
-  ## Running a patch (requires cljseq.sc)
+  ## Running a patch (requires nous.sc)
 
-    (require '[cljseq.sc :as sc])
+    (require '[nous.sc :as sc])
     (sc/connect-sc!)
     (def inst (sc/instantiate-patch! :reverb-chain))
     (sc/set-patch-param! inst :freq 550)
@@ -65,7 +65,7 @@
   (:require [clojure.string  :as str]
             [clojure.edn     :as edn]
             [clojure.java.io :as io]
-            [cljseq.synth    :as synth]))
+            [nous.synth    :as synth]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry
@@ -129,7 +129,7 @@
           :pd (load-backend-map :pd)}))
 
 (defn canonical->backend
-  "Resolve a canonical cljseq UGen name to a backend-specific name.
+  "Resolve a canonical nous UGen name to a backend-specific name.
   Returns the canonical name unchanged if no mapping is found."
   [backend canonical-name]
   (or (get-in @backend-maps [backend canonical-name])
@@ -234,7 +234,7 @@
 ;; ---------------------------------------------------------------------------
 
 ;; Registered at load time. Synths :sine-bus and :reverb-bus must be loaded
-;; in cljseq.synth (added to resources/synths/).
+;; in nous.synth (added to resources/synths/).
 
 (defonce ^:private _patches-loaded
   (do
@@ -308,7 +308,7 @@
     ;;   :vcoN-freq / :vcoN-pwm-rate — VCO pitch and PWM modulation speed
     ;;   :papaN-freq / :papaN-fm-depth / :papaN-noise-mix — Papa voice timbre
     ;;
-    ;; Scale vocabulary (see cljseq.scale) matching common drone synthesizer keyboard modes:
+    ;; Scale vocabulary (see nous.scale) matching common drone synthesizer keyboard modes:
     ;;   "Gypsy"    → :double-harmonic
     ;;   "Gamelan"  → :pelog / :slendro
     ;;   "Japanese" → :in-scale / :in-sen / :hirajoshi

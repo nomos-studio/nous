@@ -1,4 +1,4 @@
-;; cljseq sample essentials catalog
+;; nous sample essentials catalog
 ;;
 ;; Maps sample keywords to Freesound metadata.
 ;; Mirrors the category vocabulary of Sonic-Pi's bundled sample set.

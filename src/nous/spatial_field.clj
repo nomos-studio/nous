@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.spatial-field
+(ns nous.spatial-field
   "Physics particle field — spatial generation, modulation, and routing.
 
   A Spatial Field is a 2D bounded manifold (N-gon room) where particles
@@ -11,7 +11,7 @@
 
   ## Quick start
 
-    (require '[cljseq.user :refer :all])
+    (require '[nous.user :refer :all])
     (session!)
 
     ;; Ricochet: launch a particle on each play!, collisions spawn notes
@@ -56,9 +56,9 @@
     (start-field! :orbit)       ; center-attractor sweep, modulation
     (start-field! :pinball)     ; dense heptagon, generation
     (start-field! :dribble)     ; gravity bounce 1D, generation"
-  (:require [cljseq.core      :as core]
-            [cljseq.ctrl      :as ctrl]
-            [cljseq.transform :as xf]))
+  (:require [nous.core      :as core]
+            [nous.ctrl      :as ctrl]
+            [nous.transform :as xf]))
 
 ;; ---------------------------------------------------------------------------
 ;; N-gon geometry
@@ -754,7 +754,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn -register-system!
-  "Called by cljseq.core/start! — no-op for spatial-field (presets are
+  "Called by nous.core/start! — no-op for spatial-field (presets are
   registered at load time; user fields survive restarts)."
   [_system-state]
   nil)

@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.arc-test
-  "Tests for ctrl watcher API and cljseq.arc fan-out routing."
+(ns nous.arc-test
+  "Tests for ctrl watcher API and nous.arc fan-out routing."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.arc  :as arc]
-            [cljseq.core :as core]
-            [cljseq.ctrl :as ctrl]))
+            [nous.arc  :as arc]
+            [nous.core :as core]
+            [nous.ctrl :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixture
@@ -37,7 +37,7 @@
     (let [seen (atom nil)]
       (ctrl/watch! [:watch/test-send] ::test-watcher
                    (fn [tx _] (reset! seen {:path (tx-path tx) :value (tx-val tx)})))
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (ctrl/send! [:watch/test-send] 0.5))
       (is (= {:path [:watch/test-send] :value 0.5} @seen))
       (ctrl/unwatch-all! [:watch/test-send]))))
@@ -122,7 +122,7 @@
       (arc/arc-bind! [:arc/test-tension]
                      {[:arc/out-cutoff] {:range [0.3 1.0]}
                       [:arc/out-res]    {:range [0.0 0.6]}})
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (arc/arc-send! [:arc/test-tension] 0.0)
         (arc/arc-send! [:arc/test-tension] 1.0))
       (is (= [0.3 1.0] @cutoff-vals) "cutoff: 0→0.3, 1→1.0")
@@ -139,7 +139,7 @@
       (ctrl/watch! [:arc/mid-dst] ::cap (fn [tx _] (reset! seen (tx-val tx))))
       (arc/arc-bind! [:arc/mid-src]
                      {[:arc/mid-dst] {:range [0.0 100.0]}})
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (arc/arc-send! [:arc/mid-src] 0.5))
       (is (= 50.0 @seen) "0.5 maps to midpoint of [0, 100]")
       (arc/arc-unbind! [:arc/mid-src])
@@ -152,7 +152,7 @@
     (let [seen (atom nil)]
       (ctrl/watch! [:arc/passthru-dst] ::cap (fn [tx _] (reset! seen (tx-val tx))))
       (arc/arc-bind! [:arc/passthru-src] {[:arc/passthru-dst] {}})
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (arc/arc-send! [:arc/passthru-src] 0.73))
       (is (= 0.73 @seen) "no :range → value passes through [0, 1] identity")
       (arc/arc-unbind! [:arc/passthru-src])
@@ -168,13 +168,13 @@
       (ctrl/watch! [:arc/rebind-dst-b] ::cap (fn [_ _s] (swap! calls-b inc)))
       ;; First bind: only dst-a
       (arc/arc-bind! [:arc/rebind-src] {[:arc/rebind-dst-a] {}})
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (arc/arc-send! [:arc/rebind-src] 0.5))
       (is (= 1 @calls-a) "dst-a receives first send")
       (is (= 0 @calls-b) "dst-b not yet bound")
       ;; Rebind: only dst-b
       (arc/arc-bind! [:arc/rebind-src] {[:arc/rebind-dst-b] {}})
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (arc/arc-send! [:arc/rebind-src] 0.5))
       (is (= 1 @calls-a) "dst-a no longer receives after rebind")
       (is (= 1 @calls-b) "dst-b now receives")
@@ -189,11 +189,11 @@
     (let [count (atom 0)]
       (ctrl/watch! [:arc/stop-dst] ::cap (fn [_ _s] (swap! count inc)))
       (arc/arc-bind! [:arc/stop-src] {[:arc/stop-dst] {}})
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (arc/arc-send! [:arc/stop-src] 0.5))
       (is (= 1 @count) "fires before unbind")
       (arc/arc-unbind! [:arc/stop-src])
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (arc/arc-send! [:arc/stop-src] 0.8))
       (is (= 1 @count) "does not fire after unbind")
       (ctrl/unwatch-all! [:arc/stop-dst]))))
@@ -218,7 +218,7 @@
   (testing "arc-send! updates arc node value in ctrl tree"
     (ctrl/defnode! [:arc/val-check] :type :float)
     (arc/arc-bind! [:arc/val-check] {})
-    (with-redefs [cljseq.sidecar/connected? (constantly false)]
+    (with-redefs [nous.sidecar/connected? (constantly false)]
       (arc/arc-send! [:arc/val-check] 0.42))
     (is (= 0.42 (ctrl/get [:arc/val-check])) "ctrl/get reflects sent value")
     (arc/arc-unbind! [:arc/val-check])))

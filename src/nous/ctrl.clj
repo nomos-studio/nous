@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ctrl
-  "cljseq control tree.
+(ns nous.ctrl
+  "nous control tree.
 
   The control tree is a persistent map within the shared system-state atom.
   Nodes hold a typed value and optional physical bindings (MIDI CC, OSC, etc.).
@@ -60,11 +60,11 @@
 
   Key design decisions: Q4, Q8, Q9, Q10, Q47, Q48."
   (:refer-clojure :exclude [get])
-  (:require [cljseq.sidecar   :as sidecar]
-            [cljseq.timeline  :as timeline]))
+  (:require [nous.sidecar   :as sidecar]
+            [nous.timeline  :as timeline]))
 
 ;; ---------------------------------------------------------------------------
-;; System reference — registered by cljseq.core/start! (avoids circular dep)
+;; System reference — registered by nous.core/start! (avoids circular dep)
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private system-ref (atom nil))
@@ -148,7 +148,7 @@
 (defonce ^:private global-watchers (atom {}))
 
 (defn -register-system!
-  "Wire ctrl to the shared system-state atom. Called by cljseq.core/start!."
+  "Wire ctrl to the shared system-state atom. Called by nous.core/start!."
   [ref]
   (reset! system-ref ref))
 
@@ -567,7 +567,7 @@
   Walks all nodes in the tree regardless of depth. Returns an empty sequence
   if the system is not started or no bindings of that type exist.
 
-  Used by cljseq.midi-in to locate :midi-device-input bindings on each message.
+  Used by nous.midi-in to locate :midi-device-input bindings on each message.
 
   Example:
     (ctrl/bindings-by-type :midi-device-input)
@@ -584,7 +584,7 @@
   "Return the direct child keys at an intermediate tree node `path`.
 
   Unlike `get`, which reads leaf CtrlNode values, this reads the keys of
-  an intermediate map in the tree — used by cljseq.schema to enumerate
+  an intermediate map in the tree — used by nous.schema to enumerate
   registered models and realizations.
 
   Returns nil if the path doesn't exist or is a CtrlNode leaf.

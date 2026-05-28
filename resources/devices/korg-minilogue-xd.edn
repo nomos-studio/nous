@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Korg Minilogue XD — cljseq device map
+;; Korg Minilogue XD — nous device map
 ;;
 ;; Source: Korg Minilogue XD MIDI Implementation Chart (owner's manual appendix)
 ;; Confidence: Medium-High. CC numbers 20–60 verified against published chart.
@@ -15,7 +15,7 @@
  :device/manufacturer "Korg"
  :device/type         :synthesizer
  :device/voices       4
- :device/role         :target       ; cljseq drives this device
+ :device/role         :target       ; nous drives this device
  :device/connectivity [:usb-midi :din-midi]
 
  ;; -------------------------------------------------------------------------

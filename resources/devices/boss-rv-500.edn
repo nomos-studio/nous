@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Boss RV-500 Reverb — cljseq device map
+;; Boss RV-500 Reverb — nous device map
 ;;
 ;; Source: Boss RV-500 Owner's Manual, MIDI Implementation Chart (Appendix)
 ;;         https://www.boss.info/global/support/by_product/rv-500/owners_manuals/
@@ -58,7 +58,7 @@
  {:receive false :transmit false}
 
  ;; -------------------------------------------------------------------------
- ;; Notes for cljseq integration
+ ;; Notes for nous integration
  ;; -------------------------------------------------------------------------
  ;; Pre-delay and decay are natural parameters for tension/release arcs:
  ;;   :buildup → decay 40→110 over 8 bars (room grows to cathedral)

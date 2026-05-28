@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.scale-test
-  "Tests for cljseq.scale — Scale record, named scales, and IScale protocol."
+(ns nous.scale-test
+  "Tests for nous.scale — Scale record, named scales, and IScale protocol."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.pitch  :as pitch]
-            [cljseq.scale  :as scale]))
+            [nous.pitch  :as pitch]
+            [nous.scale  :as scale]))
 
 ;; ---------------------------------------------------------------------------
 ;; Constructor / named scale library
@@ -12,7 +12,7 @@
 (deftest scale-constructor-test
   (testing "scale constructor builds from name"
     (let [s (scale/scale :C 4 :major)]
-      (is (instance? cljseq.scale.Scale s))
+      (is (instance? nous.scale.Scale s))
       (is (= :C (:step (:root s))))
       (is (= 4  (:octave (:root s)))))))
 

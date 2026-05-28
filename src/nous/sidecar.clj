@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.sidecar
-  "cljseq sidecar IPC client.
+(ns nous.sidecar
+  "nous sidecar IPC client.
 
-  Manages the lifecycle of the cljseq-sidecar process and its TCP connection.
+  Manages the lifecycle of the nous-sidecar process and its TCP connection.
   The sidecar handles real-time MIDI output; this namespace provides:
 
     - Process spawning and crash monitoring
@@ -24,8 +24,8 @@
   Q51 (native dependency policy), §3.5 (process topology), §29."
   (:require [clojure.java.io     :as io]
             [clojure.string      :as str]
-            [cljseq.journal      :as journal]
-            [cljseq.scala        :as scala])
+            [nous.journal      :as journal]
+            [nous.scala        :as scala])
   (:import  [java.net        Socket ServerSocket]
             [java.io         InputStream OutputStream BufferedReader InputStreamReader]
             [java.lang       ProcessBuilder ProcessBuilder$Redirect]
@@ -233,11 +233,11 @@
   (set-diag! 0))
 
 (defn- diag-loop-name
-  "Return the current loop name from cljseq.loop/*loop-name* if bound,
+  "Return the current loop name from nous.loop/*loop-name* if bound,
   or \"-\" when called outside a live loop. Uses resolve to avoid a
-  compile-time circular dependency on cljseq.loop."
+  compile-time circular dependency on nous.loop."
   []
-  (if-let [v (resolve 'cljseq.loop/*loop-name*)]
+  (if-let [v (resolve 'nous.loop/*loop-name*)]
     (or @v "-")
     "-"))
 
@@ -322,9 +322,9 @@
   "Retune the connected synthesiser using MIDI Tuning Standard (MTS) Bulk Dump.
 
   Generates a 408-byte Non-Realtime Universal SysEx (F0 7E 7F 08 01 ...) from
-  `ms` (a cljseq.scala/MicrotonalScale) and sends it via the sidecar.
+  `ms` (a nous.scala/MicrotonalScale) and sends it via the sidecar.
 
-  `kbm` — optional cljseq.scala/KeyboardMap; when nil an identity map is used
+  `kbm` — optional nous.scala/KeyboardMap; when nil an identity map is used
           (MIDI key 60 = middle-note, linear 12-TET key span).
 
   Hydrasynth Explorer/Desktop/Deluxe all accept MTS Bulk Dump. After receiving
@@ -394,7 +394,7 @@
   `msg-type-byte` — the raw uint8 message type (e.g. 0x80 for LinkState).
   `handler`       — (fn [^bytes payload]) called on the reader thread.
 
-  Registrations survive stop!/start! cycles. Called by cljseq.link at load time."
+  Registrations survive stop!/start! cycles. Called by nous.link at load time."
   [msg-type-byte handler]
   (swap! sidecar-state assoc-in [:push-handlers msg-type-byte] handler))
 
@@ -431,11 +431,11 @@
                             (try (h payload)
                                  (catch Exception e
                                    (binding [*out* *err*]
-                                     (println "[cljseq.sidecar] push handler error:" e))))))
+                                     (println "[nous.sidecar] push handler error:" e))))))
                         (recur))))
                   (catch Exception _)))))]
     (.setDaemon t true)
-    (.setName t "cljseq-sidecar-reader")
+    (.setName t "nous-sidecar-reader")
     (.start t)))
 
 ;; ---------------------------------------------------------------------------
@@ -462,7 +462,7 @@
      :b2      (bit-and (.get buf) 0xFF)}))
 
 ;; Register the push handler for 0x20 MidiIn at load time.
-;; cljseq.link registers 0x80 the same way (see cljseq.link/start-link!).
+;; nous.link registers 0x80 the same way (see nous.link/start-link!).
 (register-push-handler!
   0x20
   (fn [^bytes payload]
@@ -505,12 +505,12 @@
     (.getLocalPort s)))
 
 (defn- find-binary
-  "Locate the cljseq-sidecar binary in the build tree or current directory."
+  "Locate the nous-sidecar binary in the build tree or current directory."
   []
-  (let [candidates ["build/cpp/cljseq-sidecar/cljseq-sidecar"
-                    "./cljseq-sidecar"]]
+  (let [candidates ["build/cpp/nous-sidecar/nous-sidecar"
+                    "./nous-sidecar"]]
     (or (first (filter #(.exists (io/file %)) candidates))
-        (throw (ex-info "cljseq-sidecar binary not found; build the C++ sidecar first"
+        (throw (ex-info "nous-sidecar binary not found; build the C++ sidecar first"
                         {:searched candidates})))))
 
 ;; ---------------------------------------------------------------------------
@@ -575,7 +575,7 @@
   [^long port]
   (loop [attempt 0 delay-ms 50]
     (when (> attempt 10)
-      (throw (ex-info "Could not connect to cljseq-sidecar after 10 attempts"
+      (throw (ex-info "Could not connect to nous-sidecar after 10 attempts"
                       {:port port})))
     (if-let [result (try
                       (let [sock (Socket. "127.0.0.1" (int port))]
@@ -595,11 +595,11 @@
     (.waitFor proc)
     (when (:running? @sidecar-state)
       (binding [*out* *err*]
-        (println (str "[cljseq.sidecar] process on port " port
+        (println (str "[nous.sidecar] process on port " port
                       " exited (code " (.exitValue proc) ")"))))))
 
 (defn start-sidecar!
-  "Spawn the cljseq-sidecar binary and open the TCP IPC connection.
+  "Spawn the nous-sidecar binary and open the TCP IPC connection.
 
   Options:
     :binary       — explicit path to the sidecar binary (default: searches build/)
@@ -616,7 +616,7 @@
 
   Example:
     (sidecar/start-sidecar!)
-    (sidecar/start-sidecar! :binary \"/usr/local/bin/cljseq-sidecar\" :port 7777)
+    (sidecar/start-sidecar! :binary \"/usr/local/bin/nous-sidecar\" :port 7777)
     (sidecar/start-sidecar! :midi-port 2)                     ; by index
     (sidecar/start-sidecar! :midi-port \"IAC\")                ; by name substring
     (sidecar/start-sidecar! :midi-port \"Hydra\" :midi-in-port \"Hydra\") ; both by name
@@ -650,7 +650,7 @@
       (capture-stderr! proc)
       (connect-with-retry! port)
       (monitor-process! proc port)
-      (println (str "[cljseq.sidecar] connected to " binary " on port " port))
+      (println (str "[nous.sidecar] connected to " binary " on port " port))
       port)))
 
 (defn stop-sidecar!
@@ -663,7 +663,7 @@
   (when-let [^Process proc (:process @sidecar-state)]
     (.destroyForcibly proc))
   (swap! sidecar-state assoc :running? false :socket nil :out nil :in nil :process nil :port nil)
-  (println "[cljseq.sidecar] stopped")
+  (println "[nous.sidecar] stopped")
   nil)
 
 (defn restart-sidecar!
@@ -671,7 +671,7 @@
   `start-sidecar!` call. Waits 500ms between stop and start to allow the
   process to exit cleanly.
 
-  Used by cljseq.supervisor for automatic sidecar recovery, but also callable
+  Used by nous.supervisor for automatic sidecar recovery, but also callable
   from the REPL: (restart-sidecar!)"
   []
   (when-let [opts (:last-start-opts @sidecar-state)]
@@ -777,10 +777,10 @@
   and begins writing every subsequent `send-tx!` call into it.
 
   Call this after `start-sidecar!`. The path is typically generated by
-  `cljseq.core/start!` under the sessions directory.
+  `nous.core/start!` under the sessions directory.
 
   Example:
-    (sidecar/open-session! \"/Users/me/.cljseq/sessions/2026-04-20T21-34-00.sqlite\")"
+    (sidecar/open-session! \"/Users/me/.nous/sessions/2026-04-20T21-34-00.sqlite\")"
   [path]
   (send-frame! (make-frame MSG-SESSION-OPEN
                            (.getBytes ^String (str path) "UTF-8"))))
@@ -788,7 +788,7 @@
 (defn close-session!
   "Flush any pending writes and close the durable session log.
 
-  Called automatically by `cljseq.core/stop!`. Safe to call when no session
+  Called automatically by `nous.core/stop!`. Safe to call when no session
   is open (no-op on the sidecar side)."
   []
   (send-frame! (make-frame MSG-SESSION-CLOSE (byte-array 0))))

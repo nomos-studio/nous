@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.clock-test
-  "Unit tests for cljseq.clock — ITemporalValue, named constructors,
+(ns nous.clock-test
+  "Unit tests for nous.clock — ITemporalValue, named constructors,
   BPM utilities, and timeline beat↔epoch-ms conversions."
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.clock :as clock]))
+            [nous.clock :as clock]))
 
 (def eps 1e-6)
 (defn ≈ [a b] (< (Math/abs (- (double a) (double b))) eps))

@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.target-test
-  "Unit tests for cljseq.target — ITarget / ITriggerTarget / IParamTarget protocols,
+(ns nous.target-test
+  "Unit tests for nous.target — ITarget / ITriggerTarget / IParamTarget protocols,
   FnTarget, ParamTarget, and the target registry."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.target :as target]
-            [cljseq.ctrl   :as ctrl]))
+            [nous.target :as target]
+            [nous.ctrl   :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry

@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.supervisor
+(ns nous.supervisor
   "Lightweight process supervisor for live performance reliability.
 
   Watches registered services (SC, sidecar, loop threads), emits lifecycle
@@ -44,12 +44,12 @@
       :check-fn    #(thing/connected?)
       :restart-fn  #(thing/reconnect!)
       :restore-fn  #(thing/reload-state!))"
-  (:require [cljseq.loop    :as loop-ns]
-            [cljseq.core    :as core]
-            [cljseq.kairos  :as kairos]
-            [cljseq.runtime :as runtime]
-            [cljseq.sc      :as sc]
-            [cljseq.sidecar :as sidecar]))
+  (:require [nous.loop    :as loop-ns]
+            [nous.core    :as core]
+            [nous.kairos  :as kairos]
+            [nous.runtime :as runtime]
+            [nous.sc      :as sc]
+            [nous.sidecar :as sidecar]))
 
 ;; ---------------------------------------------------------------------------
 ;; Event bus
@@ -380,7 +380,7 @@
                        (try (Thread/sleep (long (watchdog-sleep-ms interval-ms bars beats-per-bar)))
                             (catch InterruptedException _)))))]
     (.setDaemon t true)
-    (.setName t "cljseq-supervisor-watchdog")
+    (.setName t "nous-supervisor-watchdog")
     (reset! watchdog-atom {:thread t :running? running?#
                            :interval-ms interval-ms
                            :bars bars :beats-per-bar beats-per-bar})

@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Singular Sound BeatBuddy — cljseq device map
+;; Singular Sound BeatBuddy — nous device map
 ;;
 ;; Drum machine / beat pedal with full MIDI I/O + merge. Designed to anchor
 ;; the Singular Sound ecosystem: BeatBuddy MIDI OUT merges with MIDI Maestro
@@ -121,7 +121,7 @@
  :device/notes
  {:midi-merge     "BeatBuddy MIDI OUT merges its own output with incoming MIDI IN traffic — enables daisy-chain without dedicated merge box"
   :song-select    "Full song select requires 3-message sequence: CC 0 (MSB) → CC 32 (LSB) → PC; shorthand PC alone selects within current bank"
-  :cc-102         "CC 102 is bidirectional: BeatBuddy sends it, Aeros and cljseq can also send it to force part selection"
+  :cc-102         "CC 102 is bidirectional: BeatBuddy sends it, Aeros and nous can also send it to force part selection"
   :midi-maestro   "MIDI Maestro has NO MIDI IN — it can only transmit. Chain topology is critical: MM OUT → BB IN → BB MIDI merge OUT → Aeros IN"}
 
  :device/map-source    "Singular Sound BeatBuddy MIDI Settings & Specifications — singularsound.com"

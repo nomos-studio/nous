@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ensemble-improv
+(ns nous.ensemble-improv
   "Ensemble improvisation agent — unified generative loop that responds to
   ImprovisationContext, driving both note output and ITexture devices.
 
@@ -64,12 +64,12 @@
     - :ensemble/density + profile :gate → note probability per step
 
   When :harmony/key is absent (insufficient pitch data), the agent rests."
-  (:require [cljseq.core           :as core]
-            [cljseq.loop           :as loop-ns]
-            [cljseq.pitch          :as pitch]
-            [cljseq.scale          :as scale-ns]
-            [cljseq.spectral       :as spectral]
-            [cljseq.texture        :as tx]))
+  (:require [nous.core           :as core]
+            [nous.loop           :as loop-ns]
+            [nous.pitch          :as pitch]
+            [nous.scale          :as scale-ns]
+            [nous.spectral       :as spectral]
+            [nous.texture        :as tx]))
 
 ;; ---------------------------------------------------------------------------
 ;; Agent config atom
@@ -230,7 +230,7 @@
   in the key and register of the live ImprovisationContext, and applies the
   `:routing` map to registered ITexture devices on the same cadence.
 
-  Requires cljseq.core/start! and typically start-harmony-ear! first.
+  Requires nous.core/start! and typically start-harmony-ear! first.
 
   Options:
     :profile  — note-generation parameters map (merged with default-profile):

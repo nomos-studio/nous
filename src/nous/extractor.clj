@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.extractor
-  "cljseq Threshold Extractor — GTE-inspired continuous-value → event converter.
+(ns nous.extractor
+  "nous Threshold Extractor — GTE-inspired continuous-value → event converter.
 
   Watches a source function `f(beat) → [0.0, 1.0]` and fires note or CC events
   whenever the value crosses a threshold boundary. The rhythm emerges from the
@@ -42,19 +42,19 @@
 
   Hardware reference: MakeNoise GTE (Gestural Time Extractor), released 2026-03-26.
   See doc/design-threshold-extractor.md for full design rationale."
-  (:require [cljseq.loop    :as loop-ns]
-            [cljseq.clock   :as clock]
-            [cljseq.sidecar :as sidecar])
+  (:require [nous.loop    :as loop-ns]
+            [nous.clock   :as clock]
+            [nous.sidecar :as sidecar])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
-;; System state injection (same pattern as cljseq.temporal-buffer)
+;; System state injection (same pattern as nous.temporal-buffer)
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private system-ref (atom nil))
 
 (defn -register-system!
-  "Called by cljseq.core/start! to inject the system-state atom.
+  "Called by nous.core/start! to inject the system-state atom.
   Not part of the public API."
   [state-atom]
   (reset! system-ref state-atom))
@@ -341,7 +341,7 @@
                         :running?   running?
                         :thread     nil}]
      (swap! registry assoc ext-name entry)
-     (let [t (start-thread! (str "cljseq-extractor-" (name ext-name))
+     (let [t (start-thread! (str "nous-extractor-" (name ext-name))
                             #(extractor-runner ext-name poll-interval running?))]
        (swap! registry update ext-name assoc :thread t))
      ext-name)))
@@ -356,7 +356,7 @@
   nil)
 
 (defn extractor-stop-all!
-  "Stop all active threshold extractors. Called by cljseq.core/stop!."
+  "Stop all active threshold extractors. Called by nous.core/stop!."
   []
   (doseq [n (keys @registry)]
     (extractor-stop! n))

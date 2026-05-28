@@ -66,7 +66,7 @@ This is the strongest argument for a drum-voice model where each voice is an ind
 `live-loop` with its own body length, grouped under a shared ensemble:
 
 ```clojure
-;; BeatStep Pro per-lane polyrhythm in cljseq terms
+;; BeatStep Pro per-lane polyrhythm in nous terms
 (defensemble :drums {}
   {:kick    (live-loop :kick    {} (play! kick-pattern)    (sleep! 16))
    :snare   (live-loop :snare   {} (play! snare-pattern)   (sleep! 7))
@@ -114,7 +114,7 @@ The BeatStep Pro Randomize maps to a `mutate!` function on a pattern:
 {:pitch/midi 64 :probability 0.5}
 ```
 
-`mutate!` belongs in `cljseq.morph` as a named mutation strategy. The `:intensity`
+`mutate!` belongs in `nous.morph` as a named mutation strategy. The `:intensity`
 parameter is a magnitude of change (0.0 = no change, 1.0 = fully random). This is
 a cleaner model than having `defstochastic`'s DEJA VU handle mutation, since mutation
 here is a deliberate live action, not a continuous stochastic process.
@@ -164,12 +164,12 @@ a dual-encoding parameter. The output adapter must handle:
 
 ---
 
-## Novel Concepts for cljseq
+## Novel Concepts for nous
 
 | Concept | DSL candidate | Priority |
 |---------|--------------|----------|
 | Per-drum-lane independent step count | Per-voice `live-loop` in drum ensemble; already supported | Confirmed |
-| One-shot pattern mutation (Randomize) | `(mutate! pattern :target :pitch :intensity 0.3)` in `cljseq.morph` | Medium |
+| One-shot pattern mutation (Randomize) | `(mutate! pattern :target :pitch :intensity 0.3)` in `nous.morph` | Medium |
 | Velocity as dedicated CV output | Dual-encoding in output adapter layer | Already noted (KSP) |
 | Simultaneous pattern switching | `patch!` on beat boundary; already in Q48 design | Confirmed |
 
@@ -200,5 +200,5 @@ The KeyStep Pro **extends** this with:
  :pitch-rand  2}      ; new: per-step pitch randomization
 ```
 
-Both are valid cljseq step maps. The optional keys default to "not set" (`nil`),
+Both are valid nous step maps. The optional keys default to "not set" (`nil`),
 meaning the baseline behaviour matches the BeatStep Pro's simpler model.

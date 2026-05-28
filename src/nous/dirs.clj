@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.dirs
-  "Platform-appropriate directory resolution for cljseq.
+(ns nous.dirs
+  "Platform-appropriate directory resolution for nous.
 
   Provides the canonical locations for user data, config, and cache under a
   pluggable layout abstraction. The active layout can be changed at runtime via
@@ -13,9 +13,9 @@
   The default layout follows the XDG Base Directory Specification — the de
   facto standard for developer tools on Linux and macOS:
 
-    ~/.local/share/cljseq/   — user data   (learned device maps, saved sessions)
-    ~/.config/cljseq/        — user config (preferences, port assignments)
-    ~/.cache/cljseq/         — cache       (m21 corpus, derived artefacts)
+    ~/.local/share/nous/   — user data   (learned device maps, saved sessions)
+    ~/.config/nous/        — user config (preferences, port assignments)
+    ~/.cache/nous/         — cache       (m21 corpus, derived artefacts)
 
   XDG environment variables are respected: XDG_DATA_HOME, XDG_CONFIG_HOME,
   XDG_CACHE_HOME.
@@ -35,8 +35,8 @@
 
   When implemented, the :macos-native layout will follow Apple HIG conventions:
 
-    ~/Library/Application Support/cljseq/   — data + config
-    ~/Library/Caches/cljseq/                — cache
+    ~/Library/Application Support/nous/   — data + config
+    ~/Library/Caches/nous/                — cache
 
   The `macos-native-layout` constructor is already defined (stubbed) so that
   `set-layout! :macos-native` becomes a one-line activation in that sprint.
@@ -94,7 +94,7 @@
 ;; testable: tests can inject a custom layout map without any protocol machinery.
 ;; ---------------------------------------------------------------------------
 
-(def app-name "cljseq")
+(def app-name "nous")
 
 (defn xdg-layout
   "XDG Base Directory Specification layout (default).
@@ -115,8 +115,8 @@
   "macOS native layout using ~/Library conventions (reserved for future sprint).
 
   When activated the layout will use:
-    ~/Library/Application Support/cljseq/   — data and config
-    ~/Library/Caches/cljseq/                — cache
+    ~/Library/Application Support/nous/   — data and config
+    ~/Library/Caches/nous/                — cache
 
   Currently produces the same paths as xdg-layout. Activate with:
     (set-layout! :macos-native)"
@@ -174,8 +174,8 @@
 (defn user-data-dir
   "Root user data directory. Override with CLJSEQ_DATA_DIR.
 
-  Default (XDG): ~/.local/share/cljseq
-  Default (macOS native): ~/Library/Application Support/cljseq"
+  Default (XDG): ~/.local/share/nous
+  Default (macOS native): ~/Library/Application Support/nous"
   ^String []
   (or (read-env "CLJSEQ_DATA_DIR")
       ((:data @active-layout))))
@@ -183,8 +183,8 @@
 (defn user-config-dir
   "Root user config directory. Override with CLJSEQ_CONFIG_DIR.
 
-  Default (XDG): ~/.config/cljseq
-  Default (macOS native): ~/Library/Application Support/cljseq"
+  Default (XDG): ~/.config/nous
+  Default (macOS native): ~/Library/Application Support/nous"
   ^String []
   (or (read-env "CLJSEQ_CONFIG_DIR")
       ((:config @active-layout))))
@@ -192,8 +192,8 @@
 (defn user-cache-dir
   "Root user cache directory. Override with CLJSEQ_CACHE_DIR.
 
-  Default (XDG): ~/.cache/cljseq
-  Default (macOS native): ~/Library/Caches/cljseq"
+  Default (XDG): ~/.cache/nous
+  Default (macOS native): ~/Library/Caches/nous"
   ^String []
   (or (read-env "CLJSEQ_CACHE_DIR")
       ((:cache @active-layout))))
@@ -281,7 +281,7 @@
   Default: (user-config-dir)/topology.edn
   Override: CLJSEQ_TOPOLOGY environment variable.
 
-  The file is not created automatically. Use cljseq.topology/load-topology!
+  The file is not created automatically. Use nous.topology/load-topology!
   to load it; see doc/topology-example.edn for the schema and annotations."
   ^String []
   (or (read-env "CLJSEQ_TOPOLOGY")

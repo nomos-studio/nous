@@ -40,7 +40,7 @@
 #include <cstring>
 #include <string>
 
-#ifdef CLJSEQ_WITH_SQLITE
+#ifdef NOUS_WITH_SQLITE
 #  include <sqlite3.h>
 #endif
 
@@ -138,10 +138,10 @@ static uint16_t read_le16(const uint8_t* p) noexcept {
 // SessionClose (0x32) or process exit.  All inserts are wrapped in a single
 // BEGIN/COMMIT per transaction for atomicity and performance.
 //
-// Compiled out when CLJSEQ_WITH_SQLITE is not defined.
+// Compiled out when NOUS_WITH_SQLITE is not defined.
 // ---------------------------------------------------------------------------
 
-#ifdef CLJSEQ_WITH_SQLITE
+#ifdef NOUS_WITH_SQLITE
 
 class TxDb {
 public:
@@ -305,7 +305,7 @@ private:
     sqlite3_stmt* stmt_chg_ = nullptr;
 };
 
-#else  // CLJSEQ_WITH_SQLITE not defined
+#else  // NOUS_WITH_SQLITE not defined
 
 class TxDb {
 public:
@@ -319,7 +319,7 @@ public:
     void insert_tx(const uint8_t*, std::size_t) {}
 };
 
-#endif  // CLJSEQ_WITH_SQLITE
+#endif  // NOUS_WITH_SQLITE
 
 // ---------------------------------------------------------------------------
 // IpcSession — owns one socket, drives bidirectional async I/O

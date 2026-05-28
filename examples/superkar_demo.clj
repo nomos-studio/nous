@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 ;;
-;; SuperKarplus-Inspired KS Ensemble — cljseq SCLang showcase
+;; SuperKarplus-Inspired KS Ensemble — nous SCLang showcase
 ;; ===========================================================
 ;;
 ;; Demonstrates:
@@ -20,7 +20,7 @@
 ;;   The string no longer "rings true"; instead it develops bell-like sidebands,
 ;;   metallic ghost tones, and a shimmering instability.
 ;;
-;;   On hardware this is usually one global knob. In cljseq, each of four voices
+;;   On hardware this is usually one global knob. In nous, each of four voices
 ;;   can travel its own warp trajectory at its own pace. The ensemble evolves from
 ;;   a clean harmonic chord into a cloud of inharmonic partials and back — a
 ;;   sound that hardware cannot produce with per-voice independence.

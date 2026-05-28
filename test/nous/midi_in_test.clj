@@ -1,15 +1,15 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.midi-in-test
-  "Unit tests for cljseq.midi-in — MIDI input routing to the ctrl tree
+(ns nous.midi-in-test
+  "Unit tests for nous.midi-in — MIDI input routing to the ctrl tree
   and direct note handler dispatch.
 
   All tests use -dispatch-for-test! to simulate inbound MIDI messages,
   avoiding the need for physical MIDI hardware."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
-            [cljseq.core   :as core]
-            [cljseq.ctrl   :as ctrl]
-            [cljseq.device :as device]
-            [cljseq.midi-in :as midi-in]))
+            [nous.core   :as core]
+            [nous.ctrl   :as ctrl]
+            [nous.device :as device]
+            [nous.midi-in :as midi-in]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

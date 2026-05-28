@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.live
-  "cljseq.live — execution context and live-coding sugar for live performance.
+(ns nous.live
+  "nous.live — execution context and live-coding sugar for live performance.
 
   Manages the dynamic execution environment that governs how notes are routed,
   tuned, and modulated. All playback forms merge the active context before
-  dispatching to cljseq.core.
+  dispatching to nous.core.
 
   ## Synth context
     Synth context is a plain map describing the MIDI routing for a scope:
@@ -13,7 +13,7 @@
     Three entry points, in increasing locality:
       (use-synth! ctx)            ; REPL default (root binding, not thread-safe)
       (with-synth ctx (play! …))  ; explicit scope
-      (deflive-loop :foo {:synth ctx} …)  ; per-loop (in cljseq.loop opts)
+      (deflive-loop :foo {:synth ctx} …)  ; per-loop (in nous.loop opts)
 
     Priority (lowest → highest): use-synth! < with-synth < per-note step map keys.
     Bare (play! :C4) with no context uses channel 1, velocity 64.
@@ -44,15 +44,15 @@
     (use-mod! {[:filter/cutoff] my-lfo}) ; REPL default
     (with-mod {[:filter/cutoff] my-lfo} …) ; scoped
     (tick-mods!)                         ; sample all *mod-ctx* mods → ctrl/send!"
-  (:require [cljseq.chord  :as chord-ns]
-            [cljseq.clock  :as clock]
-            [cljseq.core  :as core]
-            [cljseq.ctrl  :as ctrl]
-            [cljseq.loop  :as loop-ns]
-            [cljseq.mod   :as mod-ns]
-            [cljseq.pitch :as pitch]
-            [cljseq.scala :as scala]
-            [cljseq.scale :as scale-ns]))
+  (:require [nous.chord  :as chord-ns]
+            [nous.clock  :as clock]
+            [nous.core  :as core]
+            [nous.ctrl  :as ctrl]
+            [nous.loop  :as loop-ns]
+            [nous.mod   :as mod-ns]
+            [nous.pitch :as pitch]
+            [nous.scala :as scala]
+            [nous.scale :as scale-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; Dynamic configuration vars (Configuration Registry, R&R §25)
@@ -90,7 +90,7 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Synth context management
-;; *synth-ctx* is defined in cljseq.loop to avoid circular dependencies.
+;; *synth-ctx* is defined in nous.loop to avoid circular dependencies.
 ;; dsl provides the user-facing API for setting and scoping it.
 ;; ---------------------------------------------------------------------------
 
@@ -127,13 +127,13 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Timing context management
-;; *timing-ctx* is defined in cljseq.loop; dsl provides the user-facing API.
+;; *timing-ctx* is defined in nous.loop; dsl provides the user-facing API.
 ;; ---------------------------------------------------------------------------
 
 (defn use-timing!
   "Set the default timing modulator for subsequent play! calls at the REPL.
 
-  `mod` should be a timing modulator (from cljseq.timing), or nil to clear.
+  `mod` should be a timing modulator (from nous.timing), or nil to clear.
 
   Example:
     (use-timing! (timing/swing :amount 0.6))
@@ -157,7 +157,7 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Mod context management
-;; *mod-ctx* is defined in cljseq.loop; dsl provides the user-facing API.
+;; *mod-ctx* is defined in nous.loop; dsl provides the user-facing API.
 ;; ---------------------------------------------------------------------------
 
 (defn use-mod!
@@ -190,7 +190,7 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Per-step mod context management (§24.6)
-;; *step-mod-ctx* is defined in cljseq.loop; dsl provides the user-facing API.
+;; *step-mod-ctx* is defined in nous.loop; dsl provides the user-facing API.
 ;; ---------------------------------------------------------------------------
 
 (defn use-step-mods!
@@ -258,11 +258,11 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Harmony context management (§4.3)
-;; *harmony-ctx* is defined in cljseq.loop; dsl provides the user-facing API.
+;; *harmony-ctx* is defined in nous.loop; dsl provides the user-facing API.
 ;;
 ;; *harmony-ctx* may hold either:
-;;   - a cljseq.scale/Scale record  (classic per-loop binding)
-;;   - an ImprovisationContext map   (from cljseq.ensemble/start-harmony-ear!)
+;;   - a nous.scale/Scale record  (classic per-loop binding)
+;;   - an ImprovisationContext map   (from nous.ensemble/start-harmony-ear!)
 ;;     which carries :harmony/key (Scale), :harmony/tension, :harmony/chord etc.
 ;;
 ;; ->harmony-scale extracts the Scale from either form so that dsl consumers
@@ -277,15 +277,15 @@
   [ctx]
   (cond
     (nil? ctx)                           nil
-    (instance? cljseq.scale.Scale ctx)   ctx              ; Scale record — classic path
+    (instance? nous.scale.Scale ctx)   ctx              ; Scale record — classic path
     (map? ctx)                           (:harmony/key ctx) ; ImprovisationContext — ensemble path
     :else                                nil))
 
 (defn use-harmony!
   "Set the default harmonic context for the REPL session.
 
-  `s` may be a cljseq.scale/Scale record, an ImprovisationContext map
-  (from cljseq.ensemble/analyze-buffer), or nil to clear.
+  `s` may be a nous.scale/Scale record, an ImprovisationContext map
+  (from nous.ensemble/analyze-buffer), or nil to clear.
 
   Example:
     (use-harmony! (scale/scale :C 4 :major))
@@ -300,8 +300,8 @@
 (defmacro with-harmony
   "Execute `body` with `s` as the active harmonic context.
 
-  `s` — a cljseq.scale/Scale record (from cljseq.scale/scale) or an
-  ImprovisationContext map (from cljseq.ensemble/analyze-buffer).
+  `s` — a nous.scale/Scale record (from nous.scale/scale) or an
+  ImprovisationContext map (from nous.ensemble/analyze-buffer).
 
   Example:
     (with-harmony (scale/scale :C 4 :major)
@@ -346,16 +346,16 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Chord context management (§5.1)
-;; *chord-ctx* is defined in cljseq.loop; dsl provides the user-facing API.
+;; *chord-ctx* is defined in nous.loop; dsl provides the user-facing API.
 ;; ---------------------------------------------------------------------------
 
 (defn use-chord!
   "Set the default chord context for the REPL session.
 
-  `c` should be a cljseq.chord/Chord record (e.g. from chord/chord), or nil
+  `c` should be a nous.chord/Chord record (e.g. from chord/chord), or nil
   to clear.
 
-  Used by cljseq.pattern/motif! to resolve chord-relative pattern indices.
+  Used by nous.pattern/motif! to resolve chord-relative pattern indices.
 
   Example:
     (use-chord! (chord-ns/chord :C 4 :maj7))
@@ -370,8 +370,8 @@
 (defmacro with-chord
   "Execute `body` with `c` as the active chord context.
 
-  `c` — a cljseq.chord/Chord record (from cljseq.chord/chord).
-  Used by cljseq.pattern/motif! for chord-relative (:chord) patterns.
+  `c` — a nous.chord/Chord record (from nous.chord/chord).
+  Used by nous.pattern/motif! for chord-relative (:chord) patterns.
 
   Example:
     (with-chord (chord-ns/chord :G 3 :dom7)
@@ -403,7 +403,7 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Tuning context management (§ microtonal)
-;; *tuning-ctx* is defined in cljseq.loop; dsl provides the user-facing API.
+;; *tuning-ctx* is defined in nous.loop; dsl provides the user-facing API.
 ;; ---------------------------------------------------------------------------
 
 ;; Identity KBM: map-size 0 means midi->note uses (degree->note ms middle-note
@@ -484,7 +484,7 @@
 
   Synth context (*synth-ctx*) provides :midi/channel and :mod/velocity
   defaults. Per-note step map keys override context; context overrides the
-  channel-1/velocity-64 fallback in cljseq.core/play!."
+  channel-1/velocity-64 fallback in nous.core/play!."
   ([note]
    (play! note nil))
   ([note dur]
@@ -492,7 +492,7 @@
          step (cond
                 ;; Pitch record check must precede map? since defrecords are maps.
                ;; Thread :microtone through as :pitch/bend-cents so play! sends pitch bend.
-                (instance? cljseq.pitch.Pitch note)
+                (instance? nous.pitch.Pitch note)
                 (let [m  (pitch/pitch->midi note)
                       mt (double (:microtone note 0))]
                   (cond-> {:pitch/midi m}
@@ -635,13 +635,13 @@
   Accepts:
     (play-chord! :C4 :major)          ; root keyword + quality keyword
     (play-chord! :C4 :major 1)        ; with inversion
-    (play-chord! chord-record)         ; cljseq.chord/Chord record
+    (play-chord! chord-record)         ; nous.chord/Chord record
     (play-chord! [60 64 67])           ; raw MIDI integer vector
 
   Inherits the active synth context (*synth-ctx*)."
   ([chord-or-root]
    (let [midis (cond
-                 (instance? cljseq.chord.Chord chord-or-root)
+                 (instance? nous.chord.Chord chord-or-root)
                  (chord-ns/chord->midis chord-or-root)
                  (sequential? chord-or-root)
                  (vec chord-or-root)
@@ -666,7 +666,7 @@
 
   Usage:
     (play-voicing! [60 64 67])                       ; C major close
-    (play-voicing! (voice/close-position my-chord))  ; via cljseq.voice
+    (play-voicing! (voice/close-position my-chord))  ; via nous.voice
 
   Inherits the active synth context (*synth-ctx*)."
   [midis]
@@ -675,7 +675,7 @@
 (defn play-progression!
   "Play a voice-led chord progression, one chord per `dur` beats.
 
-  `chords` — seq of Chord records (cljseq.chord/Chord).
+  `chords` — seq of Chord records (nous.chord/Chord).
   `dur`    — duration in beats for each chord (default: 1).
 
   Applies smooth voice leading between chords. Plays all notes of each
@@ -690,7 +690,7 @@
   ([chords]
    (play-progression! chords 1))
   ([chords dur]
-   (let [voice-ns (requiring-resolve 'cljseq.voice/smooth-progression)
+   (let [voice-ns (requiring-resolve 'nous.voice/smooth-progression)
          voiced   (voice-ns chords)]
      (doseq [v voiced]
        (play-voicing! v)

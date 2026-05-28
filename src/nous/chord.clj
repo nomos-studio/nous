@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.chord
+(ns nous.chord
   "Chord as a rich value type (§4.4).
 
   A Chord is a root Pitch plus a quality keyword. It produces an ordered
@@ -29,8 +29,8 @@
     Added:    :add9 :add11 :madd9
 
   Key design decisions: R&R §4.4."
-  (:require [cljseq.pitch  :as pitch]
-            [cljseq.scale  :as scale]))
+  (:require [nous.pitch  :as pitch]
+            [nous.scale  :as scale]))
 
 ;; ---------------------------------------------------------------------------
 ;; Chord record
@@ -147,7 +147,7 @@
 
 (defn- pitch-class-str
   "Return step+accidental string for a Pitch, without octave number."
-  [^cljseq.pitch.Pitch p]
+  [^nous.pitch.Pitch p]
   (let [{:keys [step accidental]} p
         acc-str (case accidental
                   :sharp        "#"

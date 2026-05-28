@@ -2,7 +2,7 @@
 
 ## The tension
 
-`cljseq.device` currently conflates three distinct concerns in one EDN structure:
+`nous.device` currently conflates three distinct concerns in one EDN structure:
 
 1. **The semantic parameter space** — what an instrument *is*: its oscillators,
    filters, envelopes, routing, the vocabulary a composer thinks in when working
@@ -186,7 +186,7 @@ The ctrl tree path `[:arp2600 :filter :cutoff]` is already model-level thinking.
 
 ---
 
-## What this means for `cljseq.device`
+## What this means for `nous.device`
 
 `defdevice` as it stands is declaring a realization, not a model — and conflating
 the two. The migration path is additive:
@@ -212,7 +212,7 @@ makes the shape portable across contexts.
 
 The Grey Meanie, TimewARP, and a future Behringer firmware revision are all
 "ARP 2600 realizations," but their parameter spaces diverge. Should `:arp2600`
-be a versioned spec? Who owns it — cljseq core, a shared EDN file, or the user?
+be a versioned spec? Who owns it — nous core, a shared EDN file, or the user?
 
 **Q75 — Substitution binding expressiveness**
 

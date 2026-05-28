@@ -1,4 +1,4 @@
-# cljseq: Open Design Questions
+# nous: Open Design Questions
 
 This document tracks design ambiguities, tensions, and unresolved questions surfaced
 during review of `doc/research-and-requirements.md`. Each entry states the question,
@@ -119,7 +119,7 @@ state-management mechanism.
 **Original issue**
 
 `clojure.core/set!` is a special form that cannot be shadowed, creating a compile-time
-ambiguity if `set!` were used as a cljseq musical state setter. Resolved by routing
+ambiguity if `set!` were used as a nous musical state setter. Resolved by routing
 all musical state through the control tree rather than inventing a new top-level name.
 
 ---
@@ -210,7 +210,7 @@ is designed as a future drop-in replacement.
    arrival at a beat boundary; the thread skips to the next quantum rather than
    catching up, maintaining phase alignment at phrase level.
 
-**Namespace**: `cljseq.link` — see §15.8 for full API sketch.
+**Namespace**: `nous.link` — see §15.8 for full API sketch.
 
 **Implementation phasing**: 4 phases post-core (§15.10), starting with Carabiner
 client and beat-timeline integration, ending with start/stop sync.
@@ -317,12 +317,12 @@ empty parameter map:
   (play! :C2 :quarter)
   (sleep! :quarter))
 
-(deflive-loop "/cljseq/loops/bass" {}
+(deflive-loop "/nous/loops/bass" {}
   (play! :C2 :quarter)
   (sleep! :quarter))
 ```
 
-The loop is always registered in the control tree under `/cljseq/loops/<name>`.
+The loop is always registered in the control tree under `/nous/loops/<name>`.
 Plain `live-loop` loops have no declared controllable parameters; to expose parameters
 for external control, use `deflive-loop` with an explicit parameter map.
 
@@ -350,20 +350,20 @@ always registers in the tree.
 future NTP timestamp is data-plane (scheduling intent). This is the semantically
 correct distinction — OSC bundles were designed for exactly this.
 
-**Fallback**: two ports. Control-plane OSC on port 57121 (cljseq default);
+**Fallback**: two ports. Control-plane OSC on port 57121 (nous default);
 data-plane OSC on a user-configured port (default 57110, the SuperCollider default).
 Port separation is provided for hardware controllers that cannot send OSC bundles.
 
-**Address prefix** (`/cljseq/**` = control-plane) is documented convention for
+**Address prefix** (`/nous/**` = control-plane) is documented convention for
 human readers, not an enforcement mechanism. Enforcement is by port or bundle
 timestamp; address prefix is unreliable in the face of user-defined tree paths
-outside `/cljseq/`.
+outside `/nous/`.
 
 | Mechanism | Primary? | Fallback? |
 |---|---|---|
 | Bundle immediate timestamp | Yes | — |
 | Two ports (57121 / user-configured) | — | Yes |
-| Address prefix `/cljseq/**` | No | Convention only |
+| Address prefix `/nous/**` | No | Convention only |
 
 ---
 
@@ -377,10 +377,10 @@ Per-session authorization: the user confirms once at session start. Revoke by
 restarting the nREPL session — the same model as Claude Code.
 
 - **Namespace whitelist**: all `repl/eval` submissions are prepended with
-  `(in-ns 'cljseq.user)` and may only refer to `cljseq.*` namespaces unless the
+  `(in-ns 'nous.user)` and may only refer to `nous.*` namespaces unless the
   user explicitly grants full JVM access via a session flag.
 - **Audit log**: every eval is appended to a session transcript file
-  (`~/.cljseq/sessions/<timestamp>.log`) for auditability.
+  (`~/.nous/sessions/<timestamp>.log`) for auditability.
 - **Sandboxing**: deferred — revisit after evaluating real-world usage patterns.
   The namespace whitelist provides a practical safety boundary for now.
 
@@ -402,31 +402,31 @@ replacement.
 
 ---
 
-## Q15 — `libcljseq-rt` boundary: what belongs in the shared library? — **RESOLVED**
+## Q15 — `libnous-rt` boundary: what belongs in the shared library? — **RESOLVED**
 
 **R&R reference**: §3.5, §19
 
 **Resolution** (Sprint 2)
 
-The dependency graph is `cljseq-sidecar → libcljseq-rt ← cljseq-audio`. The boundary
+The dependency graph is `nous-sidecar → libnous-rt ← nous-audio`. The boundary
 is: shared = protocol + interfaces + infrastructure; binary-local = implementations +
 backends.
 
 | Component | Location | Rationale |
 |---|---|---|
-| IPC framing/transport | `libcljseq-rt` | Both processes talk to the JVM |
-| OSC codec | `libcljseq-rt` | Both send/receive OSC |
-| `SynthTarget` abstract interface | `libcljseq-rt` | Interface only; impls in binaries |
-| `LinkEngine` | `libcljseq-rt` | Both processes need beat-clock access |
-| Asio I/O context helpers | `libcljseq-rt` | Shared async infrastructure |
-| Lock-free queue primitives | `libcljseq-rt` | Shared IPC plumbing |
-| Common logging | `libcljseq-rt` | Both processes emit logs |
+| IPC framing/transport | `libnous-rt` | Both processes talk to the JVM |
+| OSC codec | `libnous-rt` | Both send/receive OSC |
+| `SynthTarget` abstract interface | `libnous-rt` | Interface only; impls in binaries |
+| `LinkEngine` | `libnous-rt` | Both processes need beat-clock access |
+| Asio I/O context helpers | `libnous-rt` | Shared async infrastructure |
+| Lock-free queue primitives | `libnous-rt` | Shared IPC plumbing |
+| Common logging | `libnous-rt` | Both processes emit logs |
 | `MidiTarget`, `ClapTarget` impls | Binary-local | Single-process concerns |
-| RtMidi, RtAudio | Binary-local | MIDI in sidecar; audio in cljseq-audio only |
-| CLAP plugin loader | Binary-local | `cljseq-audio` only |
-| libpd | Binary-local | `cljseq-audio` only |
+| RtMidi, RtAudio | Binary-local | MIDI in sidecar; audio in nous-audio only |
+| CLAP plugin loader | Binary-local | `nous-audio` only |
+| libpd | Binary-local | `nous-audio` only |
 
-**Key invariant**: nothing in `libcljseq-rt` pulls in RtMidi, RtAudio, CLAP, or libpd
+**Key invariant**: nothing in `libnous-rt` pulls in RtMidi, RtAudio, CLAP, or libpd
 headers. The library compiles without any synthesis or I/O backend. Enforce at Phase 0
 by auditing the CMake target's transitive dependencies.
 
@@ -446,19 +446,19 @@ refactoring when the actual dependency graph is visible in code.
 **Option A**: direct JVM-to-process IPC connections.
 
 ```
-JVM ──IPC──► cljseq-sidecar
-    ──IPC──► cljseq-audio-0
-    ──IPC──► cljseq-audio-1
+JVM ──IPC──► nous-sidecar
+    ──IPC──► nous-audio-0
+    ──IPC──► nous-audio-1
 ```
 
 Event routing happens in the JVM. A note event for Surge XT goes directly to
-`cljseq-audio-0`; a note event for a Prophet goes to `cljseq-sidecar`. The routing
+`nous-audio-0`; a note event for a Prophet goes to `nous-sidecar`. The routing
 key (control tree target prefix → process handle) lives in a Clojure map in
-`cljseq.sidecar`. Process lifecycle management (spawn, monitor, restart) is handled
-by `cljseq.sidecar` for all N processes.
+`nous.sidecar`. Process lifecycle management (spawn, monitor, restart) is handled
+by `nous.sidecar` for all N processes.
 
 Option B (sidecar-as-router) was rejected: it adds a routing hop for audio-destined
-events and makes `cljseq-sidecar` a more complex process with no architectural benefit.
+events and makes `nous-sidecar` a more complex process with no architectural benefit.
 
 ---
 
@@ -501,17 +501,17 @@ pressure demands it).
 
 ---
 
-## Q19 — `cljseq-audio` and Link: second peer on the same machine? — **RESOLVED**
+## Q19 — `nous-audio` and Link: second peer on the same machine? — **RESOLVED**
 
 **R&R reference**: §3.5, §19.9
 
 **Resolution** (Sprint 3)
 
-Measure beat-time drift between the JVM's Carabiner connection and `cljseq-audio`'s
+Measure beat-time drift between the JVM's Carabiner connection and `nous-audio`'s
 direct Link instance empirically. Acceptable limit: < 100µs on a wired LAN.
 
 If drift exceeds the limit: use a single Link peer in the sidecar; forward Link
-beat-time to `cljseq-audio` via IPC rather than having `cljseq-audio` join the
+beat-time to `nous-audio` via IPC rather than having `nous-audio` join the
 session independently. This is a Phase 0 measurement task.
 
 ---
@@ -522,7 +522,7 @@ session independently. This is a Phase 0 measurement task.
 
 **Resolution** (Sprint 2)
 
-`cljseq.m21` returns Clojure promises. Two safe usage patterns exist without
+`nous.m21` returns Clojure promises. Two safe usage patterns exist without
 any API change:
 
 1. **Pre-fetch before the loop** — call `m21/` outside, deref, close over the value:
@@ -543,14 +543,14 @@ any API change:
      (sleep! :quarter))
    ```
 
-`m21/eventually!` is part of the initial `cljseq.m21` API.
+`m21/eventually!` is part of the initial `nous.m21` API.
 
 **Documentation constraint**: never deref an `m21/` promise inside a running
 `live-loop`. Blocking on a slow call (up to 500ms for corpus parsing) will cause the
 loop to miss its `sync!` window, breaking virtual-time coherence.
 
 **Enforcement** (deferred): a `^:dynamic *in-loop-context*` var is reserved in
-`cljseq.loop`. It will be bound to `true` inside every `live-loop` body. The `m21/`
+`nous.loop`. It will be bound to `true` inside every `live-loop` body. The `m21/`
 deref path — and any other subsystem where blocking inside a loop is dangerous — can
 check this var and throw an informative error. The check is additive and non-breaking
 when wired in; deferral keeps the initial implementation simple while the constraint
@@ -590,15 +590,15 @@ concrete bottleneck.
 
 ---
 
-## Q23 — Overlap between cljseq pitch/scale types and Music21? — **RESOLVED**
+## Q23 — Overlap between nous pitch/scale types and Music21? — **RESOLVED**
 
 **R&R reference**: §20.8
 
 **Resolution** (Sprint 3)
 
-Division of labour: use cljseq native operations for hot-path work (pitch
+Division of labour: use nous native operations for hot-path work (pitch
 arithmetic, scale lookup, MIDI conversion — microseconds); delegate musicological
-depth to Music21 via `cljseq.m21` (corpus analysis, key detection, voice-leading —
+depth to Music21 via `nous.m21` (corpus analysis, key detection, voice-leading —
 milliseconds). The §20.8 table is the authoritative mapping; no duplication of
 implementations.
 
@@ -610,7 +610,7 @@ implementations.
 
 **Resolution** (Sprint 3)
 
-cljseq does not redistribute any Music21 corpus files. `m21/search-corpus` and
+nous does not redistribute any Music21 corpus files. `m21/search-corpus` and
 all corpus access functions operate on the user's locally installed Music21
 installation at runtime. Distribution policy: no bundling.
 
@@ -633,11 +633,11 @@ Three strategies are used, selected by target type:
 **Target routing**:
 - MIDI targets: cents-offset for monophonic/low-polyphony; MPE for polyphonic
   microtonality. Add `:pitch/mpe-channel` to the pitch type.
-- CLAP targets: build a `CLAP_EXT_TUNING` table from the `.scl` file; `cljseq-audio`
+- CLAP targets: build a `CLAP_EXT_TUNING` table from the `.scl` file; `nous-audio`
   sends the tuning table to the plugin on load (IPC type `0x7C`, added to §3.5's
   message table).
 
-**`Pitch` type**: `:pitch/cents` is an **optional field** in `cljseq.pitch`'s
+**`Pitch` type**: `:pitch/cents` is an **optional field** in `nous.pitch`'s
 canonical representation. Absent means 0 cents offset. This keeps the common 12-TET
 case clean at the REPL (`{:pitch/midi 60}` rather than `{:pitch/midi 60 :pitch/cents 0}`);
 microtonal code only encounters `:pitch/cents` when it is actually needed. The wire
@@ -653,7 +653,7 @@ format (§20.5) already includes `cents_offset`.
 
 The Scala `.scl` / `.kbm` system (§7) handles both reference approximations and
 measured per-ensemble tunings without gamelan-specific code. Ship reference tuning
-files in `resources/scales/gamelan/`; allow user files in `~/.cljseq/scales/`.
+files in `resources/scales/gamelan/`; allow user files in `~/.nous/scales/`.
 `(tuning/load! :my-gamelan/pelog)` searches the user directory first, then bundled
 resources.
 
@@ -666,7 +666,7 @@ resources.
 **Resolution** (Sprint 3)
 
 `(m21/register-corpus-path! dir)` wraps Music21's `corpus.addPath()`. Users
-supply their own non-Western corpus files; cljseq ships none. Documentation
+supply their own non-Western corpus files; nous ships none. Documentation
 explains the mechanism and points to known public domain sources (e.g. IRCAM
 Multimedia Library, Humdrum toolkit resources).
 
@@ -710,7 +710,7 @@ boundary. "Period boundary" is ill-defined for a continuous waveform; phase-cont
 swap at next tick is consistent with the high-resolution nature of the loop and
 preserves waveform continuity.
 
-**Control tree**: both modes register under `/cljseq/loops/<name>` identically.
+**Control tree**: both modes register under `/nous/loops/<name>` identically.
 The scheduling implementation differs but the tree node interface — start, stop,
 inspect, parameter control — is uniform.
 
@@ -811,8 +811,8 @@ the trunk; regeneration fires only when fields matching the filter change:
 `(fractal/freeze! name)` disables regeneration temporarily for multi-step edits;
 `(fractal/thaw! name)` re-enables it. Prevents surprise regeneration mid-edit.
 
-Note: the cljseq implementation uses the name `fractal` throughout (namespace
-`cljseq.fractal`, macro `deffractal`). The Teenage Engineering Bloom sequencer is
+Note: the nous implementation uses the name `fractal` throughout (namespace
+`nous.fractal`, macro `deffractal`). The Teenage Engineering Bloom sequencer is
 the design inspiration; "Bloom" is retained only as an attribution label in §24 of
 the R&R.
 
@@ -964,7 +964,7 @@ parent at high correlation values.
 **Resolution** (Sprint 3)
 
 Auto-register all T/X parameters as control tree nodes at
-`/cljseq/stochastic/<name>/` when the `defstochastic` macro is evaluated. Makes all
+`/nous/stochastic/<name>/` when the `defstochastic` macro is evaluated. Makes all
 parameters MIDI-CC-bindable, OSC-addressable, and MCP-accessible without any
 explicit registration call. Consistent with `deflive-loop` auto-registration
 behaviour (Q11).
@@ -979,7 +979,7 @@ behaviour (Q11).
 
 Standard nREPL is the developer interface; no custom nREPL ops required for core
 functionality. The control tree is the canonical state model. Optional
-`cljseq-nrepl` middleware for editor-side parameter display and loop inspection can
+`nous-nrepl` middleware for editor-side parameter display and loop inspection can
 be added later as a separate library without affecting the core.
 
 ---
@@ -1001,7 +1001,7 @@ one protocol; role and routing are determined at the binding site, not in the ty
   (next-edge [v beat]))  ; beat of next 0→1 transition, or nil if continuous
 ```
 
-Every time-varying entity in cljseq implements this protocol:
+Every time-varying entity in nous implements this protocol:
 
 | Signal | Output | Routing |
 |---|---|---|
@@ -1069,11 +1069,11 @@ or common DAW terminology. `scene` (Ableton), `section` (Music21 score structure
 and `group` (SuperCollider audio routing) were rejected for collision risk.
 
 **Control tree placement**: ensemble voices register under
-`/cljseq/ensembles/<name>/voices/<voice-name>/`. The ensemble is a container node at
-`/cljseq/ensembles/<name>/` with shared harmonic context as child nodes:
+`/nous/ensembles/<name>/voices/<voice-name>/`. The ensemble is a container node at
+`/nous/ensembles/<name>/` with shared harmonic context as child nodes:
 
 ```
-/cljseq/ensembles/morning-raga/
+/nous/ensembles/morning-raga/
   key        → :D
   mode       → :bhairav
   chord      → :I
@@ -1159,7 +1159,7 @@ rather than `ctrl/bind!`.
 (timing/bind! :voice/chords (humanize :amount 5))  ; → time_ns offset, named voice only
 ```
 
-`timing/bind!` lives in `cljseq.timing`. No type tag on the modulator — the same
+`timing/bind!` lives in `nous.timing`. No type tag on the modulator — the same
 `ITemporalValue` instance could be used as a parameter modulator or timing modulator
 depending on binding target.
 
@@ -1251,11 +1251,11 @@ state rather than stepping back one change at a time.
 
 **Checkpoints** are held in `:checkpoints` alongside the tree, not inside it —
 avoiding self-referential snapshots. They are still queryable via OSC at
-`/cljseq/checkpoints/`; the handler reads from the system-state atom directly.
+`/nous/checkpoints/`; the handler reads from the system-state atom directly.
 Checkpoints are not themselves undo targets.
 
 **Serial number**: increments on structural changes only — not on real-time
-parameter writes. Exposed at `/cljseq/tree/serial` via OSC and the web interface.
+parameter writes. Exposed at `/nous/tree/serial` via OSC and the web interface.
 Allows external tools and peers to detect stale snapshots without diffing the tree.
 
 ---
@@ -1331,8 +1331,8 @@ system-state atom alongside the tree, making them queryable via OSC and undoable
 
 **Resolution** (Sprint 3)
 
-**Name**: `morph` — `defmorph` / `cljseq.morph`. Registers at
-`/cljseq/morphs/<name>/`. No Clojure collision; clear musical connotation.
+**Name**: `morph` — `defmorph` / `nous.morph`. Registers at
+`/nous/morphs/<name>/`. No Clojure collision; clear musical connotation.
 
 **Form**: Clojure macro (not a function). Validates transfer function arity at
 compile time, auto-generates the control tree path, produces better error messages.
@@ -1374,7 +1374,7 @@ Each target function receives the full input map, enabling cross-axis interactio
 **Morph vocabulary library** (future sprint): common pure transfer functions for
 morph targets — rectangular-to-polar conversion, exponential/logarithmic curves,
 S-curves, dead-zone clipping, vector rotation, polarity inversion. Analogous to
-the modulator vocabulary in `cljseq.mod`. Captured as a future design topic in
+the modulator vocabulary in `nous.mod`. Captured as a future design topic in
 `design-sprint-3-summary.md`.
 
 **Connection to existing questions**
@@ -1405,7 +1405,7 @@ capability:
 
 **Capability summary** (for a future sprint):
 - Peer discovery via mDNS; discovered instances appear as device subtrees at
-  `/cljseq/peers/<peer-id>/`
+  `/nous/peers/<peer-id>/`
 - Conductor pattern: one instance sends patch changes and parameter updates to peers
 - Distributed live coding: musicians share control trees across a LAN session
 
@@ -1417,7 +1417,7 @@ Flag for design when the control tree (§16) implementation is complete and stab
 
 **R&R reference**: build system (§0); raised in Sprint 4 scaffold discussion
 
-**Context**: cljseq's C++ layer (`libcljseq-rt`, `cljseq-sidecar`, `cljseq-audio`) requires
+**Context**: nous's C++ layer (`libnous-rt`, `nous-sidecar`, `nous-audio`) requires
 decisions on how to manage native dependencies (OSC, MIDI, Ableton Link, CLAP) across
 macOS, Linux, and Windows. System packages (Boost as shipped by e.g. Fedora) apply
 distro-specific errata and diverge across platforms; this cannot be assumed consistent.
@@ -1426,7 +1426,7 @@ distro-specific errata and diverge across platforms; this cannot be assumed cons
 
 1. **Avoid Boost entirely.** C++17 STL covers the value previously obtained from Boost
    (`std::optional`, `std::variant`, `std::filesystem`, `std::string_view`, `std::chrono`,
-   `std::span` in C++20). No `find_package(Boost)` will appear in any cljseq CMakeLists.
+   `std::span` in C++20). No `find_package(Boost)` will appear in any nous CMakeLists.
 
 2. **Standalone Asio for the OSC server.** The OSC server requires an async I/O layer with
    cross-platform POSIX/Windows socket abstraction. Standalone Asio (header-only, no Boost
@@ -1553,11 +1553,11 @@ benefit from time-varying behaviour (a general principle, not a special case of 
 | Q12 | OSC control/data plane distinction | No — needed before §17 impl | Low — two ports + bundle timestamp |
 | Q13 | MCP `repl/eval` authorization | No — needed before §18 impl | Medium — per-session + NS whitelist |
 | Q14 | HTML rendering strategy | No — post-§17 | Low — start with SSR+HTMX |
-| Q15 | `libcljseq-rt` boundary | **Yes** — needed before Phase 0 | Medium — dependency graph analysis |
+| Q15 | `libnous-rt` boundary | **Yes** — needed before Phase 0 | Medium — dependency graph analysis |
 | Q16 | Process topology (JVM↔N or sidecar-router) | No — architecture decision | Low — Option A recommended |
 | Q17 | CLAP parameter count (eager vs. lazy) | No — needed before §19.7 impl | Low — lazy + bulk-fetch recommended |
 | Q18 | Pd patch hot-swap audio continuity | No — needed before §19.8 impl | Medium — pre-load + atomic swap |
-| Q19 | `cljseq-audio` Link peer count | No — empirical test needed | Medium — measure drift, consider single-peer |
+| Q19 | `nous-audio` Link peer count | No — empirical test needed | Medium — measure drift, consider single-peer |
 | Q25 | Maqam microtonal representation | **Yes** — needed before §21 impl | Medium — cents-offset model via §7 |
 | Q26 | Gamelan per-ensemble tuning | No — tuning file strategy | Low — .scl per ensemble in resources/ |
 | Q27 | Non-Western corpus in Music21 | No — post-§20 | Low — VirtualCorpus extension |
@@ -1580,19 +1580,19 @@ benefit from time-varying behaviour (a general principle, not a special case of 
 | Q20 | Music21 async from live-loop | **Yes** — usage convention needed | Low — document + `m21/eventually!` helper |
 | Q21 | Score serialization canonical form | No — needed before Music21 impl | Low — define rules in Python server |
 | Q22 | In-process Music21 (GraalPy) | No — performance question | Low — subprocess is sufficient |
-| Q23 | cljseq vs Music21 type overlap | No — architecture decision | Low — §20.8 table is the answer |
+| Q23 | nous vs Music21 type overlap | No — architecture decision | Low — §20.8 table is the answer |
 | Q24 | Music21 corpus licensing | No — distribution policy | Low — resolved: no bundling |
 | Q7 | Link integration | No — post-core feature | High — see §15 |
 | Q44 | Unified temporal-value abstraction: `ITemporalValue` protocol | **Yes** — needed before Phase 1 impl | High — design spike recommended |
 | Q45 | Parts vs. tracks: unifying voice-organization abstraction (`ensemble`?) | **Yes** — needed before multi-voice DSL impl | Medium — conceptual synthesis + naming decision |
-| Q46 | Timing modulation: swing, humanize, groove, quantize as time-dimension `ITemporalValue` | **Yes** — needed before humanization/quantization impl | Medium — connects Q35, Q44, `cljseq.clock` vocabulary |
+| Q46 | Timing modulation: swing, humanize, groove, quantize as time-dimension `ITemporalValue` | **Yes** — needed before humanization/quantization impl | Medium — connects Q35, Q44, `nous.clock` vocabulary |
 | Q47 | Control tree as persistent atom: undo stack, panic, serial number | **Yes** — needed before control tree impl | Medium — impacts Q8, Q9, Q10 |
 | Q48 | Patch system: named tree states with beat-aware application | **Yes** — needed before control tree impl | Medium — builds on Q47 atom model |
 | Q49 | Synth-style morphs: named input→parameter-set mappings | No — needed before §16 morph impl | Medium — surface explicit concept in DSL |
 | Q50 | P2P control plane: peer discovery and remote tree composition | No — future capability | Low — ensure design doesn't close it off |
 | Q51 | Native C++ dependency strategy: Boost, Asio, Link, CLAP | No — build infrastructure | Medium — resolved: STL + standalone Asio + FetchContent |
 | Q52 | Per-step `:probability` and `:time-shift` on step map | No — step map extension | Low — add as optional keys; nil = unconditional/zero-offset |
-| Q53 | `defflux` read/write head concurrency model | No — impl detail for `cljseq.flux` | Medium — vector-of-atoms vs. single-atom-of-vector |
+| Q53 | `defflux` read/write head concurrency model | No — impl detail for `nous.flux` | Medium — vector-of-atoms vs. single-atom-of-vector |
 | Q54 | Scale as `ITemporalValue` in output quantization stage | No — needed before `defflux` scale morphing | Medium — extends Q8 node types |
 
 ---
@@ -1611,7 +1611,7 @@ matching the MIDI convention. Time signature affects only bar boundaries, bar-le
 `sync!`, and display/annotation. This keeps the beat model uniform and avoids the
 compound-time BPM ambiguity documented in §29.3.
 
-**Blocking**: Phase 1 `sync!` implementation; bar-level phasor in `cljseq.loop`.
+**Blocking**: Phase 1 `sync!` implementation; bar-level phasor in `nous.loop`.
 
 ---
 
@@ -1628,7 +1628,7 @@ configurable (e.g. 96 PPQN for drum machines that support higher resolution)?
 MIDI specification defines and all hardware expects. Higher PPQN (96, 960) is exposed
 only for SMF export, not for live MIDI Clock messages.
 
-**Blocking**: Phase 1 MIDI Clock output in `cljseq-sidecar`.
+**Blocking**: Phase 1 MIDI Clock output in `nous-sidecar`.
 
 ---
 
@@ -1638,7 +1638,7 @@ only for SMF export, not for live MIDI Clock messages.
 
 **Status**: Open — needed before MTC implementation
 
-**Question**: What frame rate should cljseq default to for MTC production? Must
+**Question**: What frame rate should nous default to for MTC production? Must
 drop-frame be implemented for 29.97 NTSC sync?
 
 **Recommendation**: Default 25 fps (cleanest math at 48 kHz: 1 frame = 1920 samples
@@ -1660,11 +1660,11 @@ pure-audio North American contexts.
 correct only at constant tempo. Under Link (or any tempo change), threads wake at the
 wrong wall-clock time.
 
-**Decision**: Implemented in `cljseq.loop/sleep!` and supporting infrastructure:
+**Decision**: Implemented in `nous.loop/sleep!` and supporting infrastructure:
 
-1. `cljseq.core/start!` anchors the master timeline `{:bpm, :beat0-epoch-ms,
+1. `nous.core/start!` anchors the master timeline `{:bpm, :beat0-epoch-ms,
    :beat0-beat}` at the current epoch-ms when the system starts.
-2. `cljseq.clock/beat->epoch-ms` converts an absolute beat position to an
+2. `nous.clock/beat->epoch-ms` converts an absolute beat position to an
    epoch-ms deadline using the timeline anchor — a pure linear mapping valid
    within the current tempo segment.
 3. `sleep!` computes `target-beat = *virtual-time* + beats`, calls
@@ -1692,7 +1692,7 @@ Link, `beat->epoch-ms` will delegate to `link.time_at(beat)` — the
 
 Three sub-questions, all answered:
 
-1. **Detection**: `set-bpm!` in `cljseq.core` is the mutation point; it atomically
+1. **Detection**: `set-bpm!` in `nous.core` is the mutation point; it atomically
    rolls the timeline anchor and then iterates `[:loops * :thread]`.
 
 2. **Notification**: `set-bpm!` calls `LockSupport/unpark` on every registered loop
@@ -1710,7 +1710,7 @@ changes instantaneously effective — the sleeping thread does not wait until th
 deadline before noticing the change.
 
 ```clojure
-;; cljseq.loop/park-until-beat!
+;; nous.loop/park-until-beat!
 (defn- park-until-beat! [^double target-beat]
   (loop []
     (when-let [tl (get-timeline)]
@@ -1719,7 +1719,7 @@ deadline before noticing the change.
           (LockSupport/parkUntil epoch-ms)
           (recur))))))
 
-;; cljseq.core/set-bpm! — after CAS:
+;; nous.core/set-bpm! — after CAS:
 (doseq [[_ entry] (:loops @system-state)]
   (when-let [^Thread t (:thread entry)]
     (LockSupport/unpark t)))
@@ -1812,6 +1812,6 @@ map (Phase A), or should it also include automation curves and CLAP plugin state
 **Status**: Future sprint
 
 **Question**: Should import support full project reconstruction (mapping DAWProject
-track hierarchy to cljseq constructs and generating a `defrack` form) or only
+track hierarchy to nous constructs and generating a `defrack` form) or only
 selective import (tempo map, MIDI clips)? Selective import is lower risk for Phase 1;
 full import requires resolving the `defrack` generation strategy first.

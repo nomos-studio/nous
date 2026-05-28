@@ -10,7 +10,7 @@
 
 Review all open design questions and implementation plan prerequisites to confirm
 which Phase 0 tasks can begin, and identify any remaining design work that would
-block a "hello clock" REPL session: the simplest possible cljseq session that
+block a "hello clock" REPL session: the simplest possible nous session that
 ticks a master clock, runs a live loop, plays a note, and uses virtual time.
 
 ---
@@ -18,8 +18,8 @@ ticks a master clock, runs a live loop, plays a note, and uses virtual time.
 ## What a "Hello Clock" Session Requires
 
 ```clojure
-;; The minimum viable cljseq session
-(require '[cljseq.core :refer :all])
+;; The minimum viable nous session
+(require '[nous.core :refer :all])
 
 (deflive-loop :hello {}
   (play! :C4)
@@ -62,10 +62,10 @@ These are open but do not need to be resolved before starting:
 
 | Q | Why not blocking |
 |---|-----------------|
-| Q30 — LFO rate | Empirical; resolved during `cljseq.mod` implementation |
+| Q30 — LFO rate | Empirical; resolved during `nous.mod` implementation |
 | Q32 — Polyrhythm phase coherence | Resolved during multi-loop testing |
 | Q52 — Per-step `:probability`/`:time-shift` | Optional step map fields; additive |
-| Q53 — `defflux` concurrency model | `cljseq.flux` is a later phase |
+| Q53 — `defflux` concurrency model | `nous.flux` is a later phase |
 | Q54 — Scale as `ITemporalValue` | Output stage; later phase |
 
 ---
@@ -76,8 +76,8 @@ From `doc/implementation-plan.md`, Phase 0 tasks are:
 
 ### Phase 0a — Bootstrap
 
-- [ ] `cljseq.core/start!` — initialises the system-state atom and starts the clock
-- [ ] `cljseq.core/stop!` — graceful shutdown
+- [ ] `nous.core/start!` — initialises the system-state atom and starts the clock
+- [ ] `nous.core/stop!` — graceful shutdown
 - [ ] System-state atom shape confirmed (Q47): `{:tree {} :serial 0 :undo-stack [] :checkpoints {}}`
 - [ ] nREPL server starts on `start!` (Q33 — standard nREPL; no new middleware)
 
@@ -94,17 +94,17 @@ From `doc/implementation-plan.md`, Phase 0 tasks are:
 
 ### Phase 0c — Master Clock
 
-- [ ] `cljseq.clock/master-clock` — `ITemporalValue` returning 1.0; ticks on integer beats
+- [ ] `nous.clock/master-clock` — `ITemporalValue` returning 1.0; ticks on integer beats
 - [ ] BPM → beat duration in ms
 - [ ] Clock drives the live-loop wakeup pipeline
 - [ ] `ITemporalValue` protocol defined (from spike: `sample` / `next-edge`)
 
-**Prerequisites met**: Q44 resolved; spike implementation exists in `cljseq.spike.temporal`.
+**Prerequisites met**: Q44 resolved; spike implementation exists in `nous.spike.temporal`.
 
 ### Phase 0d — Live Loop
 
 - [ ] `deflive-loop` macro — starts a thread; binds `*virtual-time*`; runs body; loops
-- [ ] Loop registered in control tree at `/cljseq/loops/<name>/`
+- [ ] Loop registered in control tree at `/nous/loops/<name>/`
 - [ ] Re-evaluation of `deflive-loop` replaces the running loop at next iteration
 - [ ] `live-loop` alias (Q11 resolved)
 
@@ -128,14 +128,14 @@ All Phase 0 namespaces have skeleton files with docstrings referencing their des
 
 | Namespace | Skeleton | Design questions resolved |
 |-----------|---------|--------------------------|
-| `cljseq.core` | ✓ | Q47, Q48 |
-| `cljseq.clock` | ✓ | Q44 (spike), Q1 |
-| `cljseq.loop` | ✓ | Q11, Q1, Q2, Q3 |
-| `cljseq.mod` | ✓ | Q44, Q30 (empirical) |
-| `cljseq.timing` | ✓ | Q46, Q35 |
-| `cljseq.ctrl` | ✓ | Q4, Q8, Q9, Q10, Q47 |
-| `cljseq.sidecar` | ✓ | Q16 |
-| `cljseq.spike.temporal` | ✓ | Q44 (verified) |
+| `nous.core` | ✓ | Q47, Q48 |
+| `nous.clock` | ✓ | Q44 (spike), Q1 |
+| `nous.loop` | ✓ | Q11, Q1, Q2, Q3 |
+| `nous.mod` | ✓ | Q44, Q30 (empirical) |
+| `nous.timing` | ✓ | Q46, Q35 |
+| `nous.ctrl` | ✓ | Q4, Q8, Q9, Q10, Q47 |
+| `nous.sidecar` | ✓ | Q16 |
+| `nous.spike.temporal` | ✓ | Q44 (verified) |
 
 ---
 
@@ -145,7 +145,7 @@ All Phase 0 namespaces have skeleton files with docstrings referencing their des
 observe a MIDI note (or stdout stub) firing at the expected beat interval:
 
 ```clojure
-(require '[cljseq.core :refer :all])
+(require '[nous.core :refer :all])
 
 ;; Boot
 (start!)
@@ -156,7 +156,7 @@ observe a MIDI note (or stdout stub) firing at the expected beat interval:
   (sleep! 1))
 
 ;; Confirm it is ticking
-(ctrl/get [:cljseq/loops :hello :tick-count])
+(ctrl/get [:nous/loops :hello :tick-count])
 ;; => some positive integer, incrementing
 
 ;; Modify it without stopping
@@ -165,7 +165,7 @@ observe a MIDI note (or stdout stub) firing at the expected beat interval:
   (sleep! 1/2))
 
 ;; Confirm the loop updated
-(ctrl/get [:cljseq/loops :hello :tick-count])
+(ctrl/get [:nous/loops :hello :tick-count])
 ;; => still incrementing; note changed on next iteration
 
 ;; Stop
@@ -176,11 +176,11 @@ observe a MIDI note (or stdout stub) firing at the expected beat interval:
 
 ## Recommended Phase 0 Implementation Order
 
-1. `cljseq.clock` — `ITemporalValue` protocol + `MasterClock` (copy from spike, promote)
-2. `cljseq.core` — `start!`/`stop!`, system-state atom, BPM config
-3. `cljseq.loop` — `deflive-loop` macro, virtual time binding, loop thread
-4. `cljseq.clock` — wire `MasterClock` to loop wakeup pipeline
-5. `cljseq.core` — `play!` stub (stdout output), step map → MIDI conversion
+1. `nous.clock` — `ITemporalValue` protocol + `MasterClock` (copy from spike, promote)
+2. `nous.core` — `start!`/`stop!`, system-state atom, BPM config
+3. `nous.loop` — `deflive-loop` macro, virtual time binding, loop thread
+4. `nous.clock` — wire `MasterClock` to loop wakeup pipeline
+5. `nous.core` — `play!` stub (stdout output), step map → MIDI conversion
 6. Integration test: "hello clock" session milestone above
 
 This order minimises stubs — each step can be verified independently before the next

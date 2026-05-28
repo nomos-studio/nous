@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.voice-test
-  "Tests for cljseq.voice — voice leading, named voicings, and progression analysis."
+(ns nous.voice-test
+  "Tests for nous.voice — voice leading, named voicings, and progression analysis."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.chord  :as chord]
-            [cljseq.voice  :as voice]))
+            [nous.chord  :as chord]
+            [nous.voice  :as voice]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers

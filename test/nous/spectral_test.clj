@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.spectral-test
-  "Tests for cljseq.spectral — SpectralState ITexture implementation,
+(ns nous.spectral-test
+  "Tests for nous.spectral — SpectralState ITexture implementation,
   compute-spectral, freeze/thaw, and SAM loop mechanics."
   (:require [clojure.test           :refer [deftest is testing use-fixtures]]
-            [cljseq.spectral        :as spectral]
-            [cljseq.texture         :as tx]
-            [cljseq.temporal-buffer :as tb]
-            [cljseq.loop            :as loop-ns]))
+            [nous.spectral        :as spectral]
+            [nous.texture         :as tx]
+            [nous.temporal-buffer :as tb]
+            [nous.loop            :as loop-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; compute-spectral (private — accessed via start-spectral! + with-redefs)

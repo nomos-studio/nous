@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.config-test
-  "Tests for cljseq.config — configuration registry, get/set/all, ctrl tree
+(ns nous.config-test
+  "Tests for nous.config — configuration registry, get/set/all, ctrl tree
   seeding, and validation. No live sidecar required."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.core   :as core]
-            [cljseq.ctrl   :as ctrl]
-            [cljseq.config :as config]))
+            [nous.core   :as core]
+            [nous.ctrl   :as ctrl]
+            [nous.config :as config]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

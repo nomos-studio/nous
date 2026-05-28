@@ -2,7 +2,7 @@
 
 ## Status
 
-In-memory transaction log implemented (`cljseq.ctrl`, `cljseq.timeline`).
+In-memory transaction log implemented (`nous.ctrl`, `nous.timeline`).
 Durability deferred to this design. Not yet implemented.
 
 ---
@@ -140,7 +140,7 @@ CREATE INDEX IF NOT EXISTS idx_change_tx   ON changes(tx_id);
 SQLite ships as a single-file C amalgamation (`sqlite3.h` + `sqlite3.c`).
 This is the standard embedded deployment — no system dependency, no build
 complexity, compiles anywhere the sidecar compiles. The amalgamation is
-checked into the sidecar source tree under `cpp/cljseq-sidecar/vendor/`.
+checked into the sidecar source tree under `cpp/nous-sidecar/vendor/`.
 
 This is consistent with the project's zero-external-dependency discipline.
 The SQLite amalgamation is ~250KB of well-audited C. It is not an external
@@ -173,7 +173,7 @@ durable store.
 
 ## JVM implementation surface
 
-Three additions to `cljseq.sidecar`:
+Three additions to `nous.sidecar`:
 
 ```clojure
 ;; New message type constants
@@ -188,11 +188,11 @@ Three additions to `cljseq.sidecar`:
 
 (defn open-session!
   "Open a durable session log at `path` (absolute path to .sqlite file).
-  Called by cljseq.core/start! when durability is configured."
+  Called by nous.core/start! when durability is configured."
   [path] ...)
 
 (defn close-session!
-  "Flush and close the durable session log. Called by cljseq.core/stop!."
+  "Flush and close the durable session log. Called by nous.core/stop!."
   [] ...)
 ```
 
@@ -200,7 +200,7 @@ Three additions to `cljseq.sidecar`:
 the standard IPC frame, and writes to the sidecar socket. The encoding mirrors
 the existing `send-cc!` / `send-note-on!` pattern.
 
-One addition to `cljseq.ctrl`:
+One addition to `nous.ctrl`:
 
 ```clojure
 ;; In set! and send-at!, after the in-memory append:
@@ -218,7 +218,7 @@ durability degrades gracefully.
 ## Session file naming and location
 
 Session files live in `(dirs/sessions-dir)` — the same user data directory
-pattern used for device maps. Default: `~/.cljseq/sessions/`.
+pattern used for device maps. Default: `~/.nous/sessions/`.
 
 Filename: `<ISO-timestamp>-<session-id>.sqlite`
 Example: `2026-04-20T21-34-00-berlin-study.sqlite`
@@ -275,5 +275,5 @@ Compaction belongs in the JVM before `send-tx!`, not in the sidecar.
 `defdevice-model` and `defrealization` should themselves be log entries —
 schema changes as first-class transactions. This requires either a separate
 schema transaction type (new message 0x33) or encoding schema changes as
-regular transactions at a well-known path (e.g. `[:cljseq/schema ...]`).
+regular transactions at a well-known path (e.g. `[:nous/schema ...]`).
 The latter is simpler and consistent with Datomic's approach.

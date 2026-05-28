@@ -1,13 +1,13 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.sc-test
-  "Tests for cljseq.sc — sclang code generation and compile-synth :sc backend."
+(ns nous.sc-test
+  "Tests for nous.sc — sclang code generation and compile-synth :sc backend."
   (:require [clojure.test   :refer [deftest is testing]]
             [clojure.set    :as set]
             [clojure.string :as str]
-            [cljseq.synth   :as synth]
-            [cljseq.core    :as core]
-            [cljseq.osc     :as osc]
-            [cljseq.sc      :as sc]))
+            [nous.synth   :as synth]
+            [nous.core    :as core]
+            [nous.osc     :as osc]
+            [nous.sc      :as sc]))
 
 ;; ---------------------------------------------------------------------------
 ;; synthdef-str — code generation
@@ -156,7 +156,7 @@
   (testing "ensure-synthdef! does nothing when SC is not connected"
     ;; sc-state is disconnected by default in tests
     (let [sent (atom [])]
-      (with-redefs [cljseq.sc/send-synthdef! (fn [n] (swap! sent conj n))]
+      (with-redefs [nous.sc/send-synthdef! (fn [n] (swap! sent conj n))]
         (sc/ensure-synthdef! :sine))
       (is (empty? @sent) "send-synthdef! must not be called when not connected"))))
 
@@ -166,7 +166,7 @@
     (reset! @#'sc/sent-synthdefs #{})
     (swap! @#'sc/sc-state assoc :connected true)
     (try
-      (with-redefs [cljseq.osc/osc-send! (fn [& _])]
+      (with-redefs [nous.osc/osc-send! (fn [& _])]
         (sc/ensure-synthdef! :sine)
         (sc/ensure-synthdef! :sine))  ; second call — no-op
       (is (contains? @@#'sc/sent-synthdefs :sine)
@@ -189,10 +189,10 @@
     (try
       (let [osc-sends (atom [])
             result    (atom nil)]
-        (with-redefs [cljseq.osc/osc-running?        (constantly true)
-                      cljseq.osc/osc-port             (constantly 57121)
-                      cljseq.osc/osc-send!            (fn [& args] (swap! osc-sends conj args))
-                      cljseq.osc/register-handler!    (fn [addr f] (f []) nil)]
+        (with-redefs [nous.osc/osc-running?        (constantly true)
+                      nous.osc/osc-port             (constantly 57121)
+                      nous.osc/osc-send!            (fn [& args] (swap! osc-sends conj args))
+                      nous.osc/register-handler!    (fn [addr f] (f []) nil)]
           (reset! result (sc/sc-sync! :timeout-ms 2000)))
         (is (= :synced @result) "sc-sync! should return :synced")
         (is (some #(and (= (nth % 2) "/cmd")
@@ -206,10 +206,10 @@
   (testing "sc-sync! throws on timeout when no /sc-ready arrives"
     (swap! @#'sc/sc-state assoc :connected true)
     (try
-      (with-redefs [cljseq.osc/osc-running?      (constantly true)
-                    cljseq.osc/osc-port           (constantly 57121)
-                    cljseq.osc/osc-send!          (fn [& _])
-                    cljseq.osc/register-handler!  (fn [_ _])] ; never fires
+      (with-redefs [nous.osc/osc-running?      (constantly true)
+                    nous.osc/osc-port           (constantly 57121)
+                    nous.osc/osc-send!          (fn [& _])
+                    nous.osc/register-handler!  (fn [_ _])] ; never fires
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"timed out"
                               (sc/sc-sync! :timeout-ms 100))))
       (finally
@@ -225,8 +225,8 @@
     (swap! @#'sc/sc-state assoc :connected true)
     (try
       (let [sent (atom [])]
-        (with-redefs [cljseq.sc/send-synthdef! (fn [n] (swap! sent conj n))
-                      cljseq.sc/sc-sync!       (fn [& _] :synced)]
+        (with-redefs [nous.sc/send-synthdef! (fn [n] (swap! sent conj n))
+                      nous.sc/sc-sync!       (fn [& _] :synced)]
           (sc/ensure-synthdefs! [:sine :blade :prophet])))
       ;; :sine already in sent-synthdefs — only :blade and :prophet should be sent
       (is (= #{:blade :prophet} (set/difference @@#'sc/sent-synthdefs #{:sine})))
@@ -240,8 +240,8 @@
     (swap! @#'sc/sc-state assoc :connected true)
     (try
       (let [sync-called (atom false)]
-        (with-redefs [cljseq.sc/send-synthdef! (fn [_] (throw (ex-info "should not send" {})))
-                      cljseq.sc/sc-sync!       (fn [& _] (reset! sync-called true) :synced)]
+        (with-redefs [nous.sc/send-synthdef! (fn [_] (throw (ex-info "should not send" {})))
+                      nous.sc/sc-sync!       (fn [& _] (reset! sync-called true) :synced)]
           (sc/ensure-synthdefs! [:sine :blade]))
         (is (false? @sync-called) "sc-sync! should not be called when nothing to send"))
       (finally
@@ -258,7 +258,7 @@
     (try
       (let [calls     (atom [])
             ;; A constant ITemporalValue that always returns 0.5 and is already done
-            const-traj (reify cljseq.clock/ITemporalValue
+            const-traj (reify nous.clock/ITemporalValue
                          (sample [_ _beat] 0.5)
                          (next-edge [_ _beat] ##Inf))]
         (with-redefs [sc/sc-connected? (constantly true)
@@ -285,7 +285,7 @@
         (with-redefs [sc/sc-connected?   (constantly true)
                       sc/ensure-synthdef! (fn [_])
                       sc/sc-play!         (fn [event] (swap! calls conj event))]
-          (binding [cljseq.loop/*virtual-time* 0.0]
+          (binding [nous.loop/*virtual-time* 0.0]
             (core/play! {:synth :sine :pitch/midi 60 :dur/beats 1/4})))
         (is (= 1 (count @calls)) "sc-play! called exactly once")
         (is (contains? (first @calls) :synth) "event retains :synth key")
@@ -299,8 +299,8 @@
     (try
       (let [sc-calls (atom 0)]
         (with-redefs [sc/sc-play! (fn [_] (swap! sc-calls inc))
-                      cljseq.sidecar/connected? (constantly false)]
-          (binding [cljseq.loop/*virtual-time* 0.0]
+                      nous.sidecar/connected? (constantly false)]
+          (binding [nous.loop/*virtual-time* 0.0]
             (core/play! {:pitch/midi 60 :dur/beats 1/4})))
         (is (zero? @sc-calls) "sc-play! must not be called for plain MIDI steps"))
       (finally (core/stop!)))))
@@ -325,7 +325,7 @@
             node-id    (atom nil)]
         ;; First osc-send! call: sc-synth! /s_new note-on — succeeds.
         ;; Subsequent osc-send! calls: free-synth! release — throws.
-        (with-redefs [cljseq.osc/osc-send! (fn [& _]
+        (with-redefs [nous.osc/osc-send! (fn [& _]
                                               (when (> (swap! call-count inc) 1)
                                                 (throw (ex-info "simulated OSC failure" {}))))]
           (reset! node-id (sc/sc-play! {:synth :sine :freq 440.0 :dur-ms 1})))
@@ -346,7 +346,7 @@
     (swap! @#'sc/sc-state assoc :connected true)
     (try
       (let [caller-interrupted? (atom false)]
-        (with-redefs [cljseq.osc/osc-send! (fn [& _]
+        (with-redefs [nous.osc/osc-send! (fn [& _]
                                               (throw (ex-info "simulated total OSC failure" {})))]
           (try
             (sc/sc-play! {:synth :sine :freq 440.0 :dur-ms 1})

@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.fm
+(ns nous.fm
   "FM synthesis vocabulary — operator graphs as Clojure data.
 
   An FM synth definition describes operators and their routing explicitly,

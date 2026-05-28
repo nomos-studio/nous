@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Boss MD-500 Modulation — cljseq device map
+;; Boss MD-500 Modulation — nous device map
 ;;
 ;; Source: Boss MD-500 Owner's Manual, MIDI Implementation Chart (Appendix)
 ;;         https://www.boss.info/global/support/by_product/md-500/owners_manuals/
@@ -61,7 +61,7 @@
   :transmit false}
 
  ;; -------------------------------------------------------------------------
- ;; Notes for cljseq integration
+ ;; Notes for nous integration
  ;; -------------------------------------------------------------------------
  ;; Rate and depth are natural trajectory targets for modulation arcs:
  ;;   :groove-lock section → rate locks to MIDI clock; sweep depth 30→80

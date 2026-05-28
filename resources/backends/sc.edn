@@ -1,4 +1,4 @@
-;; Canonical cljseq UGen name → SC UGen class name
+;; Canonical nous UGen name → SC UGen class name
 ;; Used when patch nodes contain inline :graph vectors targeting :sc backend.
 ;; Named synth registry entries (:synth :blade etc.) use SC names directly.
 {:osc          :sin-osc

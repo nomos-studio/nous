@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; ASM Hydrasynth Explorer — cljseq device map
+;; ASM Hydrasynth Explorer — nous device map
 ;;
 ;; Source: ASM Hydrasynth MIDI Spec v1.5.0 (official)
 ;;         ~/Downloads/Hydrasynth.csv (CC map)
@@ -25,7 +25,7 @@
 ;; Ribbon notes (NRPN 3FH/3BH = 8123):
 ;;   Ribbon sub-params are addressed via the CC6/VV byte (not data), which is a
 ;;   compound structure not directly supported by ctrl.clj's :midi-nrpn binding.
-;;   Use cljseq.ctrl/send-raw-nrpn! (future sprint) for ribbon NRPN access.
+;;   Use nous.ctrl/send-raw-nrpn! (future sprint) for ribbon NRPN access.
 ;;   Sub-params: 00H=Mode, 01H=KeySpan, 02H=Octave, 03H=Quantize, 10H=Mod/Theremin, 11H=Glide
 
 {:device/id           :asm/hydrasynth-explorer
@@ -357,7 +357,7 @@
   :pitch-bend {:type :wheel}}
 
  ;; -------------------------------------------------------------------------
- ;; cljseq binding hints — sources for incoming Hydrasynth data
+ ;; nous binding hints — sources for incoming Hydrasynth data
  ;; -------------------------------------------------------------------------
  :cljseq/bind-sources
  {:notes        {:source :note-on    :yields :pitch-midi}
@@ -378,7 +378,7 @@
  ;; MTS — MIDI Tuning Standard
  ;; Hydrasynth accepts MTS Bulk Dump (Non-Realtime Universal SysEx F0 7E 7F 08 01).
  ;; After receipt all 128 keys are retuned for the life of the patch.
- ;; Use sidecar/send-mts! to push a cljseq.scala/MicrotonalScale to the synth.
+ ;; Use sidecar/send-mts! to push a nous.scala/MicrotonalScale to the synth.
  ;; -------------------------------------------------------------------------
  :mts/retune
  {:supported     true

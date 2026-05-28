@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.journal-test
+(ns nous.journal-test
   (:require [clojure.test    :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
             [clojure.set     :as set]
-            [cljseq.journal  :as journal])
+            [nous.journal  :as journal])
   (:import  [java.sql DriverManager]))
 
 ;; ---------------------------------------------------------------------------
@@ -30,7 +30,7 @@
     (.close ps)))
 
 (defn with-test-journal [f]
-  (let [tmp (java.io.File/createTempFile "cljseq-journal-test" ".sqlite")]
+  (let [tmp (java.io.File/createTempFile "nous-journal-test" ".sqlite")]
     (.deleteOnExit tmp)
     (let [path (.getAbsolutePath tmp)]
       (with-open [conn (DriverManager/getConnection (str "jdbc:sqlite:" path))
@@ -243,7 +243,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- make-temp-db [rows]
-  (let [tmp  (java.io.File/createTempFile "cljseq-diff-test" ".sqlite")
+  (let [tmp  (java.io.File/createTempFile "nous-diff-test" ".sqlite")
         path (.getAbsolutePath tmp)]
     (.deleteOnExit tmp)
     (with-open [conn (DriverManager/getConnection (str "jdbc:sqlite:" path))

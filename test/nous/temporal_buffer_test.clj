@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.temporal-buffer-test
+(ns nous.temporal-buffer-test
   "Phase 1 tests: core buffer, zone table, zone switching, hold, flip, info.
 
   No live scheduler or sidecar required — tests work in Phase 0 mode."
   (:require [clojure.test              :refer [deftest testing is are]]
-            [cljseq.temporal-buffer    :as tbuf]))
+            [nous.temporal-buffer    :as tbuf]))
 
 ;; ---------------------------------------------------------------------------
 ;; Zone table

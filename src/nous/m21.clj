@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.m21
-  "cljseq Music21 integration — Phase 1 + Phase 2.
+(ns nous.m21
+  "nous Music21 integration — Phase 1 + Phase 2.
 
   Wraps the Music21 Python server subprocess (script/m21_server.py).
   The server starts lazily on first corpus request and stays alive for the
@@ -65,9 +65,9 @@
             [clojure.edn        :as edn]
             [clojure.java.io    :as io]
             [clojure.string     :as str]
-            [cljseq.dirs        :as dirs]
-            [cljseq.live  :as live]
-            [cljseq.loop        :as loop-ns])
+            [nous.dirs        :as dirs]
+            [nous.live  :as live]
+            [nous.loop        :as loop-ns])
   (:import  [java.io BufferedReader BufferedWriter InputStreamReader
                      OutputStreamWriter]
             [java.lang ProcessBuilder ProcessBuilder$Redirect]))
@@ -87,7 +87,7 @@
 
 (def ^:dynamic *cache-dir*
   "Directory for on-disk EDN cache files.
-  Default: (dirs/corpora-dir)/m21  (~/.local/share/cljseq/corpora/m21 on XDG)
+  Default: (dirs/corpora-dir)/m21  (~/.local/share/nous/corpora/m21 on XDG)
   Override: (alter-var-root #'m21/*cache-dir* (constantly \"/my/path\"))
   or set CLJSEQ_DATA_DIR to redirect the entire user data tree."
   (str (dirs/corpora-dir) "/m21"))
@@ -158,7 +158,7 @@
   "Send an arbitrary op request to the m21 server and return the response map.
   Ensures the server is running first. Keys are keywordized in the response.
 
-  Used by cljseq.composition and other namespaces that extend the m21 protocol.
+  Used by nous.composition and other namespaces that extend the m21 protocol.
 
   Example:
     (server-call! {:op \"parse-midi\" :path \"/abs/path/file.mid\"})"
@@ -213,10 +213,10 @@
   (try
     (let [f (cache-file bwv-id mode)]
       (io/make-parents f)
-      (spit f (str "; cljseq-m21-cache script-mtime=" (script-mtime) "\n" raw-edn)))
+      (spit f (str "; nous-m21-cache script-mtime=" (script-mtime) "\n" raw-edn)))
     (catch Exception e
       (binding [*out* *err*]
-        (println "[cljseq.m21] disk cache write failed:" (.getMessage e))))))
+        (println "[nous.m21] disk cache write failed:" (.getMessage e))))))
 
 (defn- read-disk-cache
   "Return on-disk cache content for bwv-id/mode if it exists and script mtime
@@ -227,7 +227,7 @@
       (when (.exists f)
         (let [content    (slurp f)
               first-line (first (str/split-lines content))
-              cached-mtime (when (str/starts-with? first-line "; cljseq-m21-cache")
+              cached-mtime (when (str/starts-with? first-line "; nous-m21-cache")
                              (some-> (re-find #"script-mtime=(\d+)" first-line)
                                      second
                                      Long/parseLong))]
@@ -278,7 +278,7 @@
      (when (.exists dir)
        (doseq [^java.io.File f (.listFiles dir)]
          (.delete f))))
-   (println "[cljseq.m21] cache cleared")
+   (println "[nous.m21] cache cleared")
    nil)
   ([bwv-id]
    (swap! mem-cache

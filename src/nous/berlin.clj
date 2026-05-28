@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.berlin
-  "Berlin School / Kosmische vocabulary for cljseq.
+(ns nous.berlin
+  "Berlin School / Kosmische vocabulary for nous.
 
-  A composition layer over existing cljseq primitives capturing the idiomatic
+  A composition layer over existing nous primitives capturing the idiomatic
   techniques of Tangerine Dream, Klaus Schulze, and the broader Kosmische /
   Berlin School tradition:
 
@@ -23,7 +23,7 @@
 
   ## Quick start
 
-    (require '[cljseq.berlin :as berlin])
+    (require '[nous.berlin :as berlin])
 
     ;; Slowly mutating D-Dorian ostinato
     (def ost (berlin/ostinato
@@ -40,14 +40,14 @@
 
     ;; Slow filter journey over 64 bars
     (berlin/filter-journey! [:filter :cutoff] 74 1 0 127 64 :breathe)"
-  (:require [cljseq.clock           :as clock]
-            [cljseq.ctrl            :as ctrl]
-            [cljseq.loop            :as loop-ns]
-            [cljseq.random          :as random]
-            [cljseq.scala           :as scala]
-            [cljseq.sidecar         :as sidecar]
-            [cljseq.temporal-buffer :as tbuf]
-            [cljseq.trajectory      :as traj]))
+  (:require [nous.clock           :as clock]
+            [nous.ctrl            :as ctrl]
+            [nous.loop            :as loop-ns]
+            [nous.random          :as random]
+            [nous.scala           :as scala]
+            [nous.sidecar         :as sidecar]
+            [nous.temporal-buffer :as tbuf]
+            [nous.trajectory      :as traj]))
 
 ;; ---------------------------------------------------------------------------
 ;; Ostinato — slowly mutating repeating sequencer pattern
@@ -473,7 +473,7 @@
   Interpolation is linear in cents per degree. The morph loop stops
   automatically when complete; the destination tuning remains loaded.
 
-  `from-ms`  — starting Scale record (cljseq.scala/load-scl result)
+  `from-ms`  — starting Scale record (nous.scala/load-scl result)
   `to-ms`    — ending Scale record
   `bars`     — number of bars over which to interpolate
   `kbm`      — KeyboardMap, or nil to use the default mapping
@@ -541,7 +541,7 @@
 ;; Frippertronics / SOS — Sound on Sound accumulation via temporal buffer
 ;; ---------------------------------------------------------------------------
 ;;
-;; Maps the Fripp/Eno tape loop system to cljseq.temporal-buffer:
+;; Maps the Fripp/Eno tape loop system to nous.temporal-buffer:
 ;;
 ;;   Tape loop length    → temporal buffer zone depth (z6 = 64 beats ≈ 35s at 100 BPM)
 ;;   Per-pass decay      → :tape Color (vel × 0.95, duration × 0.98, ±10¢ flutter)

@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Getting started with cljseq
+;; Getting started with nous
 ;; ===========================
 ;;
 ;; Load and evaluate forms in your REPL in order.

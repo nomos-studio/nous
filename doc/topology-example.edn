@@ -1,18 +1,18 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; doc/topology-example.edn -- cljseq studio topology schema reference
+;; doc/topology-example.edn -- nous studio topology schema reference
 ;;
 ;; This file is a fully-annotated example topology. Copy it to
 ;;
-;;   ~/.config/cljseq/topology.edn       (Linux / macOS XDG default)
-;;   ~/Library/Application Support/cljseq/topology.edn  (macOS native)
+;;   ~/.config/nous/topology.edn       (Linux / macOS XDG default)
+;;   ~/Library/Application Support/nous/topology.edn  (macOS native)
 ;;
 ;; and edit it to describe your own studio. The path can be overridden with
-;; the CLJSEQ_TOPOLOGY environment variable.
+;; the NOUS_TOPOLOGY environment variable.
 ;;
 ;; Usage in the REPL:
 ;;
-;;   (require '[cljseq.topology :as topology])
+;;   (require '[nous.topology :as topology])
 ;;   (topology/load-topology!)                    ;; load from default path
 ;;   (topology/load-topology! "/path/to/my.edn")  ;; explicit path
 ;;   (topology/start-sidecar! :main-synth)
@@ -40,7 +40,7 @@
 ;;   :in-pattern    string   Substring for MIDI input port. Defaults to
 ;;                           :port-pattern when absent.
 ;;   :device-id     keyword  References a device map in resources/devices/ or
-;;                           ~/.local/share/cljseq/devices/.
+;;                           ~/.local/share/nous/devices/.
 ;;   :midi/channel  int      Default MIDI channel (1-16).
 ;;   :role          keyword  :synth :controller :fx :midi-to-cv :looper :virtual
 ;;
@@ -129,6 +129,6 @@
 
  :hosts
  {:main-machine
-  {:role :cljseq-host
+  {:role :nous-host
    :os   :macos
-   :note "Primary machine running the cljseq REPL and sidecar"}}}
+   :note "Primary machine running the nous REPL and sidecar"}}}

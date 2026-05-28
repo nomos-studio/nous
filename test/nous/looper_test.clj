@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.looper-test
+(ns nous.looper-test
   "Tests for the LooperDevice protocol, registry, collective ops, and
   level-scaling helpers. Uses a MockLooper to exercise the protocol
   without requiring any hardware or MIDI connection."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
-            [cljseq.looper :as looper]))
+            [nous.looper :as looper]))
 
 ;; ---------------------------------------------------------------------------
 ;; MockLooper — in-process LooperDevice for testing

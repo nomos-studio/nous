@@ -1,4 +1,4 @@
-# cljseq Design Sprint 2 — Summary and Handoff
+# nous Design Sprint 2 — Summary and Handoff
 
 **Sprint dates**: 2026-03-30
 **Status**: Complete
@@ -56,16 +56,16 @@ primitive — all musical state is the control tree. Ergonomic aliases may be
 added later as thin wrappers if REPL experience warrants it.
 
 **Q11 — `live-loop` is an alias for `deflive-loop`**
-`(live-loop :bass ...)` expands to `(deflive-loop "/cljseq/loops/bass" {} ...)`.
+`(live-loop :bass ...)` expands to `(deflive-loop "/nous/loops/bass" {} ...)`.
 Always registered in the control tree; no declared parameters unless `deflive-loop`
 is used directly. One mental model, two ergonomic levels.
 
 ### C++ Layer
 
-**Q15 — `libcljseq-rt` boundary**
+**Q15 — `libnous-rt` boundary**
 Shared: IPC framing, OSC codec, `SynthTarget` interface, `LinkEngine`, Asio helpers,
 lock-free queues, logging. Binary-local: `MidiTarget`, `ClapTarget`, RtMidi, RtAudio,
-CLAP loader, libpd. Key invariant: `libcljseq-rt` compiles with no synthesis or I/O
+CLAP loader, libpd. Key invariant: `libnous-rt` compiles with no synthesis or I/O
 backend headers. Future layering deferred to post-Phase-0 refactoring.
 
 ### Music21 Integration
@@ -138,7 +138,7 @@ Phase alignment across Link peers is preserved.
 
 **Q45 — `defensemble` / `ensemble`**
 Named grouping of N voices with shared harmonic context and optional per-voice
-semantic role annotations. Voices register under `/cljseq/ensembles/<name>/voices/<name>/`.
+semantic role annotations. Voices register under `/nous/ensembles/<name>/voices/<name>/`.
 
 **Role/articulation separation** (refined during sprint):
 Role (`:drone`, `:pad`, `:motif`) determines *harmonic content policy* — what
@@ -193,7 +193,7 @@ All 13 blocking questions are resolved (12 from Sprint 1 handoff + Q46 new):
 | Q3 | Time-windowed `EventHistory`; system-wide `sync-window`; at-most-one-beat-late |
 | Q4 | Musical state = control tree; `ctrl/set!` / `ctrl/get` |
 | Q11 | `live-loop` = `deflive-loop` alias with auto-path and empty param map |
-| Q15 | `libcljseq-rt`: interfaces + infrastructure only; no synthesis backends |
+| Q15 | `libnous-rt`: interfaces + infrastructure only; no synthesis backends |
 | Q20 | `m21/eventually!` in initial API; `*in-loop-context*` reserved |
 | Q25 | `:pitch/cents` optional; MPE for polyphony; `CLAP_EXT_TUNING` for CLAP |
 | Q29 | Step-mode → `live-loop` expansion; continuous → wall-clock thread |
@@ -252,14 +252,14 @@ Q6, Q13, Q14, Q17–Q19, Q21–Q24, Q26–Q28, Q31, Q33–Q34, Q36–Q43.
 
 Implement the minimal protocol in a scratch namespace and verify the three composition
 acceptance criteria from Q44. Output: a design decision record (not production code).
-This unblocks implementation of `cljseq.clock`, `cljseq.mod`, and control-tree
+This unblocks implementation of `nous.clock`, `nous.mod`, and control-tree
 parameter binding.
 
 ### Project scaffold
 
 Establish the directory layout and build system stubs to make Phase 0 actionable:
 - Top-level directory structure per the Sprint 1 project structure decision
-- `CMakeLists.txt` stubs for `libcljseq-rt`, `cljseq-sidecar`, `cljseq-audio`
+- `CMakeLists.txt` stubs for `libnous-rt`, `nous-sidecar`, `nous-audio`
 - `pyproject.toml` for the Music21 sidecar Python package
 - Root `Makefile` with `build`, `test`, `clean` targets
 
@@ -279,7 +279,7 @@ Establish the directory layout and build system stubs to make Phase 0 actionable
 
 ### DSL usability corpus
 
-Build a systematic comparison of equivalent musical concepts expressed in cljseq vs.
+Build a systematic comparison of equivalent musical concepts expressed in nous vs.
 Sonic Pi, Overtone, and TidalCycles. Identifies areas where syntactic sugar would
 improve the live coding experience. Grows alongside DSL design decisions.
 

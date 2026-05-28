@@ -2,19 +2,19 @@
 cmake_minimum_required(VERSION 3.20)
 
 # ---------------------------------------------------------------------------
-# libcljseq-rt — shared C++ runtime library
+# libnous-rt — shared C++ runtime library
 #
 # Provides: clock tick delivery, scheduling, OSC/MIDI dispatch plumbing.
-# Linked by both cljseq-sidecar and cljseq-audio.
+# Linked by both nous-sidecar and nous-audio.
 # ---------------------------------------------------------------------------
 
-add_library(cljseq-rt SHARED
+add_library(nous-rt SHARED
   src/clock.cpp
   src/scheduler.cpp
   src/osc.cpp
 )
 
-target_include_directories(cljseq-rt
+target_include_directories(nous-rt
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -22,11 +22,11 @@ target_include_directories(cljseq-rt
     src
 )
 
-set_target_properties(cljseq-rt PROPERTIES
+set_target_properties(nous-rt PROPERTIES
   VERSION   ${PROJECT_VERSION}
   SOVERSION 0
   CXX_STANDARD 17
 )
 
 # link_bridge.h is header-only (NullLinkBridge + abstract interface).
-# No sources added here; libcljseq-link (GPL) provides the implementation.
+# No sources added here; libnous-link (GPL) provides the implementation.

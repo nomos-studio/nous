@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.transform
+(ns nous.transform
   "Note transformer protocol and built-in transformers.
 
   Transformers apply per-event processing in live loops — they sit between
@@ -53,10 +53,10 @@
   appropriate number of milliseconds then calls play!. Thread startup latency
   is typically < 1 ms, acceptable for musical purposes. A shared scheduler
   is planned for a future sprint."
-  (:require [cljseq.core  :as core]
-            [cljseq.loop  :as loop-ns]
-            [cljseq.pitch :as pitch-ns]
-            [cljseq.scale :as scale-ns]))
+  (:require [nous.core  :as core]
+            [nous.loop  :as loop-ns]
+            [nous.pitch :as pitch-ns]
+            [nous.scale :as scale-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; ITransformer protocol

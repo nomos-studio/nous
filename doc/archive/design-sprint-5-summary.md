@@ -1,4 +1,4 @@
-# cljseq Design Sprint 5 — Summary and Handoff
+# nous Design Sprint 5 — Summary and Handoff
 
 **Sprint dates**: 2026-03-30
 **Status**: Complete
@@ -27,12 +27,12 @@ begin implementation.
 
 **Arturia BeatStep Pro** (`doc/exemplar-beatstep-pro.md`)
 - Per-drum-lane independent step count → polyrhythm via independent `live-loop`s confirmed
-- One-shot mutation (Randomize) → `(mutate! pattern :target :pitch :intensity n)` in `cljseq.morph`
+- One-shot mutation (Randomize) → `(mutate! pattern :target :pitch :intensity n)` in `nous.morph`
 - Baseline step map established; KeyStep Pro extensions are additive
 - Pattern-coherent simultaneous switching → `patch!` on beat boundary confirmed
 
 **Moog Labyrinth** (`doc/exemplar-labyrinth.md`)
-- Abstraction named: **`defflux`** / `cljseq.flux`
+- Abstraction named: **`defflux`** / `nous.flux`
 - R&R §26 title: "Flux Sequence Architecture (Labyrinth-Inspired)"
 - Play/write head separation → circular step buffer, independent read/write processes
 - CORRUPT → continuous bit-level mutation; `ITemporalValue` intensity control
@@ -44,7 +44,7 @@ begin implementation.
 
 | Abstraction | Namespace | Attribution |
 |-------------|-----------|-------------|
-| `defflux` | `cljseq.flux` | Moog Labyrinth (Labyrinth-Inspired) |
+| `defflux` | `nous.flux` | Moog Labyrinth (Labyrinth-Inspired) |
 
 `doc/attribution.md` naming convention table complete for all three hardware-inspired
 abstractions: fractal, stochastic, flux.
@@ -64,15 +64,15 @@ All 9 candidates from the usability corpus resolved:
 
 | Form | Priority | Namespace |
 |------|----------|-----------|
-| `(play! :C4)` / `(play! :C4 1/2)` | High | `cljseq.dsl` |
-| `(phrase! [...] :dur 1/4)` | High | `cljseq.dsl` |
-| `(every 4 :beats form)` | High | `cljseq.dsl` |
-| `(one-in 4 form)` | Medium | `cljseq.dsl` |
-| `(ring :C4 :E4 :G4)` / `(tick! r)` | Medium | `cljseq.dsl` |
-| `(play-chord! :C4 :major)` | Medium | `cljseq.dsl` |
-| `(choose-from-scale :C :major)` | Medium | `cljseq.dsl` |
-| `(arp! :C4 :major :up 1/16)` | Medium | `cljseq.dsl` |
-| `(use-synth! :piano)` / `(with-synth ...)` | Low | `cljseq.dsl` |
+| `(play! :C4)` / `(play! :C4 1/2)` | High | `nous.dsl` |
+| `(phrase! [...] :dur 1/4)` | High | `nous.dsl` |
+| `(every 4 :beats form)` | High | `nous.dsl` |
+| `(one-in 4 form)` | Medium | `nous.dsl` |
+| `(ring :C4 :E4 :G4)` / `(tick! r)` | Medium | `nous.dsl` |
+| `(play-chord! :C4 :major)` | Medium | `nous.dsl` |
+| `(choose-from-scale :C :major)` | Medium | `nous.dsl` |
+| `(arp! :C4 :major :up 1/16)` | Medium | `nous.dsl` |
+| `(use-synth! :piano)` / `(with-synth ...)` | Low | `nous.dsl` |
 
 Dynamic vars added to Configuration Registry: `*default-dur*` (default `1/4`),
 `*default-synth*` (default `nil`).
@@ -81,10 +81,10 @@ Dynamic vars added to Configuration Registry: `*default-dur*` (default `1/4`),
 
 | Namespace | Purpose |
 |-----------|---------|
-| `cljseq.dsl` | DSL sugar layer; all 9 forms stubbed |
-| `cljseq.device` | `defdevice` macro; EDN map loading; Q55 decisions inline |
-| `cljseq.random` | Probability distributions for `defstochastic`; Phase 6i prerequisite |
-| `cljseq.flux` | `defflux` sequencer archetype; Q53/Q54 resolved |
+| `nous.dsl` | DSL sugar layer; all 9 forms stubbed |
+| `nous.device` | `defdevice` macro; EDN map loading; Q55 decisions inline |
+| `nous.random` | Probability distributions for `defstochastic`; Phase 6i prerequisite |
+| `nous.flux` | `defflux` sequencer archetype; Q53/Q54 resolved |
 
 R&R §26 (Flux Sequence Architecture) and §27 (DSL Sugar Layer) appended.
 
@@ -94,9 +94,9 @@ R&R §26 (Flux Sequence Architecture) and §27 (DSL Sugar Layer) appended.
 
 All blocking design questions for the "hello clock" milestone are resolved.
 Recommended implementation order:
-1. `cljseq.clock` — `ITemporalValue` protocol + `MasterClock` (from spike)
-2. `cljseq.core` — `start!`/`stop!`, system-state atom, BPM
-3. `cljseq.loop` — `deflive-loop`, virtual time binding, loop thread
+1. `nous.clock` — `ITemporalValue` protocol + `MasterClock` (from spike)
+2. `nous.core` — `start!`/`stop!`, system-state atom, BPM
+3. `nous.loop` — `deflive-loop`, virtual time binding, loop thread
 4. Wire clock → loop wakeup pipeline
 5. `play!` stub (stdout) + step map → MIDI conversion
 6. "Hello clock" milestone: `deflive-loop` ticking at nREPL
@@ -110,7 +110,7 @@ Recommended implementation order:
 Deliver the "hello clock" milestone defined in `doc/phase0-readiness.md`.
 
 **Phase 0a — Bootstrap**
-- `cljseq.core/start!` and `stop!`
+- `nous.core/start!` and `stop!`
 - System-state atom initialisation
 - BPM configuration in Configuration Registry
 
@@ -120,19 +120,19 @@ Deliver the "hello clock" milestone defined in `doc/phase0-readiness.md`.
 - `sync!` (basic beat-boundary alignment)
 
 **Phase 0c — Master Clock**
-- Promote `ITemporalValue` protocol from spike to `cljseq.clock`
+- Promote `ITemporalValue` protocol from spike to `nous.clock`
 - `MasterClock` implementation
 - Clock-driven loop wakeup
 
 **Phase 0d — Live Loop**
 - `deflive-loop` macro
 - Loop thread management; re-evaluation semantics
-- Control tree registration at `/cljseq/loops/<name>/`
+- Control tree registration at `/nous/loops/<name>/`
 
 **Phase 0e — Minimal Play**
 - `play!` accepting a step map (Phase 0 target: stdout stub)
 - Beat-duration → wall-clock ms conversion
-- `play!` shorthand sugar forms from `cljseq.dsl`
+- `play!` shorthand sugar forms from `nous.dsl`
 
 **Phase 0 integration test**
 - "Hello clock" session as defined in `doc/phase0-readiness.md`

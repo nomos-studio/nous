@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.rhythm
+(ns nous.rhythm
   "Euclidean rhythm generation (§5.2) and rhythm utilities.
 
   Euclidean rhythms distribute k pulses among n steps as evenly as possible.
@@ -115,7 +115,7 @@
   Each pulse (1) becomes {:beat? true :dur (dur-fn i)},
   each rest (0) becomes {:beat? false :dur (dur-fn i)}.
 
-  Useful for integrating with cljseq.live/play! pipelines."
+  Useful for integrating with nous.live/play! pipelines."
   ([r]
    (rhythm->steps r (constantly 1)))
   ([r dur-fn]

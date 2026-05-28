@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.interval-test
-  "Tests for cljseq.interval — Interval record, named intervals, arithmetic."
+(ns nous.interval-test
+  "Tests for nous.interval — Interval record, named intervals, arithmetic."
   (:require [clojure.test   :refer [deftest is testing]]
-            [cljseq.pitch    :as pitch]
-            [cljseq.interval :as iv]))
+            [nous.pitch    :as pitch]
+            [nous.interval :as iv]))
 
 ;; ---------------------------------------------------------------------------
 ;; named-interval constructors

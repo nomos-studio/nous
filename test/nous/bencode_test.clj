@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.bencode-test
+(ns nous.bencode-test
   (:require [clojure.test   :refer [deftest is testing]]
-            [cljseq.bencode :as bc]))
+            [nous.bencode :as bc]))
 
 ;; ---------------------------------------------------------------------------
 ;; Round-trip helpers

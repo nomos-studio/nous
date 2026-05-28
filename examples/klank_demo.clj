@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 ;;
-;; DynKlank Physical Modeling -- cljseq SCLang showcase
+;; DynKlank Physical Modeling -- nous SCLang showcase
 ;; =====================================================
 ;;
 ;; Demonstrates:

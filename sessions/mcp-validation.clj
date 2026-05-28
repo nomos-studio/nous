@@ -3,8 +3,8 @@
 ;; mcp-validation.clj — MCP bridge live validation
 ;;
 ;; PURPOSE:
-;;   Verify that Claude Code can steer a live cljseq session via the MCP bridge:
-;;     1. cljseq nREPL boots headless
+;;   Verify that Claude Code can steer a live nous session via the MCP bridge:
+;;     1. nous nREPL boots headless
 ;;     2. Claude connects via the "nous" MCP server (.mcp.json)
 ;;     3. Claude uses the `evaluate` tool to read session state and fire transitions
 ;;
@@ -12,8 +12,8 @@
 ;;
 ;;   Step 1 — Boot the nREPL headless (in the worktree directory):
 ;;     export JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home
-;;     nohup lein repl :headless :port 7888 > /tmp/cljseq-repl.log 2>&1 &
-;;     tail -f /tmp/cljseq-repl.log   (wait for "nREPL server started on port 7888")
+;;     nohup lein repl :headless :port 7888 > /tmp/nous-repl.log 2>&1 &
+;;     tail -f /tmp/nous-repl.log   (wait for "nREPL server started on port 7888")
 ;;
 ;;   Step 2 — Open a Claude Code session in this worktree.
 ;;     Claude Code will auto-detect .mcp.json and offer to connect the "nous" server.

@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.flux-test
-  "Unit tests for cljseq.flux — step buffer, heads, CORRUPT, and inspection API."
+(ns nous.flux-test
+  "Unit tests for nous.flux — step buffer, heads, CORRUPT, and inspection API."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.clock  :as clock]
-            [cljseq.core   :as core]
-            [cljseq.ctrl   :as ctrl]
-            [cljseq.flux   :as flux]))
+            [nous.clock  :as clock]
+            [nous.core   :as core]
+            [nous.ctrl   :as ctrl]
+            [nous.flux   :as flux]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

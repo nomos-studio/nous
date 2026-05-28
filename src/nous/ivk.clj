@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ivk
-  "cljseq.ivk — extensible keyboard layout registry.
+(ns nous.ivk
+  "nous.ivk — extensible keyboard layout registry.
 
   The computer keyboard becomes a live-performance control surface.
   Each layout maps QWERTY keys to musical actions; actions dispatch through
@@ -47,12 +47,12 @@
   start-arp!          — start arp engine cycling :arp-notes
   stop-arp!           — stop arp engine
   ivk-state           — atom holding full ivk state (for inspection)"
-  (:require [cljseq.chord   :as chord]
-            [cljseq.core    :as core]
-            [cljseq.loop    :as loop-ns]
-            [cljseq.pitch   :as pitch]
-            [cljseq.scale   :as scale]
-            [cljseq.sidecar :as sidecar])
+  (:require [nous.chord   :as chord]
+            [nous.core    :as core]
+            [nous.loop    :as loop-ns]
+            [nous.pitch   :as pitch]
+            [nous.scale   :as scale]
+            [nous.sidecar :as sidecar])
   (:import  [java.nio ByteBuffer ByteOrder]))
 
 ;; ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@
 
 (defn- resolve-dur
   "Resolve :play-dur from state: static value returned as-is; fn called for
-  phasor-bound duration (e.g. a cljseq.mod/lfo or custom (fn [] beats))."
+  phasor-bound duration (e.g. a nous.mod/lfo or custom (fn [] beats))."
   [state]
   (let [d (:play-dur state 1/4)]
     (if (fn? d) (d) d)))
@@ -505,7 +505,7 @@
   [ctx]
   (cond
     (nil? ctx)                                nil
-    (instance? cljseq.scale.Scale ctx)        ctx
+    (instance? nous.scale.Scale ctx)        ctx
     (map? ctx)                                (:harmony/key ctx)
     :else                                     nil))
 

@@ -1,4 +1,4 @@
-# Design: cljseq as Studio Orchestration Layer
+# Design: nous as Studio Orchestration Layer
 
 ## Status
 
@@ -9,14 +9,14 @@ adapters, topology) are in service of this document.
 
 ## The vision in one sentence
 
-**The session is the cljseq score. Everything else is execution.**
+**The session is the nous score. Everything else is execution.**
 
 ---
 
 ## The core principle
 
 Control surfaces are not special. DAWs are not special. They are all devices —
-nodes in the cljseq session topology with protocols they speak, capabilities they
+nodes in the nous session topology with protocols they speak, capabilities they
 expose, and data flowing in, out, or both.
 
 | Device | Protocol | Capabilities |
@@ -34,7 +34,7 @@ expose, and data flowing in, out, or both.
 | Torso T-1 | MIDI / Link | euclidean sequencer, Link peer |
 | Any MIDI synth | MIDI CC/NRPN | per device map |
 
-cljseq is not in this table. cljseq is the orchestration layer above it. It
+nous is not in this table. nous is the orchestration layer above it. It
 speaks all of these protocols, presents itself as any of them when needed, and
 holds the session model that all devices execute.
 
@@ -42,7 +42,7 @@ holds the session model that all devices execute.
 
 ## The ctrl tree as universal session state
 
-The ctrl tree is already the ground truth for cljseq session state. Every device
+The ctrl tree is already the ground truth for nous session state. Every device
 is a reader and/or writer of ctrl tree paths. Protocol adapters translate between
 a device's wire format and ctrl tree read/write operations.
 
@@ -77,7 +77,7 @@ Conventional assignment:
 Strip 3 → Bitwig track 3 volume/pan/mute/solo/arm
 ```
 
-cljseq assignment — any of these, live-switchable:
+nous assignment — any of these, live-switchable:
 ```
 Strip 1 → [:harmony :tension]           "ride the tension arc"
 Strip 2 → [:berlin :ost-a :mutation-rate] "ride ostinato A crystallisation"
@@ -101,11 +101,11 @@ dimension of the session, always.
 
 ## The three-host model
 
-The studio runs across three hosts, each with a distinct role. cljseq drives all of them.
+The studio runs across three hosts, each with a distinct role. nous drives all of them.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│  cljseq — session orchestration layer (Mac Mini)                   │
+│  nous — session orchestration layer (Mac Mini)                   │
 │  score (Clojure value) · ctrl tree · journey conductor             │
 │  harmony engine · generative fields · trajectory curves            │
 └──────┬──────────────────────────┬──────────────────┬──────────────┘
@@ -120,21 +120,21 @@ The studio runs across three hosts, each with a distinct role. cljseq drives all
 └─────────────┘             └────────────┘
 ```
 
-**Mac Mini** — the composition brain. cljseq runs here. Also hosts the
+**Mac Mini** — the composition brain. nous runs here. Also hosts the
 Focusrite Scarlett 18i20 (4th gen) → ADAT → Digiface channel 1–8, and
 SPDIF → Tascam DA-3000 (stereo master recorder).
 
-**Bitwig** — the synthesis and performance engine. cljseq launches clips,
+**Bitwig** — the synthesis and performance engine. nous launches clips,
 automates device parameters, drives Grid patches and VST instruments. Bitwig
 does not know what a tension arc is. It executes the MIDI notes and parameter
-values that cljseq sends. Runs on Ubuntu.
+values that nous sends. Runs on Ubuntu.
 
 **MixBus** — the tracking and mixing engine. Sessions that need Harrison's
-channel strip DSP and Ardour's tracking infrastructure run here. cljseq can
+channel strip DSP and Ardour's tracking infrastructure run here. nous can
 automate sends, fader levels, and routing decisions, timed to the compositional
 arc (send-journey!, strip-down!). Runs on Ubuntu. The Ubuntu Scarlett 18i20 3rd gen
 also connects via SPDIF to a **Lexicon MXP-550** (MIDI-addressable reverb/multi-FX);
-cljseq can automate preset recall and parameters in the outboard tracking chain.
+nous can automate preset recall and parameters in the outboard tracking chain.
 
 **Windows NUC** — the signal routing and processing hub. Not a DAW. Contains:
 - RME Digiface USB: 32×32 programmable audio matrix. Channel map (confirmed):
@@ -148,7 +148,7 @@ cljseq can automate preset recall and parameters in the outboard tracking chain.
 - Controllable via OSC (TotalMix FX). Routing changes are programmatic.
 
 All three hosts are peers in the topology. Surface strips can be assigned to any
-of them — or to cljseq's own state. Context switching is a ctrl tree operation,
+of them — or to nous's own state. Context switching is a ctrl tree operation,
 not a hardware reconfiguration.
 
 ---
@@ -158,7 +158,7 @@ not a hardware reconfiguration.
 ### Full studio
 
 ```
-cljseq (Mac Mini)
+nous (Mac Mini)
 ├── FaderPort 16   — 16 compositional or conventional strips
 ├── FaderPort 1    — focus strip, always on most important parameter
 ├── SSL UF8        — 8 additional strips via SSL 360°/MCU
@@ -177,7 +177,7 @@ surface node — more strips, a dedicated physical control position, a second
 operator surface for collaborative sessions:
 
 ```
-cljseq (Mac Mini) ←→ cljseq (laptop, LAN peer)
+nous (Mac Mini) ←→ nous (laptop, LAN peer)
 ├── FaderPort 16        ├── FaderPort 8  — additional 8 strips
 ├── FaderPort 1         └── ivk keyboard — second note input
 ├── SSL UF8/UF1/UC1
@@ -194,7 +194,7 @@ are peers in the same ctrl tree. Strip assignment is per-surface and independent
 ### Travel / gig minimum
 
 ```
-cljseq (laptop)
+nous (laptop)
 ├── FaderPort 8    — 8 compositional strips, scribble strips, transport
 └── ivk keyboard   — note/interval input, harmonic pivots
 ```
@@ -210,7 +210,7 @@ A conventional gig produces audio: a recording of what happened. Returning to
 the studio means working *from* that recording — reconstructing moments, guessing
 at parameter positions, rebuilding structure from audio evidence.
 
-A cljseq gig produces the score. The journey arc that played out, every mutation
+A nous gig produces the score. The journey arc that played out, every mutation
 the ostinato went through, the harmonic context at every bar, the ctrl tree state,
 the tension arc ridden by hand on the FaderPort 8 faders, the phase relationship
 the two voices had drifted to by the final bar — all of it is a Clojure value.
@@ -231,7 +231,7 @@ It is all in the score.
 **Just more of it.** The studio does not change what the piece is. It provides
 more execution power, more surface area, more elaboration depth to develop what
 the gig discovered. The gig is the composition session. The studio is the
-production session. The cljseq score is the handoff between them, losslessly.
+production session. The nous score is the handoff between them, losslessly.
 
 ---
 
@@ -263,9 +263,9 @@ a bidirectional protocol rather than a unidirectional one.
 - FP8 and FP16 share one implementation; SysEx ID distinguishes them
 
 ### OSC (TouchOSC, bwosc, any OSC client)
-- Address-based: `/cljseq/strip/3/fader`, `/cljseq/harmony/tension`, etc.
-- TouchOSC templates designed against published cljseq OSC address space
-- bwosc (github.com/cljseq/bwosc): Bitwig-specific OSC bridge; Bitwig device
+- Address-based: `/nous/strip/3/fader`, `/nous/harmony/tension`, etc.
+- TouchOSC templates designed against published nous OSC address space
+- bwosc (github.com/nous/bwosc): Bitwig-specific OSC bridge; Bitwig device
   params become OSC addresses; see `design-bwosc.md`
 
 ### Capability degradation
@@ -312,7 +312,7 @@ surface for a different compositional context. A "tension arc" layout and a
 ## Composition drives execution — the full stack
 
 ```
-cljseq score (Clojure value)
+nous score (Clojure value)
   ↓ journey conductor fires transition at bar 48
     ↓ crystallize! ost-a — mutation rate drops toward zero
     ↓ filter-journey! ch1 — filter opens over next 32 bars
@@ -330,7 +330,7 @@ driving the session — the score is.
 
 ## The MCP bridge connection
 
-The MCP bridge (cljseq.mcp) gives Claude read/write access to the ctrl tree.
+The MCP bridge (nous.mcp) gives Claude read/write access to the ctrl tree.
 From the surface perspective, Claude is just another device — one that can
 read scribble strip values, set fader positions, fire journey transitions, and
 observe how execution engines respond.
@@ -347,11 +347,11 @@ deeper vocabulary → richer surface control → more AI-legible session state
 The surface model is only as expressive as the compositional vocabulary
 beneath it. Build order is therefore:
 
-1. **`cljseq.journey`** — bar counter, journey conductor, phase-pair, humanise.
+1. **`nous.journey`** — bar counter, journey conductor, phase-pair, humanise.
    Cross-cutting infrastructure. Unlocks structural arc control on surfaces.
    *(feature/journey, off main)*
 
-2. **`cljseq.berlin`** — ostinato mutation, filter-journey!, phase-drift.
+2. **`nous.berlin`** — ostinato mutation, filter-journey!, phase-drift.
    First real compositional parameters worth putting on a fader.
    *(explore/kosmische, off main)*
 
@@ -362,11 +362,11 @@ beneath it. Build order is therefore:
 4. **Strip assignment model** — EDN-driven ctrl tree path → physical strip mapping.
    Layout files. Live switching. The surface becomes reconfigurable without code.
 
-5. **`cljseq.ambient` + `cljseq.dub`** — deepen the vocabulary available on surfaces.
+5. **`nous.ambient` + `nous.dub`** — deepen the vocabulary available on surfaces.
    *(explore/eno-field, explore/dub-techno)*
 
 6. **bwosc** — Bitwig as a device in the tree.
-   *(github.com/cljseq/bwosc, standalone repo)*
+   *(github.com/nous/bwosc, standalone repo)*
 
 7. **MixBus integration** — MCU adapter pointed at MixBus; tracking session control.
 
@@ -377,18 +377,18 @@ beneath it. Build order is therefore:
 
 ## Open questions
 
-1. **`cljseq.surface` or separate org repo?** The protocol adapters and strip
-   model could live in cljseq or as a standalone `cljseq/surface` repo usable
-   without cljseq. Given that the strip assignment model is ctrl-tree-dependent,
-   keeping it in cljseq is simpler for now.
+1. **`nous.surface` or separate org repo?** The protocol adapters and strip
+   model could live in nous or as a standalone `nous/surface` repo usable
+   without nous. Given that the strip assignment model is ctrl-tree-dependent,
+   keeping it in nous is simpler for now.
 
 2. **SSL 360° mediation** — SSL UF8/UF1/UC1 require SSL 360° middleware. Does
-   cljseq speak MCU to 360° (which speaks to the hardware), or is there a path
+   nous speak MCU to 360° (which speaks to the hardware), or is there a path
    to the hardware directly? For now: speak MCU to 360°, treat the SSL family
    as MCU devices.
 
 3. **Assignment persistence** — assignment EDN files per session/project, or
-   part of the cljseq score? Probably both: a default layout per surface, with
+   part of the nous score? Probably both: a default layout per surface, with
    per-session overrides.
 
 4. **FaderPort 1 focus strip protocol** — the FP1 is the smallest of the family.

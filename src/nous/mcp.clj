@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.mcp
-  "MCP (Model Context Protocol) server — exposes the cljseq API as AI-legible
+(ns nous.mcp
+  "MCP (Model Context Protocol) server — exposes the nous API as AI-legible
   compositional tools.
 
   Runs as a standalone process launched by an MCP client (e.g. Claude Code).
-  Connects to a running cljseq nREPL session and bridges the MCP JSON-RPC
+  Connects to a running nous nREPL session and bridges the MCP JSON-RPC
   protocol to it.
 
   ## Transport
@@ -13,7 +13,7 @@
 
   ## Usage
 
-    # Start the MCP server (connects to running cljseq REPL on localhost:7888)
+    # Start the MCP server (connects to running nous REPL on localhost:7888)
     lein mcp
 
     # Custom host/port
@@ -22,9 +22,9 @@
   ## Claude Code configuration
 
     # Add to Claude Code as a local MCP server:
-    claude mcp add cljseq -- lein -C mcp
+    claude mcp add nous -- lein -C mcp
     # or in .mcp.json:
-    {\"mcpServers\":{\"cljseq\":{\"command\":\"lein\",\"args\":[\"-C\",\"mcp\"]}}}
+    {\"mcpServers\":{\"nous\":{\"command\":\"lein\",\"args\":[\"-C\",\"mcp\"]}}}
 
   ## Tools
 
@@ -47,7 +47,7 @@
     `*eval-fn*` and `*io-fns*` are dynamic vars for test injection."
   (:require [clojure.data.json :as json]
             [clojure.string    :as str]
-            [cljseq.remote     :as remote])
+            [nous.remote     :as remote])
   (:import  [java.io BufferedReader InputStreamReader PrintWriter]))
 
 ;; ---------------------------------------------------------------------------
@@ -86,10 +86,10 @@
     (if-let [conn @conn-atom]
       (remote/remote-eval! conn code-str)
       {:ex "not-connected" :status #{:done :error}
-       :err "MCP server is not connected to a cljseq nREPL session."})))
+       :err "MCP server is not connected to a nous nREPL session."})))
 
 (defn connect-nrepl!
-  "Connect to a cljseq nREPL server at `host`:`port`. Stores the connection
+  "Connect to a nous nREPL server at `host`:`port`. Stores the connection
   in `conn-atom`. Returns the connection map."
   [host port]
   (let [conn (remote/connect! host port)]
@@ -178,9 +178,9 @@
 
 (def ^:private tools
   [{:name        "evaluate"
-    :description "Evaluate any Clojure expression on the running cljseq session.
+    :description "Evaluate any Clojure expression on the running nous session.
 Returns the pr-str of the result. Use this for anything not covered by a
-named tool. All cljseq namespaces are available via cljseq.user aliases."
+named tool. All nous namespaces are available via nous.user aliases."
     :inputSchema {:type       "object"
                   :properties {:code {:type        "string"
                                       :description "Clojure expression to evaluate"}}
@@ -313,7 +313,7 @@ the updated summary. Idempotent if there are no corrections."
     :inputSchema {:type "object" :properties {} :required []}}
 
    {:name        "play-score"
-    :description "Play back the current `composition` score via the cljseq event engine.
+    :description "Play back the current `composition` score via the nous event engine.
 Triggers the drone, pad, and motif voices in sequence. The score must have been
 ingested first via ingest-midi."
     :inputSchema {:type "object" :properties {} :required []}}
@@ -321,14 +321,14 @@ ingested first via ingest-midi."
    {:name        "save-score"
     :description "Save the current `composition` score as an EDN file. Returns the
 absolute path of the written file. The EDN file can be loaded back with
-(cljseq.composition/load-score path) and is the handoff artifact to the music area."
+(nous.composition/load-score path) and is the handoff artifact to the music area."
     :inputSchema {:type       "object"
                   :properties {:path {:type        "string"
                                       :description "Destination path for the .edn file"}}
                   :required   ["path"]}}
 
    {:name        "evaluate-on-peer"
-    :description "Evaluate a Clojure expression on a remote cljseq node in the
+    :description "Evaluate a Clojure expression on a remote nous node in the
 local topology. The peer is identified by its node-id keyword (e.g. ':ubuntu').
 Use list-peers first to discover available node ids and their backends.
 Returns the result value, or an error if the peer is unreachable."
@@ -351,21 +351,21 @@ Returns the result value, or an error if the peer is unreachable."
   (eval->tool code))
 
 (defmethod call-tool "get-ctrl" [_ {:strs [path]}]
-  (eval->tool (str "(pr-str (cljseq.ctrl/get-in " path "))")))
+  (eval->tool (str "(pr-str (nous.ctrl/get-in " path "))")))
 
 (defmethod call-tool "set-ctrl" [_ {:strs [path value]}]
-  (eval->tool (str "(do (cljseq.ctrl/set-in! " path " " value ") :ok)")))
+  (eval->tool (str "(do (nous.ctrl/set-in! " path " " value ") :ok)")))
 
 (defmethod call-tool "get-harmony-ctx" [_ _]
-  (eval->tool "(pr-str @cljseq.loop/*harmony-ctx*)"))
+  (eval->tool "(pr-str @nous.loop/*harmony-ctx*)"))
 
 (defmethod call-tool "get-spectral" [_ _]
-  (eval->tool "(pr-str (cljseq.ctrl/get-in [:spectral :state]))"))
+  (eval->tool "(pr-str (nous.ctrl/get-in [:spectral :state]))"))
 
 (defmethod call-tool "get-loops" [_ _]
   (eval->tool
    "(pr-str
-      (when-let [sys-atom @#'cljseq.loop/system-ref]
+      (when-let [sys-atom @#'nous.loop/system-ref]
         (reduce-kv
           (fn [m k v]
             (assoc m k {:running?   @(:running? v)
@@ -388,13 +388,13 @@ Returns the result value, or an error if the peer is unreachable."
   (eval->tool (str "(set-bpm! " bpm ")")))
 
 (defmethod call-tool "get-config" [_ _]
-  (eval->tool "(pr-str (cljseq.config/all-configs))"))
+  (eval->tool "(pr-str (nous.config/all-configs))"))
 
 (defmethod call-tool "set-config" [_ {:strs [key value]}]
-  (eval->tool (str "(do (cljseq.config/set-config! " key " " value ") :ok)")))
+  (eval->tool (str "(do (nous.config/set-config! " key " " value ") :ok)")))
 
 (defmethod call-tool "get-score" [_ _]
-  (eval->tool "(pr-str (cljseq.ctrl/all))"))
+  (eval->tool "(pr-str (nous.ctrl/all))"))
 
 (defmethod call-tool "ingest-midi" [_ {:strs [path structure resolution resolution-bars]}]
   (let [opts (cond-> {}
@@ -403,7 +403,7 @@ Returns the result value, or an error if the peer is unreachable."
                resolution-bars (assoc :resolution-bars (long resolution-bars)))]
     (eval->tool
      (str "(do"
-          "  (def composition (cljseq.composition/ingest! " (pr-str path) " " (pr-str opts) "))"
+          "  (def composition (nous.composition/ingest! " (pr-str path) " " (pr-str opts) "))"
           "  (let [m (:meta composition)"
           "        s (:structure composition)"
           "        c (:corrections composition)"
@@ -420,13 +420,13 @@ Returns the result value, or an error if the peer is unreachable."
 (defmethod call-tool "show-corrections" [_ _]
   (eval->tool
    (str "(if-let [score-var (resolve 'composition)]"
-        "  (with-out-str (cljseq.composition/print-corrections @score-var))"
+        "  (with-out-str (nous.composition/print-corrections @score-var))"
         "  \"No composition loaded — run ingest-midi first.\")")))
 
 (defmethod call-tool "accept-corrections" [_ _]
   (eval->tool
    (str "(if-let [score-var (resolve 'composition)]"
-        "  (do (def composition (cljseq.composition/accept-corrections @score-var))"
+        "  (do (def composition (nous.composition/accept-corrections @score-var))"
         "      (let [m (:meta composition)]"
         "        (pr-str {:key  (name (:tonic m)) :mode (name (:mode m))"
         "                 :bars (:bars m) :corrections-applied :ok})))"
@@ -435,18 +435,18 @@ Returns the result value, or an error if the peer is unreachable."
 (defmethod call-tool "play-score" [_ _]
   (eval->tool
    (str "(if-let [score-var (resolve 'composition)]"
-        "  (do (cljseq.composition/play-score! @score-var) :playing)"
+        "  (do (nous.composition/play-score! @score-var) :playing)"
         "  \"No composition loaded — run ingest-midi first.\")")))
 
 (defmethod call-tool "save-score" [_ {:strs [path]}]
   (eval->tool
    (str "(if-let [score-var (resolve 'composition)]"
-        "  (do (cljseq.composition/save-score @score-var " (pr-str path) ")"
+        "  (do (nous.composition/save-score @score-var " (pr-str path) ")"
         "      (pr-str {:saved " (pr-str path) "}))"
         "  \"No composition loaded — run ingest-midi first.\")")))
 
 (defmethod call-tool "list-peers" [_ _]
-  (eval->tool "(pr-str (cljseq.peer/peers))"))
+  (eval->tool "(pr-str (nous.peer/peers))"))
 
 (defmethod call-tool "evaluate-on-peer" [_ {:strs [peer code]}]
   ;; Proxy through the primary nREPL: eval-on-peer! does the peer registry
@@ -454,7 +454,7 @@ Returns the result value, or an error if the peer is unreachable."
   ;; remote result map.  We extract just the :value (or surface the error).
   (let [code-lit (pr-str code)]  ; safely quote code as a Clojure string literal
     (eval->tool
-     (str "(let [r (cljseq.remote/eval-on-peer! " peer " " code-lit ")]"
+     (str "(let [r (nous.remote/eval-on-peer! " peer " " code-lit ")]"
           "  (if (contains? (:status r) :error)"
           "    (throw (ex-info (str \"peer eval error: \" (:ex r) \" \" (:err r)) r))"
           "    (:value r)))"))))
@@ -474,7 +474,7 @@ Returns the result value, or an error if the peer is unreachable."
 (defmethod handle-method "initialize" [_ params]
   {:protocolVersion protocol-version
    :capabilities    {:tools {}}
-   :serverInfo      {:name "cljseq" :version server-version}})
+   :serverInfo      {:name "nous" :version server-version}})
 
 (defmethod handle-method "notifications/initialized" [_ _]
   nil)
@@ -531,7 +531,7 @@ Returns the result value, or an error if the peer is unreachable."
 (defn run-server!
   "Run the MCP server main loop. Reads JSON-RPC messages from stdin until
   EOF or the connection drops. `nrepl-host` and `nrepl-port` name the
-  running cljseq session to connect to."
+  running nous session to connect to."
   [nrepl-host nrepl-port]
   (binding [*out* (PrintWriter. System/out true)]
     (try
@@ -544,7 +544,7 @@ Returns the result value, or an error if the peer is unreachable."
             (recur))))
       (catch java.net.ConnectException e
         (binding [*out* *err*]
-          (println "mcp: cannot connect to cljseq nREPL at"
+          (println "mcp: cannot connect to nous nREPL at"
                    (str nrepl-host ":" nrepl-port)
                    "—" (.getMessage e))
           (System/exit 1)))
@@ -567,7 +567,7 @@ Returns the result value, or an error if the peer is unreachable."
           (recur acc (rest remaining)))))))
 
 (defn -main
-  "Start the cljseq MCP server.
+  "Start the nous MCP server.
 
   Options:
     --nrepl-host HOST   nREPL server host (default: localhost)
@@ -577,6 +577,6 @@ Returns the result value, or an error if the peer is unreachable."
         nrepl-host (get opts "nrepl-host" "localhost")
         nrepl-port (Integer/parseInt (get opts "nrepl-port" "7888"))]
     (binding [*out* *err*]
-      (println "cljseq MCP server starting — connecting to"
+      (println "nous MCP server starting — connecting to"
                (str nrepl-host ":" nrepl-port)))
     (run-server! nrepl-host nrepl-port)))

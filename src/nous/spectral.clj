@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.spectral
+(ns nous.spectral
   "Spectral analysis model (SAM) — derives spectral characteristics from
   live Temporal Buffer snapshots and exposes them as an ITexture device.
 
@@ -55,11 +55,11 @@
   continues running so that :on-ctx callbacks still fire with the held state.
   This allows downstream consumers to remain synchronized even during freeze.
 
-  Requires cljseq.core/start! to have been called before `start-spectral!`."
-  (:require [cljseq.ctrl            :as ctrl]
-            [cljseq.loop            :as loop-ns]
-            [cljseq.temporal-buffer :as tb]
-            [cljseq.texture         :as tx]))
+  Requires nous.core/start! to have been called before `start-spectral!`."
+  (:require [nous.ctrl            :as ctrl]
+            [nous.loop            :as loop-ns]
+            [nous.temporal-buffer :as tb]
+            [nous.texture         :as tx]))
 
 ;; ---------------------------------------------------------------------------
 ;; Spectral computation

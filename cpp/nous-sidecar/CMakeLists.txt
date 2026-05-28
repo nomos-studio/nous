@@ -2,14 +2,14 @@
 cmake_minimum_required(VERSION 3.20)
 
 # ---------------------------------------------------------------------------
-# cljseq-sidecar — MIDI / CV sidecar binary
+# nous-sidecar — MIDI / CV sidecar binary
 #
 # Receives scheduling commands from the JVM via IPC (Q16: direct JVM-to-process
-# IPC; routing key in cljseq.sidecar Clojure map).
-# Dispatches: MIDI CC/note, OSC bundles, CV gate (via libcljseq-rt).
+# IPC; routing key in nous.sidecar Clojure map).
+# Dispatches: MIDI CC/note, OSC bundles, CV gate (via libnous-rt).
 # ---------------------------------------------------------------------------
 
-add_executable(cljseq-sidecar
+add_executable(nous-sidecar
   src/main.cpp
   src/ipc.cpp
   src/keyboard_capture.cpp
@@ -51,36 +51,36 @@ if(NOT SQLite3_FOUND)
 endif()
 
 if(SQLite3_FOUND)
-  target_link_libraries(cljseq-sidecar PRIVATE SQLite3::SQLite3)
-  target_compile_definitions(cljseq-sidecar PRIVATE CLJSEQ_WITH_SQLITE)
-  message(STATUS "cljseq-sidecar: SQLite3 found — tx-log durability enabled")
+  target_link_libraries(nous-sidecar PRIVATE SQLite3::SQLite3)
+  target_compile_definitions(nous-sidecar PRIVATE NOUS_WITH_SQLITE)
+  message(STATUS "nous-sidecar: SQLite3 found — tx-log durability enabled")
 else()
-  message(STATUS "cljseq-sidecar: SQLite3 not found — tx-log durability disabled")
+  message(STATUS "nous-sidecar: SQLite3 not found — tx-log durability disabled")
 endif()
 
-target_link_libraries(cljseq-sidecar
-  PRIVATE cljseq-rt
+target_link_libraries(nous-sidecar
+  PRIVATE nous-rt
           asio
           rtmidi
 )
 
 # CGEventTap requires ApplicationServices.framework on macOS.
 if(APPLE)
-  target_link_libraries(cljseq-sidecar
+  target_link_libraries(nous-sidecar
     PRIVATE "-framework ApplicationServices"
   )
 endif()
 
-# When Link is enabled, link against cljseq-link (GPL-2.0-or-later).
+# When Link is enabled, link against nous-link (GPL-2.0-or-later).
 # The resulting binary is GPL-2.0-or-later; sidecar source remains LGPL.
-if(CLJSEQ_ENABLE_LINK)
-  target_link_libraries(cljseq-sidecar PRIVATE cljseq-link)
+if(NOUS_ENABLE_LINK)
+  target_link_libraries(nous-sidecar PRIVATE nous-link)
 endif()
 
-target_include_directories(cljseq-sidecar
+target_include_directories(nous-sidecar
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-set_target_properties(cljseq-sidecar PROPERTIES
+set_target_properties(nous-sidecar PROPERTIES
   CXX_STANDARD 17
 )

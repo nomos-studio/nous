@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.corpus-test
+(ns nous.corpus-test
   "Corpus integration test — Bach chorale reduction (BWV 371 opening phrase).
 
   Encodes the opening phrase of Bach's 'Ich dank' dir, lieber Herre' (BWV 371)
@@ -8,13 +8,13 @@
     chord/progression → voice/smooth-progression → live/play-progression!
       → sidecar IPC → MIDI scheduler → Hydrasynth Explorer
 
-  ## Automated (lein test cljseq.corpus-test)
+  ## Automated (lein test nous.corpus-test)
   Starts a sidecar process, plays the 7-chord phrase at 80 BPM, and verifies
   that NoteOn IPC frames arrive for the tonic (G4, MIDI 67) and dominant
   (D5, MIDI 74) chords. Requires the sidecar binary to be built.
 
   ## Interactive (REPL with Hydrasynth connected on port 2)
-    (require '[cljseq.corpus-test :as corpus])
+    (require '[nous.corpus-test :as corpus])
     (corpus/start-hardware-session!)   ; starts sidecar on MIDI port 2
     (corpus/play-bach-phrase!)         ; plays once at 80 BPM
     (corpus/play-bach-phrase! 3)       ; slower — 3 beats per chord
@@ -22,13 +22,13 @@
   (:require [clojure.test   :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
             [clojure.string  :as str]
-            [cljseq.chord   :as chord]
-            [cljseq.core    :as core]
-            [cljseq.live  :as live]
-            [cljseq.loop    :as loop-ns]
-            [cljseq.scale   :as scale]
-            [cljseq.sidecar :as sidecar]
-            [cljseq.voice   :as voice]))
+            [nous.chord   :as chord]
+            [nous.core    :as core]
+            [nous.live  :as live]
+            [nous.loop    :as loop-ns]
+            [nous.scale   :as scale]
+            [nous.sidecar :as sidecar]
+            [nous.voice   :as voice]))
 
 ;; ---------------------------------------------------------------------------
 ;; Musical material — BWV 371 opening phrase (G major)
@@ -92,16 +92,16 @@
      (core/stop-loop! :bach-phrase))))
 
 (defn start-hardware-session!
-  "Boot cljseq at 80 BPM and connect to the Hydrasynth Explorer on MIDI port 2.
+  "Boot nous at 80 BPM and connect to the Hydrasynth Explorer on MIDI port 2.
   Call once before play-bach-phrase!."
   []
   (core/start! :bpm 80)
-  (sidecar/start-sidecar! :binary "build/cpp/cljseq-sidecar/cljseq-sidecar"
+  (sidecar/start-sidecar! :binary "build/cpp/nous-sidecar/nous-sidecar"
                           :midi-port 2)
   (println "Hardware session ready — call (play-bach-phrase!) to start."))
 
 (defn stop-hardware-session!
-  "Stop the sidecar and cljseq system."
+  "Stop the sidecar and nous system."
   []
   (sidecar/stop-sidecar!)
   (core/stop!))
@@ -110,7 +110,7 @@
 ;; Automated tests
 ;; ---------------------------------------------------------------------------
 
-(def ^:private sidecar-binary "build/cpp/cljseq-sidecar/cljseq-sidecar")
+(def ^:private sidecar-binary "build/cpp/nous-sidecar/nous-sidecar")
 (def ^:private timeout-ms 3000)
 
 (defn- skip-unless-binary [f]

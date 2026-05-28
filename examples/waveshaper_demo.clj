@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Waveshaper Synthesis + Spectral Bridge -- cljseq SCLang showcase
+;; Waveshaper Synthesis + Spectral Bridge -- nous SCLang showcase
 ;; ================================================================
 ;;
 ;; Demonstrates:
@@ -13,7 +13,7 @@
 ;;
 ;; What waveshaping adds to the vocabulary:
 ;;
-;;   cljseq already has tonal synthesis (FM, oscillators), physical models
+;;   nous already has tonal synthesis (FM, oscillators), physical models
 ;;   (KS strings, DynKlank resonators), and chaos oscillators. Waveshaping
 ;;   is the controlled non-linear distortion layer that bridges between them:
 ;;

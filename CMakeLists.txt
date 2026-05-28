@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 cmake_minimum_required(VERSION 3.20)
 
-project(cljseq
+project(nous
   VERSION 0.1.0
-  DESCRIPTION "cljseq — music-theory-aware Clojure sequencer runtime"
+  DESCRIPTION "nous — music-theory-aware Clojure sequencer runtime"
   LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -15,7 +15,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # - No Boost. C++17 STL is sufficient for all use cases.
 # - Standalone Asio (BSL-1.0, header-only) for async I/O / OSC server.
 #   Fetched via FetchContent at a pinned tag — no system package assumption.
-# - Ableton Link via FetchContent, behind CLJSEQ_ENABLE_LINK opt-in flag.
+# - Ableton Link via FetchContent, behind NOUS_ENABLE_LINK opt-in flag.
 # - CLAP headers via git submodule (header-only, no build step).
 # - General rule: FetchContent + pinned tag for anything with a build step;
 #   no find_package for libraries that diverge across distro packaging.
@@ -54,14 +54,14 @@ FetchContent_MakeAvailable(rtmidi)
 # Build options
 # ---------------------------------------------------------------------------
 
-option(CLJSEQ_ENABLE_LINK "Build with Ableton Link support (GPL-2.0-or-later)" OFF)
-option(CLJSEQ_BUILD_SIDECAR "Build cljseq-sidecar MIDI/CV binary" ON)
-option(CLJSEQ_BUILD_AUDIO "Build cljseq-audio CLAP/audio binary" ON)
-option(CLJSEQ_BUILD_TESTS "Build C++ unit tests" OFF)
+option(NOUS_ENABLE_LINK  "Build with Ableton Link support (GPL-2.0-or-later)" OFF)
+option(NOUS_BUILD_SIDECAR "Build nous-sidecar MIDI/CV binary" ON)
+option(NOUS_BUILD_AUDIO   "Build nous-audio CLAP/audio binary" ON)
+option(NOUS_BUILD_TESTS   "Build C++ unit tests" OFF)
 
-if(CLJSEQ_ENABLE_LINK)
+if(NOUS_ENABLE_LINK)
   message(STATUS "Ableton Link support enabled — combined binary is GPL-2.0-or-later")
-  # libcljseq-link is GPL-2.0-or-later; must be added AFTER libcljseq-rt
+  # libnous-link is GPL-2.0-or-later; must be added AFTER libnous-rt
   # so that its FetchContent for the Link SDK runs after our own dependencies.
 endif()
 
@@ -69,16 +69,16 @@ endif()
 # Subdirectories
 # ---------------------------------------------------------------------------
 
-add_subdirectory(cpp/libcljseq-rt)
+add_subdirectory(cpp/libnous-rt)
 
-if(CLJSEQ_ENABLE_LINK)
-  add_subdirectory(cpp/libcljseq-link)
+if(NOUS_ENABLE_LINK)
+  add_subdirectory(cpp/libnous-link)
 endif()
 
-if(CLJSEQ_BUILD_SIDECAR)
-  add_subdirectory(cpp/cljseq-sidecar)
+if(NOUS_BUILD_SIDECAR)
+  add_subdirectory(cpp/nous-sidecar)
 endif()
 
-if(CLJSEQ_BUILD_AUDIO)
-  add_subdirectory(cpp/cljseq-audio)
+if(NOUS_BUILD_AUDIO)
+  add_subdirectory(cpp/nous-audio)
 endif()

@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.mcp-test
+(ns nous.mcp-test
   (:require [clojure.test      :refer [deftest is testing]]
             [clojure.data.json :as json]
-            [cljseq.mcp        :as mcp]))
+            [nous.mcp        :as mcp]))
 
 ;; ---------------------------------------------------------------------------
 ;; Test helpers
@@ -66,7 +66,7 @@
       (is (= 0     (get resp "id")))
       (let [result (get resp "result")]
         (is (= "2024-11-05" (get result "protocolVersion")))
-        (is (= "cljseq"     (get-in result ["serverInfo" "name"])))
+        (is (= "nous"     (get-in result ["serverInfo" "name"])))
         (is (map?           (get-in result ["capabilities" "tools"])))))))
 
 (deftest notification-no-response-test
@@ -349,7 +349,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest list-peers-test
-  (testing "list-peers evals cljseq.peer/peers"
+  (testing "list-peers evals nous.peer/peers"
     (let [called  (atom nil)
           eval-fn (fn [code] (reset! called code) {:value "{:ubuntu {}}" :status #{:done}})
           [resp]  (run-messages
@@ -431,7 +431,7 @@
     ;; Access parse-args via the public surface (it drives -main)
     ;; Verified indirectly: -main uses it to select host/port
     ;; Direct test via call to private fn using var reference
-    (let [parse-args @#'cljseq.mcp/parse-args]
+    (let [parse-args @#'nous.mcp/parse-args]
       (is (= {"nrepl-host" "10.0.0.1" "nrepl-port" "9999"}
              (parse-args ["--nrepl-host" "10.0.0.1" "--nrepl-port" "9999"])))
       (is (= {}

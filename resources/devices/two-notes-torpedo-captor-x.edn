@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Two Notes Torpedo Captor X — cljseq device map
+;; Two Notes Torpedo Captor X — nous device map
 ;;
 ;; Reactive load box + cabinet IR simulation + MIDI control.
 ;; In the studio: DeLisle attenuator loop → Captor X → line level mix.

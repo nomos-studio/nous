@@ -1,4 +1,4 @@
-# cljseq Design Sprint 4 — Summary and Handoff
+# nous Design Sprint 4 — Summary and Handoff
 
 **Sprint dates**: 2026-03-30
 **Status**: Complete
@@ -29,22 +29,22 @@ Sprint 4 also resolved:
 Full directory layout established and committed:
 
 ```
-cljseq/
-  src/cljseq/           cljseq.core, .clock, .mod, .timing, .ctrl, .loop,
+nous/
+  src/nous/           nous.core, .clock, .mod, .timing, .ctrl, .loop,
                         .morph, .fractal, .m21, .stochastic, .sidecar
-  src/cljseq/spike/     cljseq.spike.temporal (ITemporalValue spike)
+  src/nous/spike/     nous.spike.temporal (ITemporalValue spike)
   cpp/
-    libcljseq-rt/       CMakeLists.txt, include/cljseq/temporal.h, src/ stubs
-    cljseq-sidecar/     CMakeLists.txt, src/ stubs
-    cljseq-audio/       CMakeLists.txt, src/ stubs
-  python/cljseq_m21/    __init__.py
+    libnous-rt/       CMakeLists.txt, include/nous/temporal.h, src/ stubs
+    nous-sidecar/     CMakeLists.txt, src/ stubs
+    nous-audio/       CMakeLists.txt, src/ stubs
+  python/nous_m21/    __init__.py
   resources/
     scales/             (placeholder)
     grooves/            (placeholder)
     arpeggios/          (placeholder)
     devices/            korg-minilogue-xd.edn, arturia-keystep.edn
   CMakeLists.txt        Root CMake; FetchContent for standalone Asio; CLJSEQ_ENABLE_LINK flag
-  pyproject.toml        hatchling build for cljseq-m21
+  pyproject.toml        hatchling build for nous-m21
   Makefile              build/test/clean/docs for all components
   project.clj           Updated: real description, lein-codox config
 ```
@@ -65,7 +65,7 @@ targets in `Makefile`.
 
 ### `ITemporalValue` Design Spike
 
-- Spike implementation: `src/cljseq/spike/temporal.clj`
+- Spike implementation: `src/nous/spike/temporal.clj`
   - `MasterClock`, `ClockDiv`, `Lfo`, `Swing` — all three Q44 acceptance criteria verified
 - Decision record: `doc/spike-itemporalvalue.md`
   - Records confirmed: single protocol, rational beat arithmetic, record types,
@@ -82,7 +82,7 @@ Decision in `doc/open-design-questions.md`.
 
 ### DSL Usability Corpus (`doc/dsl-usability-corpus.md`)
 
-12 comparison categories across cljseq, Sonic Pi, Overtone, and TidalCycles.
+12 comparison categories across nous, Sonic Pi, Overtone, and TidalCycles.
 
 Key outputs:
 - **9 syntactic sugar candidates** (high → low priority):
@@ -103,7 +103,7 @@ Key outputs:
 | Dense parameter synth | Korg Minilogue XD | Fixed CC map; NRPN for extended resolution |
 | Drum machine | Elektron Digitakt | User-assignable CC slots; note map for voice triggers |
 | MIDI/CV converter | Expert Sleepers FH-2 | No fixed CC map; user-configured routing in editor |
-| Controller (send-only) | Arturia KeyStep | `:role :controller`; `:cljseq/bind-sources` orientation |
+| Controller (send-only) | Arturia KeyStep | `:role :controller`; `:nous/bind-sources` orientation |
 
 EDN device maps:
 - `resources/devices/korg-minilogue-xd.edn` — full synth map (CCs, NRPN stub, discrete values)
@@ -112,8 +112,8 @@ EDN device maps:
 ### `marbles` → `stochastic` Rename
 
 Following the same pattern as `bloom` → `fractal`:
-- `src/cljseq/stochastic.clj`, `cljseq.stochastic`, `defstochastic`, `stochastic-loops`
-- `/cljseq/stochastic/<name>/` in the control tree
+- `src/nous/stochastic.clj`, `nous.stochastic`, `defstochastic`, `stochastic-loops`
+- `/nous/stochastic/<name>/` in the control tree
 - R&R §23: "Stochastic Generative Primitives (Marbles-Inspired)"
 - Mutable Instruments Marbles and Moog Labyrinth added to `doc/attribution.md`
 - Naming convention table added to `doc/attribution.md`
@@ -126,7 +126,7 @@ Following the same pattern as `bloom` → `fractal`:
 |----------|---------|
 | Q51 — Native C++ dependency strategy | No Boost; standalone Asio; FetchContent policy |
 | `ITemporalValue` spike confirmation | Single protocol; record types; rational beats; timing returns `Long(ns)` |
-| `marbles` → `stochastic` rename | `defstochastic` / `cljseq.stochastic` / "(Marbles-Inspired)" |
+| `marbles` → `stochastic` rename | `defstochastic` / `nous.stochastic` / "(Marbles-Inspired)" |
 | Naming convention for hardware-inspired abstractions | Generic name + "(X-Inspired)" subtitle; attribution.md table |
 
 ---
@@ -142,7 +142,7 @@ Following the same pattern as `bloom` → `fractal`:
   focused sprint item or inline with Phase 0 implementation.
 - **`defdevice` macro design** — based on EDN prototype; template + user
   configuration layer for the FH-2 / configurable archetype.
-- **`cljseq.random` namespace** — probability distributions for `defstochastic`;
+- **`nous.random` namespace** — probability distributions for `defstochastic`;
   prerequisite for Phase 6i implementation.
 
 ---
@@ -161,7 +161,7 @@ Following the same pattern as `bloom` → `fractal`:
 **Moog Labyrinth exemplar analysis**
 Survey the Labyrinth manual for: separate play/write head model, CORRUPT mutation
 (bit-level sequence corruption), BIT FLIP CV output, EG TRIG MIX, and scale mode
-catalog. Output: `doc/exemplar-labyrinth.md`. Name the cljseq abstraction it will
+catalog. Output: `doc/exemplar-labyrinth.md`. Name the nous abstraction it will
 inspire.
 
 **DSL sugar layer design**
@@ -177,13 +177,13 @@ Design the Clojure macro based on the EDN prototype. Decide:
 - NRPN encoding in `ctrl/send!`
 - Controller (`:role :controller`) binding to `ctrl/bind!` sources
 Output: design decision in open-design-questions, updated R&R §17 (device model),
-and a skeleton `src/cljseq/device.clj`.
+and a skeleton `src/nous/device.clj`.
 
-**`cljseq.random` namespace design**
+**`nous.random` namespace design**
 Design the probability distribution layer required by `defstochastic` (Phase 6i).
 Core primitives: `distribution`, `weighted-scale`, `learn-scale-weights`,
 `progressive-quantize`. Output: design notes added to R&R §23 (currently describes
-the API intent), open-design-questions entry, skeleton `src/cljseq/random.clj`.
+the API intent), open-design-questions entry, skeleton `src/nous/random.clj`.
 
 **Phase 0 implementation readiness review**
 Review all open design questions and implementation plan prerequisites.

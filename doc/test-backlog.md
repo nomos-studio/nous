@@ -1,4 +1,4 @@
-# cljseq — Testing Backlog
+# nous — Testing Backlog
 
 Items that need real-world verification before they can be considered fully
 validated. Unlike CHANGELOG prerequisites (which gate a specific release),

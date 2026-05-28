@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.sample-test
-  "Tests for cljseq.sample — buffer registry, load/unload, playback dispatch."
+(ns nous.sample-test
+  "Tests for nous.sample — buffer registry, load/unload, playback dispatch."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
-            [cljseq.sample :as smp]
-            [cljseq.synth  :as synth]
-            [cljseq.patch  :as patch]
-            [cljseq.core   :as core]))
+            [nous.sample :as smp]
+            [nous.synth  :as synth]
+            [nous.patch  :as patch]
+            [nous.core   :as core]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixture — reset buffer registry between tests
@@ -66,7 +66,7 @@
 (deftest load-sample-calls-sc-alloc-test
   (testing "load-sample! calls sc-buffer-alloc! and records the ID"
     (let [calls (atom [])]
-      (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [path] (swap! calls conj path) 42)]
+      (with-redefs [nous.sc/sc-buffer-alloc! (fn [path] (swap! calls conj path) 42)]
         (smp/defbuffer! ::kick2 "/samples/kick.wav")
         (let [id (smp/load-sample! ::kick2)]
           (is (= 42 id))
@@ -76,7 +76,7 @@
 (deftest load-sample-deduplicates-by-path-test
   (testing "load-sample! reuses existing buffer when path matches"
     (let [calls (atom 0)]
-      (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] (swap! calls inc) 7)]
+      (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] (swap! calls inc) 7)]
         (smp/defbuffer! ::kick-dry  "/samples/kick.wav")
         (smp/defbuffer! ::kick-copy "/samples/kick.wav")
         (smp/load-sample! ::kick-dry)
@@ -87,7 +87,7 @@
 
 (deftest load-sample-2-arity-test
   (testing "load-sample! 2-arity registers and loads in one call"
-    (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] 99)]
+    (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] 99)]
       (let [id (smp/load-sample! ::direct "/samples/direct.wav")]
         (is (= 99 id))
         (is (= "/samples/direct.wav" (smp/buffer-path ::direct)))
@@ -104,8 +104,8 @@
 (deftest unload-sample-frees-and-clears-test
   (testing "unload-sample! calls sc-buffer-free! and nils the id"
     (let [freed (atom nil)]
-      (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] 5)
-                    cljseq.sc/sc-buffer-free!   (fn [id] (reset! freed id))]
+      (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] 5)
+                    nous.sc/sc-buffer-free!   (fn [id] (reset! freed id))]
         (smp/defbuffer! ::tmp "/tmp/x.wav")
         (smp/load-sample! ::tmp)
         (smp/unload-sample! ::tmp)
@@ -114,14 +114,14 @@
 
 (deftest unload-sample-removes-by-path-index-test
   (testing "unload-sample! removes path from dedup index"
-    (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] 3)
-                  cljseq.sc/sc-buffer-free!   (fn [_] nil)]
+    (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] 3)
+                  nous.sc/sc-buffer-free!   (fn [_] nil)]
       (smp/defbuffer! ::p "/dedup/x.wav")
       (smp/load-sample! ::p)
       (smp/unload-sample! ::p)
       ;; After unload, reloading should call alloc again (path dedup removed)
       (let [calls (atom 0)]
-        (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] (swap! calls inc) 3)]
+        (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] (swap! calls inc) 3)]
           (smp/load-sample! ::p "/dedup/x.wav")
           (is (= 1 @calls)))))))
 
@@ -143,8 +143,8 @@
 (deftest sample-calls-sc-play-test
   (testing "sample! calls sc/sc-play! with buf-player synth"
     (let [calls (atom [])]
-      (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] 11)
-                    cljseq.sc/sc-play!          (fn [m] (swap! calls conj m) 100)]
+      (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] 11)
+                    nous.sc/sc-play!          (fn [m] (swap! calls conj m) 100)]
         (smp/defbuffer! ::s1 "/s1.wav")
         (smp/load-sample! ::s1)
         (smp/sample! ::s1)
@@ -155,8 +155,8 @@
 (deftest sample-accepts-options-test
   (testing "sample! passes :rate :amp :pan through"
     (let [calls (atom [])]
-      (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] 12)
-                    cljseq.sc/sc-play!          (fn [m] (swap! calls conj m) 101)]
+      (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] 12)
+                    nous.sc/sc-play!          (fn [m] (swap! calls conj m) 101)]
         (smp/defbuffer! ::s2 "/s2.wav")
         (smp/load-sample! ::s2)
         (smp/sample! ::s2 :rate 0.5 :amp 0.6 :pan -0.3)
@@ -172,8 +172,8 @@
 (deftest loop-sample-calls-sc-synth-test
   (testing "loop-sample! calls sc/sc-synth! with buf-looper"
     (let [calls (atom [])]
-      (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] 20)
-                    cljseq.sc/sc-synth!         (fn [synth args] (swap! calls conj {:synth synth :args args}) 200)]
+      (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] 20)
+                    nous.sc/sc-synth!         (fn [synth args] (swap! calls conj {:synth synth :args args}) 200)]
         (smp/defbuffer! ::loop1 "/loop.wav")
         (smp/load-sample! ::loop1)
         (smp/loop-sample! ::loop1)
@@ -196,11 +196,11 @@
 (deftest granular-cloud-instantiates-patch-test
   (testing "granular-cloud! calls instantiate-patch! with :granular-cloud"
     (let [calls (atom [])]
-      (with-redefs [cljseq.sc/sc-buffer-alloc! (fn [_] 30)
-                    cljseq.sc/instantiate-patch! (fn [pk] (swap! calls conj pk) {:nodes {:grains 50 :verb 51}
+      (with-redefs [nous.sc/sc-buffer-alloc! (fn [_] 30)
+                    nous.sc/instantiate-patch! (fn [pk] (swap! calls conj pk) {:nodes {:grains 50 :verb 51}
                                                                                   :buses {}
                                                                                   :params {}})
-                    cljseq.sc/set-patch-param!   (fn [_ _ _] nil)]
+                    nous.sc/set-patch-param!   (fn [_ _ _] nil)]
         (smp/defbuffer! ::gc1 "/texture.wav")
         (smp/load-sample! ::gc1)
         (smp/granular-cloud! ::gc1)
@@ -213,9 +213,9 @@
 (deftest play-sample-dispatch-test
   (testing "play! routes :sample key to sample-play-dispatch!"
     (let [sc-calls (atom [])]
-      (with-redefs [cljseq.sc/sc-connected?      (fn [] true)
-                    cljseq.sc/sc-buffer-alloc!    (fn [_] 40)
-                    cljseq.sc/sc-play!            (fn [m] (swap! sc-calls conj m) 300)]
+      (with-redefs [nous.sc/sc-connected?      (fn [] true)
+                    nous.sc/sc-buffer-alloc!    (fn [_] 40)
+                    nous.sc/sc-play!            (fn [m] (swap! sc-calls conj m) 300)]
         (smp/defbuffer! ::pd-test "/pd.wav")
         (smp/load-sample! ::pd-test)
         (core/play! {:sample ::pd-test} nil)
@@ -227,8 +227,8 @@
 (deftest play-sample-dispatch-noop-when-disconnected-test
   (testing "sample-play-dispatch! does nothing when SC is not connected"
     (let [sc-calls (atom [])]
-      (with-redefs [cljseq.sc/sc-connected? (fn [] false)
-                    cljseq.sc/sc-play!      (fn [m] (swap! sc-calls conj m) nil)]
+      (with-redefs [nous.sc/sc-connected? (fn [] false)
+                    nous.sc/sc-play!      (fn [m] (swap! sc-calls conj m) nil)]
         (smp/defbuffer! ::pd-dc "/dc.wav")
         ;; No load needed — dispatch checks connected? first
         (core/play! {:sample ::pd-dc} nil)

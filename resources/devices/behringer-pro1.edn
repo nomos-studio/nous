@@ -1,11 +1,11 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Behringer Pro-1 — cljseq device map
+;; Behringer Pro-1 — nous device map
 ;;
 ;; Sequential Circuits Pro-One clone. Semi-modular with patchbay.
 ;; Minimal MIDI: only CC 1 (mod wheel) — no CC 33 LSB, no CC 64 sustain.
 ;; No velocity sensitivity. SysEx is write-only (pitch bend range only confirmed).
-;; Primary cljseq use: MIDI note → KB CV OUT + GATE for semi-modular patching.
+;; Primary nous use: MIDI note → KB CV OUT + GATE for semi-modular patching.
 ;;
 ;; Source: Behringer Pro-1 QSG + SunnyS ynths Ctrlr panel docs v2.3 — behringer.com
 ;; SysEx: Behringer ID [0x00 0x20 0x32], model [0x00 0x01 0x08]

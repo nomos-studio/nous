@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.terrain-test
+(ns nous.terrain-test
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.seq     :as sq]
-            [cljseq.terrain :as terrain]))
+            [nous.seq     :as sq]
+            [nous.terrain :as terrain]))
 
 (def ^:private trunk
   [{:pitch/midi 60 :dur/beats 1/4 :gate/on? true :gate/len 0.5}

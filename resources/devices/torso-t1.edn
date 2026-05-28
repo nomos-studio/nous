@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Torso Electronics T-1 — cljseq device map
+;; Torso Electronics T-1 — nous device map
 ;;
 ;; Source: Torso Electronics T-1 User Manual OS 2.0.1 (Synthdawg)
 ;;         ~/Desktop/Synth Manuals/T-1 User Manual.pdf
@@ -19,20 +19,20 @@
 ;;     Default: track N → channel N (track 1 = ch 1, track 2 = ch 2, etc.)
 ;;   - Ableton Link peer over Wi-Fi (2.4GHz only); can also act as Wi-Fi hotspot
 ;;
-;; cljseq role: :source (primarily)
-;;   T-1 generates MIDI Note On/Off and CC streams; cljseq.midi-in receives them.
+;; nous role: :source (primarily)
+;;   T-1 generates MIDI Note On/Off and CC streams; nous.midi-in receives them.
 ;;   T-1 also RECEIVES MIDI notes (Notes In = On by default) for FX track processing.
 ;;   T-1 does NOT respond to incoming MIDI CC for its own parameter control.
 ;;
 ;; Travel rig usage: T-1 as Link clock peer + euclidean rhythm/melody source;
-;;   cljseq.link joins the Link session over shared Wi-Fi; midi-in routes T-1
+;;   nous.link joins the Link session over shared Wi-Fi; midi-in routes T-1
 ;;   note tracks to SC synths.
 
 {:device/id           :torso/t1
  :device/name         "Torso Electronics T-1"
  :device/manufacturer "Torso Electronics"
  :device/type         :sequencer
- :device/role         :source                ; T-1 sends to cljseq; also receives for FX
+ :device/role         :source                ; T-1 sends to nous; also receives for FX
  :device/connectivity [:usb-c-midi           ; USB-C, class-compliant, also powers device
                         :trs-midi-in         ; 3.5mm Type A (5-pin DIN adapter included)
                         :trs-midi-out        ; 3.5mm Type A
@@ -213,7 +213,7 @@
   :link-sync-setting "Link Synchronisation: On — auto-connects to Link peers on network"
   :start-stop-sync   "Start/Stop Sync: On — T-1 transport follows Link start/stop"
   :note "For travel rig: connect laptop and T-1 to same network (or T-1 hotspot).
-         cljseq.link/enable! joins automatically. Disable MIDI Clock Out if not
+         nous.link/enable! joins automatically. Disable MIDI Clock Out if not
          sending clock to other hardware (avoids clock hierarchy confusion)."}
 
  ;; -------------------------------------------------------------------------
@@ -244,7 +244,7 @@
   :sync-out {:type :analog-sync}}
 
  ;; -------------------------------------------------------------------------
- ;; cljseq binding hints
+ ;; nous binding hints
  ;; Default track→channel: track 1=ch1, track 2=ch2, etc.
  ;; -------------------------------------------------------------------------
  :cljseq/bind-sources
@@ -269,7 +269,7 @@
  :cljseq/travel-rig
  {:role        "Primary clock lead (Link) + euclidean rhythm/melody source"
   :link-setup  ["Connect T-1 to same Wi-Fi network as laptop (or use T-1 hotspot)"
-                "(cljseq.link/enable!) in REPL — auto-joins Link session"
+                "(nous.link/enable!) in REPL — auto-joins Link session"
                 "T-1 PLAY button pulses orange when session active"
                 "Disable MIDI Clock Out in T-1 Config if not driving other hardware"]
   :midi-setup  ["USB-C → laptop Mac; T-1 appears as 'Torso Electronics T-1' in MIDI prefs"
@@ -277,8 +277,8 @@
                 "(midi-in/open-input! :torso/t1) — uses :device/name for JVM MIDI match"]
   :typical-use "T-1 tracks 1–4 → MIDI ch 1–4 → midi-in → play! on SC synths;
                 T-1 CC tracks → cc-74 (velocity/filter) on target device;
-                cljseq.ivk adds keyboard interval improv on top;
-                cljseq.journey / ambient provide macro arc and background texture"}
+                nous.ivk adds keyboard interval improv on top;
+                nous.journey / ambient provide macro arc and background texture"}
 
  :device/map-source   "Torso Electronics T-1 User Manual OS 2.0.1 (Synthdawg), Chapter 8"
  :device/map-version  "2026-04-11"}

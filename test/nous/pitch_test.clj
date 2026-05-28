@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.pitch-test
-  "Tests for cljseq.pitch — Pitch record, constructors, and derived views."
+(ns nous.pitch-test
+  "Tests for nous.pitch — Pitch record, constructors, and derived views."
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.pitch :as p]))
+            [nous.pitch :as p]))
 
 ;; ---------------------------------------------------------------------------
 ;; pitch->midi

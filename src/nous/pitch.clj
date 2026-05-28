@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.pitch
+(ns nous.pitch
   "Pitch as a rich value type (§4.1).
 
   A Pitch captures the full spelling of a note — step, octave, accidental,

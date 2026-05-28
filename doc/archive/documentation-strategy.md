@@ -1,12 +1,12 @@
-# cljseq Documentation Strategy
+# nous Documentation Strategy
 
 ## Overview
 
-cljseq documentation is split across three audiences:
+nous documentation is split across three audiences:
 
-1. **API reference** — for developers integrating or extending cljseq
+1. **API reference** — for developers integrating or extending nous
 2. **C++ internals** — for contributors working on the runtime and sidecars
-3. **User guide** — for musicians and live coders using cljseq at the REPL
+3. **User guide** — for musicians and live coders using nous at the REPL
 
 Each audience gets a dedicated toolchain. The source-of-truth for design
 decisions remains the `doc/` directory in this repository.
@@ -19,7 +19,7 @@ decisions remains the `doc/` directory in this repository.
 
 **Tool**: [Codox](https://github.com/weavejester/codox)
 **Output**: HTML, browsable API reference
-**Scope**: All public vars in `cljseq.*` namespaces (excluding `cljseq.spike.*`)
+**Scope**: All public vars in `nous.*` namespaces (excluding `nous.spike.*`)
 
 Codox generates API documentation directly from docstrings in Clojure source.
 It is configured in `project.clj`:
@@ -27,10 +27,10 @@ It is configured in `project.clj`:
 ```clojure
 :plugins [[lein-codox "0.10.8"]]
 :codox {:output-path "target/codox"
-        :namespaces [cljseq.clock cljseq.ctrl cljseq.fractal cljseq.loop
-                     cljseq.m21 cljseq.stochastic cljseq.mod cljseq.morph
-                     cljseq.sidecar cljseq.timing]
-        :source-uri "https://github.com/YOUR_ORG/cljseq/blob/{version}/{filepath}#L{line}"}
+        :namespaces [nous.clock nous.ctrl nous.fractal nous.loop
+                     nous.m21 nous.stochastic nous.mod nous.morph
+                     nous.sidecar nous.timing]
+        :source-uri "https://github.com/YOUR_ORG/nous/blob/{version}/{filepath}#L{line}"}
 ```
 
 Run with: `lein codox` or `make docs-clj`
@@ -45,7 +45,7 @@ Run with: `lein codox` or `make docs-clj`
 
 **Tool**: [Doxygen](https://www.doxygen.nl/)
 **Output**: HTML, browsable C++ API reference
-**Scope**: `cpp/libcljseq-rt/` public headers; internal headers excluded by default
+**Scope**: `cpp/libnous-rt/` public headers; internal headers excluded by default
 
 Doxygen configuration lives in `cpp/Doxyfile`. Generate with: `make docs-cpp`
 

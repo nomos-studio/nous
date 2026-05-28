@@ -2,7 +2,7 @@
 
 **Sprint**: Sprint 4
 **Status**: Complete
-**Spike namespace**: `cljseq.spike.temporal`
+**Spike namespace**: `nous.spike.temporal`
 
 ---
 
@@ -10,7 +10,7 @@
 
 Implement the minimal `ITemporalValue` protocol in a scratch namespace and
 verify the three composition acceptance criteria from Q44 before committing
-to implementations of `cljseq.clock`, `cljseq.mod`, `cljseq.timing`, and
+to implementations of `nous.clock`, `nous.mod`, `nous.timing`, and
 control-tree parameter binding.
 
 ---
@@ -60,7 +60,7 @@ casing.
 ```clojure
 (ctrl-bind! [:filter/cutoff] (lfo :rate 0.25))
 @*bound-params*
-;=> {[:filter/cutoff] #cljseq.spike.temporal.Lfo{:rate 0.25 :shape :sine}}
+;=> {[:filter/cutoff] #nous.spike.temporal.Lfo{:rate 0.25 :shape :sine}}
 ```
 
 The control tree binding accepts any `ITemporalValue`; the subsystem samples
@@ -73,7 +73,7 @@ parameter.
 ```clojure
 (timing-bind! (swing :amount 0.55))
 @*bound-timing*
-;=> [#cljseq.spike.temporal.Swing{:amount 0.55}]
+;=> [#nous.spike.temporal.Swing{:amount 0.55}]
 
 (sample (first @*bound-timing*) 0.5)  ;=> 11000000  (~11ms push late on off-beat)
 (sample (first @*bound-timing*) 0.0)  ;=> 0          (on the beat: no offset)
@@ -135,9 +135,9 @@ their consumers never call it. The protocol imposes no penalty for this.
 ## Unblocked Subsystems
 
 This spike clears the path for:
-- `cljseq.clock` — `MasterClock` and `ClockDiv` implementations
-- `cljseq.mod` — `Lfo`, `Envelope`, random generators
-- `cljseq.timing` — `Swing`, `Humanize`, `GrooveTemplate`, `Quantize`
-- `cljseq.ctrl` parameter binding — `ctrl/bind!` accepts any `ITemporalValue`
-- C++ `ITemporalValue` mirror in `cpp/libcljseq-rt/include/cljseq/temporal.h`
+- `nous.clock` — `MasterClock` and `ClockDiv` implementations
+- `nous.mod` — `Lfo`, `Envelope`, random generators
+- `nous.timing` — `Swing`, `Humanize`, `GrooveTemplate`, `Quantize`
+- `nous.ctrl` parameter binding — `ctrl/bind!` accepts any `ITemporalValue`
+- C++ `ITemporalValue` mirror in `cpp/libnous-rt/include/nous/temporal.h`
   (already stubbed; ready for implementation)

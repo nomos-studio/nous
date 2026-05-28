@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.link-test
-  "Tests for cljseq.link Phase 2 — transport hooks, BPM propagation, beacon
+(ns nous.link-test
+  "Tests for nous.link Phase 2 — transport hooks, BPM propagation, beacon
   integration. No live Link session or sidecar is required; the tests drive
   the system via the private push handler and atom manipulation."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.core  :as core]
-            [cljseq.link  :as link]))
+            [nous.core  :as core]
+            [nous.link  :as link]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers — private atom access

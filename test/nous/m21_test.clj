@@ -1,26 +1,26 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.m21-test
-  "Unit tests for cljseq.m21.
+(ns nous.m21-test
+  "Unit tests for nous.m21.
 
   All tests run without a Python interpreter or live server.
   The server subprocess is mocked via with-redefs; on-disk cache tests use
   a temp directory bound via *cache-dir*."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
-            [cljseq.m21 :as m21]))
+            [nous.m21 :as m21]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers to access private state
 ;;
-;; @#'cljseq.m21/mem-cache dereferences the Var to obtain the atom; then
+;; @#'nous.m21/mem-cache dereferences the Var to obtain the atom; then
 ;; operations like reset!, swap!, deref act on the atom itself.
 ;; ---------------------------------------------------------------------------
 
-(defn- mem-atom    [] @#'cljseq.m21/mem-cache)
-(defn- server-atom [] @#'cljseq.m21/server-state)
+(defn- mem-atom    [] @#'nous.m21/mem-cache)
+(defn- server-atom [] @#'nous.m21/server-state)
 
-(defn- parse-edn    [s]       (#'cljseq.m21/parse-edn s))
-(defn- cached-load  [id mode] (#'cljseq.m21/cached-load id mode))
+(defn- parse-edn    [s]       (#'nous.m21/parse-edn s))
+(defn- cached-load  [id mode] (#'nous.m21/cached-load id mode))
 
 ;; ---------------------------------------------------------------------------
 ;; Test fixtures — isolate each test with fresh state
@@ -45,7 +45,7 @@
 
 (deftest parse-edn-strips-comment-lines-test
   (testing "parse-edn strips leading ; comment lines"
-    (let [src "; cljseq-m21-cache script-mtime=12345\n[{:rest true :dur/beats 0.5}]"]
+    (let [src "; nous-m21-cache script-mtime=12345\n[{:rest true :dur/beats 0.5}]"]
       (is (= [{:rest true :dur/beats 0.5}]
              (parse-edn src))))))
 
@@ -132,7 +132,7 @@
     (let [data          [{:pitches [60 64 67] :dur/beats 1.0}]
           server-called (atom false)]
       (reset! (mem-atom) {[371 :chords] data})
-      (with-redefs [cljseq.m21/ensure-server! (fn [] (reset! server-called true))]
+      (with-redefs [nous.m21/ensure-server! (fn [] (reset! server-called true))]
         (let [result (cached-load 371 :chords)]
           (is (= data result))
           (is (false? @server-called)))))))
@@ -146,13 +146,13 @@
     (let [tmp-dir (io/file (System/getProperty "java.io.tmpdir")
                            (str "m21-disk-test-" (System/currentTimeMillis)))
           ;; Use the real script-mtime so the freshness check passes without stubbing.
-          real-mtime (#'cljseq.m21/script-mtime)
+          real-mtime (#'nous.m21/script-mtime)
           server-called (atom false)]
       (.mkdirs tmp-dir)
       (let [f (io/file tmp-dir "bwv371-chords.edn")]
-        (spit f (str "; cljseq-m21-cache script-mtime=" real-mtime "\n"
+        (spit f (str "; nous-m21-cache script-mtime=" real-mtime "\n"
                      "[{:pitches [60 64 67] :dur/beats 1.0}]"))
-        (with-redefs [cljseq.m21/ensure-server! (fn [] (reset! server-called true))]
+        (with-redefs [nous.m21/ensure-server! (fn [] (reset! server-called true))]
           (binding [m21/*cache-dir* (str tmp-dir)]
             (let [result (cached-load 371 :chords)]
               (is (= [{:pitches [60 64 67] :dur/beats 1.0}] result))
@@ -169,11 +169,11 @@
     (let [raw-edn       "[{:pitches [48 55 62 67] :dur/beats 2.0}]"
           server-req    (atom nil)
           ensure-called (atom false)]
-      (with-redefs [cljseq.m21/ensure-server!    (fn [] (reset! ensure-called true))
-                    cljseq.m21/m21-request!      (fn [req]
+      (with-redefs [nous.m21/ensure-server!    (fn [] (reset! ensure-called true))
+                    nous.m21/m21-request!      (fn [req]
                                                    (reset! server-req req)
                                                    {"status" "ok" "edn" raw-edn})
-                    cljseq.m21/write-disk-cache! (fn [& _])]
+                    nous.m21/write-disk-cache! (fn [& _])]
         (let [result (cached-load 42 :chords)]
           (is (= [{:pitches [48 55 62 67] :dur/beats 2.0}] result))
           (is (true? @ensure-called))
@@ -183,8 +183,8 @@
 
 (deftest cached-load-server-error-throws-test
   (testing "cached-load throws ex-info when server returns error status"
-    (with-redefs [cljseq.m21/ensure-server! (fn [])
-                  cljseq.m21/m21-request!   (fn [_]
+    (with-redefs [nous.m21/ensure-server! (fn [])
+                  nous.m21/m21-request!   (fn [_]
                                               {"status" "error" "message" "not found"})]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"m21 server error"
                             (cached-load 9999 :chords))))))

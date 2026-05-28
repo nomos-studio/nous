@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ardour-test
-  "Unit tests for cljseq.ardour and the OSC encoding in cljseq.osc.
+(ns nous.ardour-test
+  "Unit tests for nous.ardour and the OSC encoding in nous.osc.
 
   Tests are divided into three tiers:
 
-  1. Pure encoding — cljseq.osc/encode-message round-trip via the existing
+  1. Pure encoding — nous.osc/encode-message round-trip via the existing
      OSC receiver infrastructure. No network I/O, no Ardour required.
 
   2. State machine — ardour/connect!, capture!, capture-stop!, capture-discard!
@@ -15,8 +15,8 @@
      was sent. Tests Ardour transport/track functions at the wire level.
      No Ardour required."
   (:require [clojure.test   :refer [deftest is testing use-fixtures]]
-            [cljseq.ardour  :as ardour]
-            [cljseq.osc     :as osc])
+            [nous.ardour  :as ardour]
+            [nous.osc     :as osc])
   (:import  [java.net DatagramSocket DatagramPacket InetSocketAddress]
             [java.nio ByteBuffer ByteOrder]
             [java.util Arrays]))
@@ -95,7 +95,7 @@
 (use-fixtures :each with-clean-ardour)
 
 ;; ---------------------------------------------------------------------------
-;; Tier 1: OSC encoding (cljseq.osc/encode-message)
+;; Tier 1: OSC encoding (nous.osc/encode-message)
 ;; ---------------------------------------------------------------------------
 
 (deftest encode-no-arg-message-test

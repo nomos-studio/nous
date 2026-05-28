@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.voice
+(ns nous.voice
   "Voice leading — smooth connections between chords (§6).
 
   Voice leading minimizes the total semitone movement across chord changes.
@@ -38,7 +38,7 @@
     (progression-errors voiced-seq) ; → vec of error seqs, one per change
 
   Key design decisions: R&R §6, nearest-neighbour voice-leading algorithm."
-  (:require [cljseq.chord :as chord]))
+  (:require [nous.chord :as chord]))
 
 ;; ---------------------------------------------------------------------------
 ;; Private utilities
@@ -89,7 +89,7 @@
   "Return the voicing of `target` that minimizes total movement from `prev`.
 
   `prev`   — seq of MIDI integers (previous chord voicing).
-  `target` — cljseq.chord/Chord record OR seq of MIDI integers.
+  `target` — nous.chord/Chord record OR seq of MIDI integers.
 
   Algorithm:
   1. Extract target MIDI notes and enumerate all rotations.
@@ -101,7 +101,7 @@
   (let [prev-sorted (sort-asc prev)
         n           (count prev-sorted)
         anchor      (long (/ (reduce + prev-sorted) (max 1 n)))
-        target-midis (if (instance? cljseq.chord.Chord target)
+        target-midis (if (instance? nous.chord.Chord target)
                        (chord/chord->midis target)
                        (sort-asc target))
         candidates  (for [rot  (rotations (sort-asc target-midis))

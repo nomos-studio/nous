@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.timing
-  "cljseq timing modulator namespace.
+(ns nous.timing
+  "nous timing modulator namespace.
 
   Timing modulators are `ITemporalValue` instances that return Double
-  fractional-beat offsets. `cljseq.core/play!` samples the active modulator
+  fractional-beat offsets. `nous.core/play!` samples the active modulator
   at the current virtual-beat position and converts to nanoseconds via the
   running BPM timeline before dispatching to the sidecar.
 
@@ -34,7 +34,7 @@
 
   Key design decisions: Q35 (timing offset applied before sidecar dispatch),
   Q46 (timing as ITemporalValue), R&R §28.7."
-  (:require [cljseq.clock :as clock]))
+  (:require [nous.clock :as clock]))
 
 ;; ---------------------------------------------------------------------------
 ;; Swing

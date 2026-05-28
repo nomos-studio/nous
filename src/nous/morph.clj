@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.morph
-  "cljseq morph — named multi-input parameter mappings.
+(ns nous.morph
+  "nous morph — named multi-input parameter mappings.
 
   A morph is a named control surface abstraction: one or more input values fan
   out through pure transfer functions to multiple ctrl-tree targets. Inspired by
@@ -31,8 +31,8 @@
   Morphs auto-register at [:morphs <name>] in the ctrl tree and appear in
   morph-names. Target paths must be registered ctrl nodes.
 
-  Key design decisions: Q49 (defmorph / cljseq.morph)."
-  (:require [cljseq.ctrl :as ctrl]))
+  Key design decisions: Q49 (defmorph / nous.morph)."
+  (:require [nous.ctrl :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry

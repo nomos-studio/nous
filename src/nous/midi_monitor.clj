@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.midi-monitor
+(ns nous.midi-monitor
   "MIDI message capture via javax.sound.midi.
 
   Opens a named MIDI input port and accumulates received ShortMessages into

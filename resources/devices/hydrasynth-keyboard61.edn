@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; ASM Hydrasynth Keyboard 61 — cljseq device map
+;; ASM Hydrasynth Keyboard 61 — nous device map
 ;;
 ;; Source: ASM Hydrasynth MIDI Spec v1.5.0 (official)
 ;;         ~/Downloads/Hydrasynth.csv (CC map)

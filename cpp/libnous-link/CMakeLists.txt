@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# libcljseq-link — Ableton Link engine for cljseq-sidecar
+# libnous-link — Ableton Link engine for nous-sidecar
 #
 # IMPORTANT LICENSE NOTE:
 #   This library is GPL-2.0-or-later because it links against the Ableton Link
 #   SDK (GPL-2.0-or-later). Binaries that link against this library are subject
-#   to GPL-2.0-or-later terms. The rest of the cljseq C++ code is LGPL-2.1-or-later.
+#   to GPL-2.0-or-later terms. The rest of the nous C++ code is LGPL-2.1-or-later.
 #
-# This CMakeLists.txt is only added to the build when CLJSEQ_ENABLE_LINK=ON.
+# This CMakeLists.txt is only added to the build when NOUS_ENABLE_LINK=ON.
 # The Ableton Link SDK is fetched via FetchContent at a pinned tag.
 cmake_minimum_required(VERSION 3.20)
 
@@ -39,10 +39,10 @@ set(LINK_BUILD_EXAMPLES OFF CACHE BOOL "Do not build Link example apps"  FORCE)
 # <dir>/asio/include/, which matches our layout.
 if(DEFINED asio_SOURCE_DIR)
   set(LINK_ASIO_DIR "${asio_SOURCE_DIR}/asio/include" CACHE PATH
-      "Asio include dir shared with cljseq root build" FORCE)
-  message(STATUS "libcljseq-link: sharing Asio from ${LINK_ASIO_DIR}")
+      "Asio include dir shared with nous root build" FORCE)
+  message(STATUS "libnous-link: sharing Asio from ${LINK_ASIO_DIR}")
 else()
-  message(WARNING "libcljseq-link: asio_SOURCE_DIR not set — Link may fetch its own Asio")
+  message(WARNING "libnous-link: asio_SOURCE_DIR not set — Link may fetch its own Asio")
 endif()
 
 FetchContent_Declare(ableton-link
@@ -52,13 +52,13 @@ FetchContent_Declare(ableton-link
 FetchContent_MakeAvailable(ableton-link)
 
 # ---------------------------------------------------------------------------
-# libcljseq-link target
+# libnous-link target
 # ---------------------------------------------------------------------------
-add_library(cljseq-link STATIC
+add_library(nous-link STATIC
   src/link_engine.cpp
 )
 
-target_include_directories(cljseq-link
+target_include_directories(nous-link
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -66,12 +66,12 @@ target_include_directories(cljseq-link
     src
 )
 
-target_link_libraries(cljseq-link
-  PUBLIC  cljseq-rt     # inherits LinkBridge interface
+target_link_libraries(nous-link
+  PUBLIC  nous-rt       # inherits LinkBridge interface
   PRIVATE Ableton::Link
 )
 
-set_target_properties(cljseq-link PROPERTIES
+set_target_properties(nous-link PROPERTIES
   CXX_STANDARD 17
   CXX_STANDARD_REQUIRED ON
 )

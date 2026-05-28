@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Boss ES-8 Effect Switching System — cljseq device map
+;; Boss ES-8 Effect Switching System — nous device map
 ;;
 ;; 8-loop true-bypass/buffer switcher with programmable MIDI I/O.
 ;; No fixed CC map — uses a 12-slot user-programmable "Assign" system per patch.
@@ -8,7 +8,7 @@
 ;; per patch (channel + PC + Bank MSB/LSB + CC1 + CC2). Separate 7-bank × 128-entry
 ;; PC Map for incoming PC→patch lookup.
 ;;
-;; Primary cljseq use: loop-bypass orchestration; sends PC/CC to downstream pedals.
+;; Primary nous use: loop-bypass orchestration; sends PC/CC to downstream pedals.
 ;; Boss 500-series pedals (DD-500/RV-500/MD-500) in ES-8 loops are dual-addressable:
 ;; ES-8 controls loop bypass; direct MIDI controls internal parameters independently.
 ;;

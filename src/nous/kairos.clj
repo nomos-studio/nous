@@ -78,7 +78,7 @@
 
 (defn- edn-bytes
   "Encode v as a UTF-8 EDN string. pr-str produces valid EDN for all types
-  cljseq passes over this channel (maps, keywords, strings, numbers, UUIDs,
+  nous passes over this channel (maps, keywords, strings, numbers, UUIDs,
   vectors)."
   ^bytes [v]
   (.getBytes ^String (pr-str v) "UTF-8"))
@@ -356,7 +356,7 @@
   description — optional description string
 
   Example:
-    (kairos/send-register-source! :cljseq/repl \"cljseq REPL\" \"live session\")"
+    (kairos/send-register-source! :cljseq/repl \"nous REPL\" \"live session\")"
   [id name & [description]]
   (send-frame! (make-frame MSG-REGISTER-SOURCE
                            (edn-bytes {:id          id

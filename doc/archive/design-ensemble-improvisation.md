@@ -1,4 +1,4 @@
-# cljseq Ensemble Improvisation — Design Document
+# nous Ensemble Improvisation — Design Document
 
 **Status:** Design / pre-implementation
 **Author:** Thomas Rodgers
@@ -9,7 +9,7 @@
 
 ## 1. Motivation
 
-cljseq live loops currently *coordinate* — they share a clock, a harmony context,
+nous live loops currently *coordinate* — they share a clock, a harmony context,
 a ctrl tree. But they do not *listen* to each other. Each loop generates from its
 own logic without knowledge of what the others have produced. No loop knows what
 pitch classes another has recently played, whether a phrase is active, whether the
@@ -22,7 +22,7 @@ influence its generative choices?
 The answer is ensemble improvisation — a qualitatively different kind of musical
 system. Not coordinated patterns but *listening, responding agents*. The music that
 emerges is not composed in advance; it arises from the interaction of memory and
-response. cljseq becomes an ensemble, not a sequencer. The loops become musicians,
+response. nous becomes an ensemble, not a sequencer. The loops become musicians,
 not tracks.
 
 ---
@@ -61,7 +61,7 @@ Three primitives make this possible:
 ## 3. The ImprovisationContext
 
 The ImprovisationContext is a map derived from a live Temporal Buffer by running
-`cljseq.analyze` functions against the buffer's recent content. It is recomputed
+`nous.analyze` functions against the buffer's recent content. It is recomputed
 on a configurable schedule (every beat, every half-beat, or on demand).
 
 ```clojure
@@ -70,7 +70,7 @@ on a configurable schedule (every beat, every half-beat, or on demand).
  :pitch-center       64              ; mean pitch (MIDI note)
  :pitch-range        {:min 48 :max 72}
 
- ;; Harmonic analysis (from cljseq.analyze)
+ ;; Harmonic analysis (from nous.analyze)
  :current-key        :C-major
  :current-chord      {:root :G :quality :dominant-7 :degree :V}
  :tension            0.72            ; [0.0, 1.0] from tension-score
@@ -97,7 +97,7 @@ on a configurable schedule (every beat, every half-beat, or on demand).
  :listen-depth       4.0}           ; beats of history used
 ```
 
-`cljseq.analyze` already produces: key detection, tension scoring, borrowed chord
+`nous.analyze` already produces: key detection, tension scoring, borrowed chord
 detection, chord annotation, progression suggestion. The ImprovisationContext
 wraps these in a real-time query interface against a live buffer rather than a
 post-hoc score.
@@ -322,7 +322,7 @@ shift from development to contrast mode, or rest entirely.
 ## 7. Markov Stochastic Extension
 
 Responsive generation requires that stochastic contexts know their recent history.
-The `cljseq.stochastic` namespace currently generates each event independently.
+The `nous.stochastic` namespace currently generates each event independently.
 A Markov extension adds memory:
 
 ```clojure
@@ -400,7 +400,7 @@ history. This is compositionally distinct from:
 - **Live looping** — fixed repetition; no listening
 - **Coordinated improvisation** — shared cues but no musical content sharing
 
-The cljseq ensemble is none of these. It is closer to how human improvisers work:
+The nous ensemble is none of these. It is closer to how human improvisers work:
 each musician listens to the shared space, understands what has happened (pitch
 content, tension, phrase state, density), and makes choices that relate to that
 understanding.
@@ -424,11 +424,11 @@ material that is coherent rather than independently generated.
 |----------|-------------------------------|
 | `design-temporal-buffer.md` | The shared memory store; buffer infrastructure |
 | `design-threshold-extractor.md` | Phrase boundary detection (density threshold crossing) |
-| `cljseq.analyze` | Produces ImprovisationContext from buffer content |
-| `cljseq.stochastic` | Extended with Markov memory for responsive generation |
-| `cljseq.harmony / *harmony-ctx*` | Harmonic complement and chord tone selection |
-| `cljseq.conductor` | Extended with structural memory and adaptive branching |
-| `cljseq.trajectory` | Shapes the improvisation arc (density, tension target) |
+| `nous.analyze` | Produces ImprovisationContext from buffer content |
+| `nous.stochastic` | Extended with Markov memory for responsive generation |
+| `nous.harmony / *harmony-ctx*` | Harmonic complement and chord tone selection |
+| `nous.conductor` | Extended with structural memory and adaptive branching |
+| `nous.trajectory` | Shapes the improvisation arc (density, tension target) |
 | MIDI repair: `to-score`, `retrograde`, `transpose` | Motif transformation tools |
 
 ---
@@ -523,8 +523,8 @@ material that is coherent rather than independently generated.
 
 - **design-temporal-buffer.md** — the shared memory infrastructure
 - **design-threshold-extractor.md** — phrase boundary detection
-- **cljseq.analyze** — key, tension, chord, progression analysis
-- **cljseq.stochastic** — to be extended with Markov memory
+- **nous.analyze** — key, tension, chord, progression analysis
+- **nous.stochastic** — to be extended with Markov memory
 - **NDLR / Shipwreck Piano** — the motivating failure case: four voices without
   shared memory, producing incoherent texture despite shared clock. The ensemble
   improvisation system is the answer to that recording's structural problem.

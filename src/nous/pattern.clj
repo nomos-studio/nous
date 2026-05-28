@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.pattern
+(ns nous.pattern
   "Pattern and Rhythm — orthogonal sequencing primitives (R&R §5.1, NDLR model).
 
   Pattern holds note *selectors* (chord-relative indices, scale-relative indices,
@@ -73,14 +73,14 @@
     Root pitch is taken from *harmony-ctx*; no *chord-ctx* required.
 
   Key design decisions: R&R §5.1 (NDLR model), R&R §22.5.3 (named arpeggio library)."
-  (:require [cljseq.chord  :as chord-ns]
-            [cljseq.core   :as core]
-            [cljseq.live  :as live]
-            [cljseq.loop   :as loop-ns]
-            [cljseq.pitch  :as pitch]
-            [cljseq.rhythm :as rhythm-ns]
-            [cljseq.scale  :as scale-ns]
-            [cljseq.seq    :as sq]))
+  (:require [nous.chord  :as chord-ns]
+            [nous.core   :as core]
+            [nous.live  :as live]
+            [nous.loop   :as loop-ns]
+            [nous.pitch  :as pitch]
+            [nous.rhythm :as rhythm-ns]
+            [nous.scale  :as scale-ns]
+            [nous.seq    :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Records
@@ -309,7 +309,7 @@
     :channel     — MIDI channel override (integer 1–16, default nil)
 
   Returns a MotifState record. Use with run-cycle!, run-step!, or seq-loop!
-  from cljseq.seq.
+  from nous.seq.
 
   Example:
     (def my-motif (make-motif-state (named-pattern :bounce)

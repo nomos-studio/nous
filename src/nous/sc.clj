@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.sc
+(ns nous.sc
   "SuperCollider integration — sclang code generation and scsynth node control.
 
   ## Architecture
 
-  cljseq talks to SC on two ports:
+  nous talks to SC on two ports:
     sclang  (default 57120) — receives sclang code strings for evaluation
     scsynth (default 57110) — receives OSC messages for node control
 
@@ -38,25 +38,25 @@
 
   ## Generating sclang from a custom synth
 
-    (require '[cljseq.synth :as synth])
+    (require '[nous.synth :as synth])
     (synth/defsynth! :my-pad
       {:args  {:freq 440 :amp 0.5 :attack 0.5 :release 2.0}
        :graph [:out 0 [:pan2 [:* [:env-gen [:adsr :attack 0.1 0.8 :release] :gate :amp]
                                   [:sin-osc :freq]] 0.0]]})
     (sc/send-synthdef! :my-pad)"
   (:require [clojure.string  :as str]
-            [cljseq.clock    :as clock]
-            [cljseq.core     :as core]
-            [cljseq.ctrl     :as ctrl]
-            [cljseq.fm       :as fm]
-            [cljseq.loop     :as loop-ns]
-            [cljseq.osc      :as osc]
-            [cljseq.patch    :as patch]
-            [cljseq.peer     :as peer]
-            [cljseq.runtime  :as runtime]
-            [cljseq.synth    :as synth]
-            [cljseq.target   :as target]
-            [cljseq.timeline :as timeline]))
+            [nous.clock    :as clock]
+            [nous.core     :as core]
+            [nous.ctrl     :as ctrl]
+            [nous.fm       :as fm]
+            [nous.loop     :as loop-ns]
+            [nous.osc      :as osc]
+            [nous.patch    :as patch]
+            [nous.peer     :as peer]
+            [nous.runtime  :as runtime]
+            [nous.synth    :as synth]
+            [nous.target   :as target]
+            [nous.timeline :as timeline]))
 
 ;; ---------------------------------------------------------------------------
 ;; Connection state
@@ -95,7 +95,7 @@
     :sc-port   — scsynth OSC port (default 57110)
     :lang-port — sclang OSC port (default 57120)
 
-  Does not open a socket — cljseq.osc/osc-send! creates transient sockets.
+  Does not open a socket — nous.osc/osc-send! creates transient sockets.
   Call this before send-synthdef! or sc-synth!."
   [& {:keys [host sc-port lang-port]
       :or   {host "127.0.0.1" sc-port 57110 lang-port 57120}}]
@@ -244,13 +244,13 @@
   "Block until scsynth has processed all pending commands (SynthDef compilations etc).
 
   Sends `s.sync` to sclang via /cmd, which waits for scsynth to acknowledge all
-  outstanding async work, then sends /sc-ready back to the cljseq OSC server.
+  outstanding async work, then sends /sc-ready back to the nous OSC server.
   Returns :synced on success, throws ex-info on timeout.
 
   Options:
     :timeout-ms — max wait in milliseconds (default 8000)
 
-  The cljseq OSC server must be running (start-osc-server! called) for the
+  The nous OSC server must be running (start-osc-server! called) for the
   /sc-ready reply to arrive. sc-sync! starts the server automatically if needed,
   on the configured OSC control port (default 57121).
 
@@ -802,7 +802,7 @@
 (defn bind-spectral!
   "Bind a spectral analysis key to a live SC node parameter.
 
-  Watches the ctrl tree at [:spectral :state] — updated by cljseq.spectral's
+  Watches the ctrl tree at [:spectral :state] — updated by nous.spectral's
   SAM analysis loop — and calls set-param! on `node-id` after every update.
 
   `spectral-key` — one of :spectral/centroid, :spectral/density, :spectral/blur
@@ -810,7 +810,7 @@
 
   Returns a zero-argument cancel function.
 
-  Requires cljseq.spectral to be running (start-spectral!) to produce updates.
+  Requires nous.spectral to be running (start-spectral!) to produce updates.
 
   Example:
     ;; Drive a filter cutoff from spectral centroid (brighter notes → open filter)
@@ -895,7 +895,7 @@
   can be passed to synths as the `:buf` arg.
 
   Idempotency is the caller's responsibility — this function always allocates
-  a new buffer ID. Use cljseq.sample/load-sample! for path-deduplication.
+  a new buffer ID. Use nous.sample/load-sample! for path-deduplication.
 
   Example:
     (sc/connect-sc!)

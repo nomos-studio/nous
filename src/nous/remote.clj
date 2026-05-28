@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.remote
-  "Topology Layer 3 — nREPL client for remote eval across cljseq peers.
+(ns nous.remote
+  "Topology Layer 3 — nREPL client for remote eval across nous peers.
 
   Provides a minimal nREPL client that speaks the standard wire protocol
   so any nREPL-compatible server (Clojure REPL, Babashka, etc.) can be
@@ -46,7 +46,7 @@
 
     (binding [remote/*open-connection* mock-open]
       (connect! \"localhost\" 7888))"
-  (:require [cljseq.bencode :as bc])
+  (:require [nous.bencode :as bc])
   (:import  [java.net Socket]
             [java.util UUID]))
 
@@ -146,13 +146,13 @@
   "Look up `peer-id` in the local peer registry and remote-eval `code-str`
   against its nREPL port.
 
-  Requires `cljseq.peer/peers` to have an entry for `peer-id` with a
+  Requires `nous.peer/peers` to have an entry for `peer-id` with a
   `:nrepl-port` field in the beacon data.
 
   Opens a fresh connection per call (stateless helper). For interactive
   use, prefer `connect!` + `remote-eval!` directly."
   [peer-id code-str]
-  (let [peer-info (get (deref (requiring-resolve 'cljseq.peer/peers)) peer-id)]
+  (let [peer-info (get (deref (requiring-resolve 'nous.peer/peers)) peer-id)]
     (when-not peer-info
       (throw (ex-info "eval-on-peer!: peer not found" {:peer peer-id})))
     (let [{:keys [host nrepl-port]} peer-info]

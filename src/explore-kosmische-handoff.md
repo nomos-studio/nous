@@ -1,7 +1,7 @@
 # Handoff: explore/kosmische
 
 This document is a session handoff. Read it in full before doing anything else.
-Working directory: `~/Documents/org/areas/cljseq/src/cljseq` (main branch, v0.10.0).
+Working directory: `~/Documents/org/areas/nomos-studio/src/nous` (main branch, v0.10.0).
 
 ---
 
@@ -21,12 +21,12 @@ beyond its original framing into five distinct aesthetic territories. Decision m
 **abandon in place as an archive**. Never rebase, never merge. Use as reference only.
 
 The berlin-school archive contains (all spike quality, no tests):
-- `cljseq.berlin` — ostinato mutation (6 modes), filter-journey!, phase-drift!, tuning-morph!
-- `cljseq.journey` — global bar counter, journey conductor, phase-pair analysis, humanise
-- `cljseq.ambient` — Eno generative field, Basinski tape degrade, probability decay
-- `cljseq.dub` — pump shapes, echo-throw!, send-journey!, strip-down!
-- `cljseq.tape` — Frippertronics SOS, varispeed, scatter-phrase
-- `cljseq.formula` — Surge XT Formula Lua generation
+- `nous.berlin` — ostinato mutation (6 modes), filter-journey!, phase-drift!, tuning-morph!
+- `nous.journey` — global bar counter, journey conductor, phase-pair analysis, humanise
+- `nous.ambient` — Eno generative field, Basinski tape degrade, probability decay
+- `nous.dub` — pump shapes, echo-throw!, send-journey!, strip-down!
+- `nous.tape` — Frippertronics SOS, varispeed, scatter-phrase
+- `nous.formula` — Surge XT Formula Lua generation
 
 `explore/kosmische` is the first dedicated thread, picking up the Kosmische/doom
 vocabulary. The other threads (eno-field, dub-techno, tape-loops, surge-xt) follow
@@ -64,20 +64,20 @@ patience.
 
 ```sh
 git worktree add \
-  ~/Documents/org/areas/cljseq/worktrees/cljseq/explore-kosmische \
+  ~/Documents/org/areas/nomos-studio/worktrees/nous/explore-kosmische \
   -b explore/kosmische
 ```
 
-Work in the worktree. The primary checkout (`src/cljseq/`) stays on main.
+Work in the worktree. The primary checkout (`src/nous/`) stays on main.
 
-### Step 2 — Port cljseq.journey (first infrastructure piece)
+### Step 2 — Port nous.journey (first infrastructure piece)
 
-Source: `git show explore/berlin-school:src/cljseq/journey.clj`
+Source: `git show explore/berlin-school:src/nous/journey.clj`
 
 Port to production quality:
-- `src/cljseq/journey.clj` — carry all public functions; mark status as production (not SPIKE)
-- `test/cljseq/journey_test.clj` — write tests for all public functions
-- `src/cljseq/user.clj` — export: `start-bar-counter!`, `stop-bar-counter!`,
+- `src/nous/journey.clj` — carry all public functions; mark status as production (not SPIKE)
+- `test/nous/journey_test.clj` — write tests for all public functions
+- `src/nous/user.clj` — export: `start-bar-counter!`, `stop-bar-counter!`,
   `reset-bar-counter!`, `current-bar`, `start-journey!`, `stop-journey!`,
   `phase-pair`, `humanise`, `phaedra-arc`
 
@@ -88,9 +88,9 @@ Key functions to cover in tests:
 - `humanise` — applies timing/velocity variance to a step map (pure fn)
 - `phaedra-arc` — returns a valid timeline map (structural test)
 
-### Step 3 — Port cljseq.berlin
+### Step 3 — Port nous.berlin
 
-Source: `git show explore/berlin-school:src/cljseq/berlin.clj`
+Source: `git show explore/berlin-school:src/nous/berlin.clj`
 
 Port to production quality with tests. Key API surface:
 - `ostinato` — creates an ostinato state record
@@ -102,7 +102,7 @@ Port to production quality with tests. Key API surface:
 - `phase-drift!` / `clear-drift!` — intentional phase offset between voices
 - `tuning-morph!` — MTS scale interpolation over bars
 
-Export all public functions from `cljseq.user`.
+Export all public functions from `nous.user`.
 
 ### Step 4 — Engage the MCP bridge
 
@@ -110,7 +110,7 @@ Once journey + berlin are ported and tests pass:
 
 ```sh
 # Terminal 1 — in the kosmische worktree
-cd ~/Documents/org/areas/cljseq/worktrees/cljseq/explore-kosmische
+cd ~/Documents/org/areas/nomos-studio/worktrees/nous/explore-kosmische
 JAVA_HOME=/opt/homebrew/opt/openjdk/libexec/openjdk.jdk/Contents/Home lein repl :start :port 7888
 
 # Terminal 2 — MCP server
@@ -172,17 +172,17 @@ drone-journey!, harmonic grammar across voices), and the philosophical framing.
 
 ## Identified gaps from the archive to close as we go
 
-1. ~~Bar counter integration~~ — carried into cljseq.journey production port
+1. ~~Bar counter integration~~ — carried into nous.journey production port
 2. **Phase drift declaration** — `phase-pair` exists; surface in conductor API
 3. **Humanise wiring** — wire `humanise` into the loop before `play!`; `:timing/offset-ms` key already in step map
-4. **`drone-journey!`** — pair `start-drone!` (ambient.clj) with `filter-journey!`; write as new function in `cljseq.berlin` or `cljseq.ambient`
+4. **`drone-journey!`** — pair `start-drone!` (ambient.clj) with `filter-journey!`; write as new function in `nous.berlin` or `nous.ambient`
 5. **Harmonic grammar across voices** — shared `harmonic-context` atom constraining concurrent ostinati; this is a session of its own
 
 ---
 
 ## Org / planning context
 
-Living tracking: `~/Documents/org/areas/cljseq/index.org`
+Living tracking: `~/Documents/org/areas/nomos-studio/index.org`
 - Exploration backlog section has all five threads with TODO items
 - Notes section has the full aesthetic vision and MCP workflow protocol
 - Journal entries capture session decisions

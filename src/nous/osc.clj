@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.osc
+(ns nous.osc
   "OSC (Open Sound Control) UDP receiver + push-subscribe — §17 Phase 2/3.
 
   Listens on a UDP port for OSC messages and routes them to the ctrl tree
@@ -62,8 +62,8 @@
     ;; Cancel subscription
     (osc/unsubscribe! [:filter/cutoff] \"192.168.1.42\" 9000)"
   (:require [clojure.string :as str]
-            [cljseq.ctrl    :as ctrl]
-            [cljseq.core    :as core])
+            [nous.ctrl    :as ctrl]
+            [nous.core    :as core])
   (:import  [java.net DatagramSocket DatagramPacket InetSocketAddress URLDecoder URLEncoder]
             [java.nio ByteBuffer ByteOrder]
             [java.nio.charset StandardCharsets]
@@ -491,7 +491,7 @@
         running? (atom true)
         t        (doto (Thread. #(listener-loop sock running?))
                    (.setDaemon true)
-                   (.setName (str "cljseq-osc-" port))
+                   (.setName (str "nous-osc-" port))
                    (.start))]
     (reset! server-atom {:socket sock :running? running? :thread t :port port})
     (println (str "[osc] started on UDP port " port))

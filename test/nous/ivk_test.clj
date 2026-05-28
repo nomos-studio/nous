@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ivk-test
-  "Tests for cljseq.ivk — keyboard layout registry."
+(ns nous.ivk-test
+  "Tests for nous.ivk — keyboard layout registry."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
-            [cljseq.chord  :as chord]
-            [cljseq.ivk    :as ivk]
-            [cljseq.pitch  :as pitch]
-            [cljseq.scale  :as scale]))
+            [nous.chord  :as chord]
+            [nous.ivk    :as ivk]
+            [nous.pitch  :as pitch]
+            [nous.scale  :as scale]))
 
 ;; ---------------------------------------------------------------------------
 ;; Test fixtures — reset ivk state before each test

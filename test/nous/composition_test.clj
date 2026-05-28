@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.composition-test
+(ns nous.composition-test
   (:require [clojure.test        :refer [deftest testing is are]]
-            [cljseq.composition  :as comp]
-            [cljseq.analyze      :as analyze]
-            [cljseq.scale        :as scale]
-            [cljseq.pitch        :as pitch]))
+            [nous.composition  :as comp]
+            [nous.analyze      :as analyze]
+            [nous.scale        :as scale]
+            [nous.pitch        :as pitch]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures — synthetic NDLR note streams for testing without a real MIDI file
@@ -249,7 +249,7 @@
                   :resolution {:bars 4 :style :ambient-fade
                                :voices {:drone res-drone :pad res-pad
                                         :motif-1 [] :motif-2 []}}}
-          tmp    (java.io.File/createTempFile "cljseq-midi-test" ".mid")
+          tmp    (java.io.File/createTempFile "nous-midi-test" ".mid")
           path   (.getAbsolutePath tmp)]
       (try
         (comp/save-midi! score path {:include-resolution? true})
@@ -276,7 +276,7 @@
                               :voices {:drone [{:pitch/midi 50 :start/beats 0.0
                                                 :dur/beats 8.0 :velocity 45}]
                                        :pad [] :motif-1 [] :motif-2 []}}}
-          tmp  (java.io.File/createTempFile "cljseq-midi-offset-test" ".mid")
+          tmp  (java.io.File/createTempFile "nous-midi-offset-test" ".mid")
           path (.getAbsolutePath tmp)]
       (try
         (comp/save-midi! score path {:include-resolution? true})

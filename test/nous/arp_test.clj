@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.arp-test
-  "Unit tests for cljseq.arp — pattern registry, playback, and step engine."
+(ns nous.arp-test
+  "Unit tests for nous.arp — pattern registry, playback, and step engine."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.arp    :as arp]
-            [cljseq.seq    :as sq]
-            [cljseq.core   :as core]))
+            [nous.arp    :as arp]
+            [nous.seq    :as sq]
+            [nous.core   :as core]))
 
 ;; ---------------------------------------------------------------------------
 ;; Pattern registry
@@ -56,7 +56,7 @@
   (testing "play! :alberti against a triad plays 4 notes"
     (let [notes (atom [])]
       (with-redefs [core/play!  (fn [note & _] (swap! notes conj note) nil)
-                    cljseq.loop/sleep! (fn [_] nil)]
+                    nous.loop/sleep! (fn [_] nil)]
         (arp/play! :alberti [60 64 67]))
       (is (= 4 (count @notes))))))
 
@@ -64,7 +64,7 @@
   (testing "play! :alberti [0 2 1 2] on C major gives root-fifth-third-fifth"
     (let [notes (atom [])]
       (with-redefs [core/play!  (fn [note & _] (swap! notes conj (:pitch/midi note)) nil)
-                    cljseq.loop/sleep! (fn [_] nil)]
+                    nous.loop/sleep! (fn [_] nil)]
         (arp/play! :alberti [60 64 67]))
       ;; order [0 2 1 2] → chord[0]=60, chord[2]=67, chord[1]=64, chord[2]=67
       (is (= [60 67 64 67] @notes)))))
@@ -73,7 +73,7 @@
   (testing "order index beyond chord size wraps up an octave"
     (let [notes (atom [])]
       (with-redefs [core/play!  (fn [note & _] (swap! notes conj (:pitch/midi note)) nil)
-                    cljseq.loop/sleep! (fn [_] nil)]
+                    nous.loop/sleep! (fn [_] nil)]
         ;; :up with 4-note chord in pattern with order [0 1 2 3 4]
         (arp/play! {:type :chord :order [0 1 2 3 4] :rhythm [1 1 1 1 1] :dur 3/4}
                    [60 64 67]))
@@ -88,7 +88,7 @@
   (testing "play! :phrase-01 with root=60 transposes semitones from 60"
     (let [notes (atom [])]
       (with-redefs [core/play!  (fn [note & _] (swap! notes conj (:pitch/midi note)) nil)
-                    cljseq.loop/sleep! (fn [_] nil)]
+                    nous.loop/sleep! (fn [_] nil)]
         (arp/play! :phrase-01 {:root 60}))
       (let [p     (arp/get-pattern :phrase-01)
             steps (filter #(not (:rest %)) (:steps p))
@@ -103,7 +103,7 @@
                                 {:rest true :beats 1}
                                 {:semi 7 :beats 1}]}]
       (with-redefs [core/play!  (fn [note & _] (swap! notes conj (:pitch/midi note)) nil)
-                    cljseq.loop/sleep! (fn [_] nil)]
+                    nous.loop/sleep! (fn [_] nil)]
         (arp/play! test-pattern {:root 60}))
       ;; Only notes at offset 0 and 7 from root should have been played
       (is (= [60 67] @notes)))))
@@ -112,7 +112,7 @@
   (testing ":rate 2.0 doubles all step durations"
     (let [sleeps (atom [])]
       (with-redefs [core/play!  (fn [_ & _] nil)
-                    cljseq.loop/sleep! (fn [b] (swap! sleeps conj b) nil)]
+                    nous.loop/sleep! (fn [b] (swap! sleeps conj b) nil)]
         (arp/play! {:type  :phrase
                     :steps [{:semi 0 :beats 1}
                             {:semi 4 :beats 1}]}
@@ -124,7 +124,7 @@
   (testing ":dur on a phrase pattern controls the gate fraction"
     (let [gates (atom [])]
       (with-redefs [core/play!         (fn [note & _] (swap! gates conj (:dur/beats note)) nil)
-                    cljseq.loop/sleep! (fn [_] nil)]
+                    nous.loop/sleep! (fn [_] nil)]
         (arp/play! {:type  :phrase
                     :dur   1/2
                     :steps [{:semi 0 :beats 1}
@@ -140,7 +140,7 @@
 (deftest seq-loop-and-stop-test
   (testing "seq-loop! returns a stoppable handle; stop-seq! sets :running? false"
     (with-redefs [core/play!         (fn [_ & _] nil)
-                  cljseq.loop/sleep! (fn [_] (Thread/sleep 5) nil)]
+                  nous.loop/sleep! (fn [_] (Thread/sleep 5) nil)]
       (let [state  (arp/make-arp-state :alberti [60 64 67])
             handle (sq/seq-loop! state)]
         (is (map? handle))

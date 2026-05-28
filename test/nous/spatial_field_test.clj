@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.spatial-field-test
-  "Tests for cljseq.spatial-field — physics, geometry, registry, and modes."
+(ns nous.spatial-field-test
+  "Tests for nous.spatial-field — physics, geometry, registry, and modes."
   (:require [clojure.test         :refer [deftest is testing]]
-            [cljseq.spatial-field :as sf]
-            [cljseq.core          :as core]))
+            [nous.spatial-field :as sf]
+            [nous.core          :as core]))
 
 ;; ---------------------------------------------------------------------------
 ;; N-gon geometry
@@ -280,7 +280,7 @@
     (sf/start-field! ::xf-test)
     (try
       (let [xformer (sf/field-transformer ::xf-test)]
-        (is (satisfies? cljseq.transform/ITransformer xformer)))
+        (is (satisfies? nous.transform/ITransformer xformer)))
       (finally (sf/stop-field! ::xf-test)))))
 
 (deftest field-transformer-passes-through-event-test
@@ -291,7 +291,7 @@
     (try
       (let [xformer (sf/field-transformer ::xf-passthrough)
             event   {:pitch/midi 60 :dur/beats 1/4}
-            results (cljseq.transform/transform xformer event)]
+            results (nous.transform/transform xformer event)]
         (is (seq results) "transform should return at least one result")
         (is (= 0 (:delay-beats (first results)))
             "triggering event has delay-beats 0")

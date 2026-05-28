@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.core
-  "cljseq — music-theory-aware sequencer for Clojure.
+  "nous — music-theory-aware sequencer for Clojure.
 
   System lifecycle and primary user-facing API. Start with `(start!)`,
   stop with `(stop!)`. All interactive forms are available via:
@@ -182,7 +182,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn start!
-  "Boot the cljseq system.
+  "Boot the nous system.
 
   Options:
     :bpm           — initial BPM (default 120)
@@ -226,7 +226,7 @@
     (config/-register-effect! :bpm set-bpm!)
     ;; Seed ctrl tree nodes for all registry params (HTTP/OSC read access).
     (config/seed-ctrl-tree!)
-    (println (str "cljseq started at " bpm " BPM"))
+    (println (str "nous started at " bpm " BPM"))
     nil))
 
 (defn open-session!
@@ -241,7 +241,7 @@
   Example:
     (start! :bpm 120 :session-id :berlin-study)
     (start-sidecar! :midi-port 0)
-    (open-session!)   ; → writes to ~/.cljseq/sessions/2026-04-20T21-34-00-berlin-study.sqlite"
+    (open-session!)   ; → writes to ~/.nous/sessions/2026-04-20T21-34-00-berlin-study.sqlite"
   []
   (when-let [path (:session-path @system-state)]
     (when (sidecar/connected?)
@@ -374,7 +374,7 @@
                                    (DateTimeFormatter/ofPattern "yyyy-MM-dd'T'HH-mm-ss"))
                           "-export.clj"))
         header   (str/join "\n"
-                           ["; cljseq session definition"
+                           ["; nous session definition"
                             (str "; exported " (LocalDateTime/now))
                             (str "; (load-session! \"" out-path "\") to restore")
                             ""])]
@@ -421,7 +421,7 @@
   [db-path & {:keys [path]}]
   (let [out-path (or path (str db-path "-export.clj"))
         header   (str/join "\n"
-                           ["; cljseq session definition"
+                           ["; nous session definition"
                             (str "; recovered from journal " db-path)
                             (str "; (load-session! \"" out-path "\") to restore")
                             ""])]
@@ -465,7 +465,7 @@
   ;; Wait briefly for threads to notice the stop signal
   (Thread/sleep 50)
   (swap! system-state assoc :loops {})
-  (println "cljseq stopped")
+  (println "nous stopped")
   nil)
 
 ;; ---------------------------------------------------------------------------
@@ -752,4 +752,4 @@
 
 (defn -main
   [& _args]
-  (println "cljseq — use at a Clojure nREPL"))
+  (println "nous — use at a Clojure nREPL"))

@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Behringer PRO-800 Stereo Pair — cljseq virtual device sketch
+;; Behringer PRO-800 Stereo Pair — nous virtual device sketch
 ;;
 ;; SKETCH / DESIGN DOCUMENT — not a standard single-device EDN.
 ;; This file explores the vocabulary needed to model two PRO-800 units
@@ -36,7 +36,7 @@
 ;;     — :right = send only to Unit R
 ;;     — :alternate = interleave across units (round-robin for pattern steps)
 ;;
-;;   New behavioral modes needed in cljseq:
+;;   New behavioral modes needed in nous:
 ;;     1. :same-patch  — send same Program Change to both sides
 ;;     2. :split-patch — send independent Program Changes (true bitimbral)
 ;;     3. :unison-wide — same notes, same patch, diverge filter/detune slightly
@@ -47,7 +47,7 @@
 {:device/id   :behringer/pro800-stereo-pair
  :device/name "Behringer PRO-800 Stereo Pair"
  :device/manufacturer "Behringer / Music Tribe"
- :device/type :virtual-stereo-pair        ; new device type (not yet implemented in cljseq)
+ :device/type :virtual-stereo-pair        ; new device type (not yet implemented in nous)
  :device/voices 16                         ; 8 per side
  :device/role :target
 
@@ -114,7 +114,7 @@
  ;; Performance modes (design vocabulary — not yet implemented)
  ;;
  ;; These are named configurations of the stereo pair. Each describes a
- ;; cljseq setup call pattern that configures both units to achieve a
+ ;; nous setup call pattern that configures both units to achieve a
  ;; particular sonic result.
  ;; -------------------------------------------------------------------------
  :performance/modes
@@ -142,7 +142,7 @@
   :canon
   {:description "Same patch, Unit R triggers after Unit L — echo/canon effect"
    :setup [(set-member! :both :program-change <same-patch>)]
-   :note "Requires send-notes-at! with per-member delay offsets in cljseq DSL"}
+   :note "Requires send-notes-at! with per-member delay offsets in nous DSL"}
 
   :diverge-lfo
   {:description "Same patch, different LFO rates L/R — phasing / beating stereo motion"
@@ -151,9 +151,9 @@
            (send-cc! :right 30 47)]}}     ; LFO rate R — slight difference creates beating
 
  ;; -------------------------------------------------------------------------
- ;; Design notes: cljseq vocabulary gaps
+ ;; Design notes: nous vocabulary gaps
  ;;
- ;; To make this first-class, cljseq needs:
+ ;; To make this first-class, nous needs:
  ;;
  ;; 1. :device/type :virtual-stereo-pair — recognized by device registry
  ;;    Dispatch: send-cc! checks :midi-routing and fans out to correct channels
@@ -168,7 +168,7 @@
  ;;    (mod/bind! :pro800-pair/right :filter/cutoff (trajectory/breathe 4 {:phase 0.5}))
  ;;    → L and R filter breathe out of phase = stereo motion
  ;;
- ;; 4. Device-group as first cljseq.device primitive:
+ ;; 4. Device-group as first nous.device primitive:
  ;;    defdevice-group :pro800-stereo [left right]
  ;;    → auto-generates both, macro-routing, and per-member access
  ;;

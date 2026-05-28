@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.journey-test
+(ns nous.journey-test
   (:require [clojure.test :refer [deftest is are testing]]
-            [cljseq.journey :as journey]))
+            [nous.journey :as journey]))
 
 ;; ---------------------------------------------------------------------------
 ;; phase-pair — pure function, easy to property-test

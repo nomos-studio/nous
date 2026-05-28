@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Boss DD-500 Digital Delay — cljseq device map
+;; Boss DD-500 Digital Delay — nous device map
 ;;
 ;; Source: Boss DD-500 Owner's Manual, MIDI Implementation Chart (Appendix)
 ;;         https://www.boss.info/global/support/by_product/dd-500/owners_manuals/
@@ -11,7 +11,7 @@
 ;;
 ;; The DD-500 has two independent delay engines (A and B), each with its own
 ;; algorithm, time, feedback, and tone parameters. This makes it naturally
-;; suited to cljseq differential automation (engine A = rhythmic/short,
+;; suited to nous differential automation (engine A = rhythmic/short,
 ;; engine B = ambient/long).
 ;;
 ;; MIDI via DIN 5-pin (in/out/thru) and USB.
@@ -90,7 +90,7 @@
   :transmit false}
 
  ;; -------------------------------------------------------------------------
- ;; Notes for cljseq integration
+ ;; Notes for nous integration
  ;; -------------------------------------------------------------------------
  ;; Dual-engine programming pattern:
  ;;   Engine A: short rhythmic delay (beatsynced quarter/eighth)

@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.kairos-test
+(ns nous.kairos-test
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
             [clojure.edn   :as edn]
-            [cljseq.kairos :as kairos])
+            [nous.kairos :as kairos])
   (:import [java.net UnixDomainSocketAddress StandardProtocolFamily]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.channels ServerSocketChannel SocketChannel Channels]
@@ -320,3 +320,268 @@
     (is (= 5.0              (+ 5.0 (/ 0  24.0))))
     (is (= (+ 5.0 (/ 8 24.0)) (+ 5.0 (/ 8  24.0))))
     (is (= (+ 5.0 (/ 1 3.0))  (+ 5.0 (/ 8  24.0))))))
+
+;; ---------------------------------------------------------------------------
+;; on-tick! / off-tick! tests
+;; ---------------------------------------------------------------------------
+
+(deftest on-tick-registration-test
+  (testing "on-tick! returns a distinct key each call"
+    (let [k1 (kairos/on-tick! (fn [_]))
+          k2 (kairos/on-tick! (fn [_]))]
+      (is (some? k1))
+      (is (some? k2))
+      (is (not= k1 k2))
+      (kairos/off-tick! k1)
+      (kairos/off-tick! k2)))
+
+  (testing "off-tick! returns nil"
+    (let [k (kairos/on-tick! (fn [_]))]
+      (is (nil? (kairos/off-tick! k))))))
+
+(defn- push-tick-frame!
+  "Write a single MSG-TICK frame with the given beat and tick-n to out."
+  [^java.io.OutputStream out beat tick-n]
+  (let [text    (.getBytes (str "{:beat " beat " :tick-n " tick-n "}") "UTF-8")
+        plen    (alength text)
+        buf     (doto (ByteBuffer/allocate (+ 8 plen))
+                  (.order ByteOrder/BIG_ENDIAN)
+                  (.putInt plen)
+                  (.put (unchecked-byte 0x50))
+                  (.put (byte 0)) (.put (byte 0)) (.put (byte 0))
+                  (.put text))]
+    (.write out (.array buf))
+    (.flush out)))
+
+(deftest on-tick-dispatch-test
+  (testing "MSG-TICK frame dispatches to registered handler with parsed EDN"
+    (let [path   (temp-socket-path)
+          result (promise)
+          srv    (doto (ServerSocketChannel/open StandardProtocolFamily/UNIX)
+                   (.bind (UnixDomainSocketAddress/of path)))]
+      (doto (Thread.
+              (fn []
+                (try
+                  (with-open [conn (.accept srv)]
+                    (push-tick-frame! (Channels/newOutputStream conn) 8.0 192)
+                    (Thread/sleep 300))
+                  (catch Exception _)
+                  (finally (.close srv)))))
+        (.setDaemon true)
+        .start)
+      ;; Register handler before connecting so it is in place when the frame arrives.
+      (let [k (kairos/on-tick! (fn [ev] (deliver result ev)))]
+        (Thread/sleep 30)
+        (kairos/connect! :socket-path path :retry 3)
+        (try
+          (let [ev (deref result 2000 :timeout)]
+            (is (not= :timeout ev))
+            (is (= 8.0 (:beat ev)))
+            (is (= 192 (:tick-n ev))))
+          (finally
+            (kairos/off-tick! k)
+            (kairos/disconnect!))))))
+
+  (testing "off-tick! stops handler from receiving subsequent ticks"
+    (let [path     (temp-socket-path)
+          call-log (atom [])
+          srv      (doto (ServerSocketChannel/open StandardProtocolFamily/UNIX)
+                     (.bind (UnixDomainSocketAddress/of path)))]
+      (doto (Thread.
+              (fn []
+                (try
+                  (with-open [conn (.accept srv)]
+                    (let [out (Channels/newOutputStream conn)]
+                      (push-tick-frame! out 1.0 24)
+                      (Thread/sleep 100)
+                      (push-tick-frame! out 2.0 48)
+                      (Thread/sleep 300)))
+                  (catch Exception _)
+                  (finally (.close srv)))))
+        (.setDaemon true)
+        .start)
+      ;; Register handler before connecting so tick-n=24 is captured.
+      (let [first-tick (promise)
+            k          (kairos/on-tick! (fn [ev]
+                                          (swap! call-log conj (:tick-n ev))
+                                          (deliver first-tick true)))]
+        (Thread/sleep 30)
+        (kairos/connect! :socket-path path :retry 3)
+        (try
+          (deref first-tick 2000 :timeout)
+          (kairos/off-tick! k)
+          (Thread/sleep 200)   ; let any second tick arrive and confirm it is not dispatched
+          (is (= [24] @call-log))
+          (finally
+            (kairos/disconnect!)))))))
+
+;; ---------------------------------------------------------------------------
+;; Modulator engine wire tests
+;; ---------------------------------------------------------------------------
+
+(deftest start-modulator-slope-wire-test
+  (testing "start-modulator! :slope sends type 0x46 with id and type"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/start-modulator! :lfo-1 :slope {:rate 0.25 :shape -0.3})
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x46 (:type frame)))
+          (is (= :lfo-1  (get-in frame [:payload :id])))
+          (is (= :slope  (get-in frame [:payload :type])))
+          (is (= 0.25    (get-in frame [:payload :rate])))
+          (is (= -0.3    (get-in frame [:payload :shape]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "start-modulator! :slope omits un-supplied optional keys"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/start-modulator! :lfo-2 :slope {})
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= :lfo-2  (get-in frame [:payload :id])))
+          (is (nil? (get-in frame [:payload :rate])))
+          (is (nil? (get-in frame [:payload :shape]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "start-modulator! :slope passes bipolar flag"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/start-modulator! :lfo-3 :slope {:rate 2.0 :slope 0.8 :bipolar 0.0})
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x46  (:type frame)))
+          (is (= 2.0   (get-in frame [:payload :rate])))
+          (is (= 0.8   (get-in frame [:payload :slope])))
+          (is (= 0.0   (get-in frame [:payload :bipolar]))))
+        (finally
+          (kairos/disconnect!))))))
+
+(deftest start-modulator-segment-wire-test
+  (testing "start-modulator! :segment sends type 0x46 with segments vector"
+    (let [path     (temp-socket-path)
+          segments [{:type :ramp :primary 0.1 :secondary 0.0}
+                    {:type :ramp :primary 0.5 :secondary 0.0 :loop true}]
+          server   (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/start-modulator! :env-1 :segment {:segments segments})
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x46     (:type frame)))
+          (is (= :env-1   (get-in frame [:payload :id])))
+          (is (= :segment (get-in frame [:payload :type])))
+          (is (= 2 (count (get-in frame [:payload :segments]))))
+          (is (= :ramp  (get-in frame [:payload :segments 0 :type])))
+          (is (= 0.1    (get-in frame [:payload :segments 0 :primary])))
+          (is (= 0.5    (get-in frame [:payload :segments 1 :primary])))
+          (is (true?    (get-in frame [:payload :segments 1 :loop]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "start-modulator! :segment preserves all four segment types"
+    (let [path   (temp-socket-path)
+          segs   [{:type :ramp  :primary 0.1 :secondary 0.8}
+                  {:type :hold  :primary 0.8 :secondary 0.2}
+                  {:type :step  :primary 0.4 :secondary 0.5}
+                  {:type :alt   :primary 0.5 :secondary 0.5 :loop true}]
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/start-modulator! :shape-1 :segment {:segments segs})
+        (let [frame (deref server 2000 :timeout)
+              out   (get-in frame [:payload :segments])]
+          (is (not= :timeout frame))
+          (is (= 4 (count out)))
+          (is (= [:ramp :hold :step :alt] (mapv :type out)))
+          (is (true? (:loop (last out)))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "start-modulator! :segment with :depth passes depth"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/start-modulator! :env-2 :segment
+                                 {:segments [{:type :ramp :primary 0.5 :secondary 0.5 :loop true}]
+                                  :depth    0.7})
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0.7 (get-in frame [:payload :depth]))))
+        (finally
+          (kairos/disconnect!))))))
+
+(deftest stop-modulator-wire-test
+  (testing "stop-modulator! sends type 0x47 with id"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/stop-modulator! :lfo-1)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x47   (:type frame)))
+          (is (= :lfo-1 (get-in frame [:payload :id]))))
+        (finally
+          (kairos/disconnect!))))))
+
+(deftest update-modulator-wire-test
+  (testing "update-modulator! sends type 0x48 with id, key (as string), and value"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/update-modulator! :lfo-1 :rate 2.0)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x48   (:type frame)))
+          (is (= :lfo-1 (get-in frame [:payload :id])))
+          (is (= "rate" (get-in frame [:payload :key])))
+          (is (= 2.0    (get-in frame [:payload :value]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "update-modulator! coerces value to double"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/update-modulator! :lfo-1 :shape (float -0.5))
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= "shape" (get-in frame [:payload :key])))
+          (is (instance? Double (get-in frame [:payload :value]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "update-modulator! accepts string key"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/update-modulator! :lfo-1 "segment_0_primary" 0.3)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= "segment_0_primary" (get-in frame [:payload :key])))
+          (is (= 0.3 (get-in frame [:payload :value]))))
+        (finally
+          (kairos/disconnect!))))))

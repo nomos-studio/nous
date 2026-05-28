@@ -1,8 +1,8 @@
-# cljseq Licensing Strategy
+# nous Licensing Strategy
 
 ## Overview
 
-cljseq is a multi-language project spanning Clojure, C++, and Python. Different
+nous is a multi-language project spanning Clojure, C++, and Python. Different
 components are licensed differently to reflect their nature, their dependencies,
 and the obligations that arise when combined with GPL-family libraries.
 
@@ -22,7 +22,7 @@ are shared.
 
 SPDX identifier: `EPL-2.0`
 
-### Authored C++ (`cpp/libcljseq-rt/`, `cpp/cljseq-sidecar/`, `cpp/cljseq-audio/`)
+### Authored C++ (`cpp/libnous-rt/`, `cpp/nous-sidecar/`, `cpp/nous-audio/`)
 
 **License: LGPL-2.1-or-later** (standalone builds)
 
@@ -33,12 +33,12 @@ ensuring that improvements to the library itself are shared.
 
 SPDX identifier: `LGPL-2.1-or-later`
 
-### Python sidecar (`python/cljseq_m21/`)
+### Python sidecar (`python/nous_m21/`)
 
 **License: LGPL-2.1-or-later**
 
 The Music21 subprocess wrapper follows the same licensing as the C++ authored
-code. Music21 itself is BSD-licensed; the cljseq wrapper does not create GPL
+code. Music21 itself is BSD-licensed; the nous wrapper does not create GPL
 obligations.
 
 SPDX identifier: `LGPL-2.1-or-later`
@@ -47,7 +47,7 @@ SPDX identifier: `LGPL-2.1-or-later`
 
 ## Ableton Link — GPL Interaction
 
-Ableton Link is licensed under GPL-2.0-or-later. When cljseq is built with
+Ableton Link is licensed under GPL-2.0-or-later. When nous is built with
 Link support enabled, the resulting binary is a GPL-2.0-or-later work.
 
 ### Opt-in build flag
@@ -58,7 +58,7 @@ Link support is controlled by a CMake option:
 option(CLJSEQ_ENABLE_LINK "Build with Ableton Link support (GPL-2.0-or-later)" OFF)
 ```
 
-When `CLJSEQ_ENABLE_LINK=OFF` (the default), the cljseq binaries remain
+When `CLJSEQ_ENABLE_LINK=OFF` (the default), the nous binaries remain
 LGPL-2.1-or-later. When `CLJSEQ_ENABLE_LINK=ON`, the combined work is
 GPL-2.0-or-later and must be distributed accordingly.
 
@@ -85,7 +85,7 @@ top of the file:
 | Python   | `# SPDX-License-Identifier: LGPL-2.1-or-later`     |
 | CMake    | `# SPDX-License-Identifier: LGPL-2.1-or-later`     |
 
-Files in `cpp/cljseq-audio/` that unconditionally link against Link would
+Files in `cpp/nous-audio/` that unconditionally link against Link would
 carry `GPL-2.0-or-later` once that integration is implemented.
 
 ---

@@ -1,4 +1,4 @@
-# cljseq Threshold Extractor — Design Document
+# nous Threshold Extractor — Design Document
 
 **Status:** Design / pre-implementation
 **Author:** Thomas Rodgers
@@ -16,7 +16,7 @@ signal generates dense pulses; a slow-moving signal generates sparse pulses; a
 stationary signal generates nothing. It is a discrete first-derivative detector
 expressed as pulse density rather than a continuous voltage.
 
-cljseq currently has no analog of this concept. Every event source is either:
+nous currently has no analog of this concept. Every event source is either:
 - A **generator**: creates events from patterns, algorithms, or stochastic processes
 - A **transformer**: takes events in and emits transformed events (see Memory Field)
 
@@ -29,7 +29,7 @@ or a random process.
 **Hardware reference:** MakeNoise GTE (released 2026-03-26). The GTE operates in
 the CV/voltage domain; the Threshold Extractor is its note-event analog, with
 extensions that the hardware cannot offer: scale awareness, harmonic routing, and
-integration with cljseq's trajectory and phasor infrastructure.
+integration with nous's trajectory and phasor infrastructure.
 
 ---
 
@@ -154,7 +154,7 @@ different rhythmic outputs — a generative surface with rich sensitivity.
 ## 5. Scale-Aware Threshold Placement
 
 In the standard GTE model, thresholds are evenly spaced across the source range.
-cljseq can place thresholds at musically meaningful positions instead.
+nous can place thresholds at musically meaningful positions instead.
 
 ### 5.1 Scale-Degree Thresholds
 
@@ -201,7 +201,7 @@ gaps create pauses.
 ## 6. Output Routing
 
 The GTE has three output types: individual channel gates, Odd/Even gates, and the
-GTE crossing pulse. cljseq generalizes these:
+GTE crossing pulse. nous generalizes these:
 
 ### 6.1 Crossing Events (GTE Output equivalent)
 
@@ -295,15 +295,15 @@ dense and sparse rhythmic textures — without changing the gesture itself.
 
 ---
 
-## 8. Relationship to Existing cljseq Concepts
+## 8. Relationship to Existing nous Concepts
 
 ### 8.1 The Generator / Transformer / Extractor Family
 
 | Type | Concept | Input | Output |
 |------|---------|-------|--------|
 | Generator | `deflive-loop`, stochastic, fractal | None / seed | Note events |
-| Transformer | Memory Field (`cljseq.memory`) | Note events | Note events |
-| Extractor | Threshold Extractor (`cljseq.extractor`) | Continuous value | Note/control events |
+| Transformer | Memory Field (`nous.memory`) | Note events | Note events |
+| Extractor | Threshold Extractor (`nous.extractor`) | Continuous value | Note/control events |
 
 These three are compositionally orthogonal. A generator can feed a transformer;
 a transformer's pitch stream can feed an extractor; an extractor's output can
@@ -311,7 +311,7 @@ trigger a generator. Complex textures emerge from their combination.
 
 ### 8.2 Phasor Integration
 
-`cljseq.phasor` generates advancing phase values. A phasor is the ideal extractor
+`nous.phasor` generates advancing phase values. A phasor is the ideal extractor
 source: it advances monotonically (every threshold crossed exactly once per cycle),
 making event timing predictable while remaining sensitive to rate changes.
 
@@ -321,7 +321,7 @@ of the phasor.
 
 ### 8.3 Trajectory Integration
 
-`cljseq.trajectory` curves are the most musically expressive extractor sources.
+`nous.trajectory` curves are the most musically expressive extractor sources.
 The slope of a trajectory curve at any point determines the local crossing rate —
 the rhythm produced by a `:tension-peak` gesture accelerates through the build,
 bursts at the peak, and relaxes into silence at the resolution.
@@ -333,7 +333,7 @@ the extractor surfaces.
 ### 8.4 Harmony / Scale Integration
 
 `*harmony-ctx*` provides the scale degree positions that scale-aware threshold
-placement uses. The extractor is the first cljseq concept that makes rhythm and
+placement uses. The extractor is the first nous concept that makes rhythm and
 harmony *structurally coupled*: the scale determines where events fire, so the
 same gesture in different keys or modes produces different rhythmic patterns.
 
@@ -393,25 +393,25 @@ same gesture in different keys or modes produces different rhythmic patterns.
 In the studio, the MakeNoise GTE operates in the CV domain. The Threshold Extractor
 operates in the note-event domain. They are complementary, not redundant:
 
-| | GTE (hardware) | Threshold Extractor (cljseq) |
+| | GTE (hardware) | Threshold Extractor (nous) |
 |--|----------------|------------------------------|
 | Domain | CV / voltage | Note events / MIDI |
-| Source | Any CV signal | Any cljseq value function |
+| Source | Any CV signal | Any nous value function |
 | Output | Gate pulses | Notes, CCs, control events |
 | Scale-aware | No | Yes |
 | Harmony-aware | No | Yes |
 | Velocity encoding | Implicit (pulse rate) | Explicit (crossing speed) |
 | Feedback to Memory Field | Via CV | Direct API |
 
-A compound patch: cljseq Threshold Extractor fires MIDI notes → Cascadia converts
+A compound patch: nous Threshold Extractor fires MIDI notes → Cascadia converts
 to CV → GTE watches the Cascadia's filter envelope output → GTE channel gates fire
-Eurorack envelope generators → audio result feeds back into the DAW. cljseq and
+Eurorack envelope generators → audio result feeds back into the DAW. nous and
 the GTE are working at different layers of the same signal chain.
 
-The N.U.S.S. Channel Index concept (0.5V per step staircase) has a direct cljseq
+The N.U.S.S. Channel Index concept (0.5V per step staircase) has a direct nous
 analog: a phasor quantized to N steps that encodes which voice, scale degree, or
 parameter set is currently active. This could serve as an inter-module addressing
-scheme within cljseq's distributed ctrl tree — a shared phasor that multiple live
+scheme within nous's distributed ctrl tree — a shared phasor that multiple live
 loops or Memory Fields subscribe to, each activating when the phasor enters their
 channel zone.
 
@@ -437,8 +437,8 @@ channel zone.
    (e.g., fire only when both are in the same channel — AND logic, like the GTE's
    Odd/Even outputs used together.) *Proposed: defer to Phase 2.*
 
-5. **Namespace**: `cljseq.extractor`? `cljseq.gte`? `cljseq.threshold`?
-   *Proposed: `cljseq.extractor` — most general name, not tied to hardware.*
+5. **Namespace**: `nous.extractor`? `nous.gte`? `nous.threshold`?
+   *Proposed: `nous.extractor` — most general name, not tied to hardware.*
 
 6. **Interaction with `*tuning-ctx*`**: Same as Memory Field — read dynamically
    at crossing time so tuning changes mid-piece affect threshold placement.
@@ -449,7 +449,7 @@ channel zone.
 ## 12. Implementation Phases
 
 ### Phase 1 — Core extractor
-- `cljseq.extractor` namespace
+- `nous.extractor` namespace
 - `defthreshold-extractor` macro
 - Uniform threshold placement (N equal zones)
 - Continuous mode (no clock gating)
@@ -494,10 +494,10 @@ channel zone.
   active channel as staircase (0.5V/channel); FDD for simultaneous multi-channel
 - **N.U.S.S.** (New Universal Synthesizer System) — MakeNoise inter-module
   protocol; Channel Index as shared addressing medium
-- **cljseq.phasor** — advancing phase values; ideal extractor source
-- **cljseq.trajectory** — curve functions; latent rhythmic generators via extractor
-- **cljseq.memory** (`design-memory-field.md`) — the transformer paradigm;
+- **nous.phasor** — advancing phase values; ideal extractor source
+- **nous.trajectory** — curve functions; latent rhythmic generators via extractor
+- **nous.memory** (`design-memory-field.md`) — the transformer paradigm;
   extractor output can feed Memory Field input
-- **cljseq.harmony / *harmony-ctx*** — scale degree positions for threshold placement
+- **nous.harmony / *harmony-ctx*** — scale degree positions for threshold placement
 - **Intellijel Cascadia** — MIDI→CV gateway; extractor MIDI output → Cascadia CV →
-  GTE CV input closes the loop between cljseq and hardware GTE
+  GTE CV input closes the loop between nous and hardware GTE

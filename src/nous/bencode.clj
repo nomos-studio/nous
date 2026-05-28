@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.bencode
+(ns nous.bencode
   "Minimal bencode encoder/decoder for the nREPL wire protocol.
 
   ## Why this is hand-rolled instead of using the nREPL library
 
-  cljseq intentionally carries zero external dependencies beyond
+  nous intentionally carries zero external dependencies beyond
   `org.clojure/clojure` and `org.clojure/data.json`. Adding the nREPL
   library (`[nrepl \"1.3.0\"]`) would be the first dev-tooling library
   in what is meant to be a lean, production-oriented library. It would
@@ -19,14 +19,14 @@
     dicts      — `d3:foo3:bare`  (d<key><value>...e, keys sorted)
 
   An encoder + decoder for these four types fits comfortably in ~80
-  lines of pure Clojure. Java sockets are already used in `cljseq.peer`
+  lines of pure Clojure. Java sockets are already used in `nous.peer`
   for UDP multicast; a TCP socket + bencode is a natural, consistent
   extension.
 
   If the nREPL protocol ever expands in a way that makes hand-rolling
   impractical, the right response is to factor this namespace out into
   a small dedicated library — not to pull nREPL's entire toolchain into
-  cljseq itself.
+  nous itself.
 
   ## Usage
 

@@ -1,4 +1,4 @@
-# cljseq Design Sprint 1 — Summary
+# nous Design Sprint 1 — Summary
 
 **Sprint dates**: March 2026
 **Participants**: [@rodgert](https://github.com/rodgert), Claude Sonnet 4.6
@@ -29,19 +29,19 @@ temporal spine. `sleep!` as a temporal barrier using `LockSupport/parkNanos`.
 `cue!`/`sync!` for beat-aligned inter-thread coordination. **Not** `core.async`.
 
 ### 2. Native C++ Sidecar (§3.5)
-`cljseq-sidecar`: a `SCHED_FIFO`/mach-thread-policy C++ process handles all
+`nous-sidecar`: a `SCHED_FIFO`/mach-thread-policy C++ process handles all
 real-time MIDI and OSC dispatch. JVM communicates via Unix domain socket with a
 binary IPC protocol (message types 0x10–0x5F). GC pauses affect only the
 *generating* thread; the sidecar dispatches events at wall-clock precision
 regardless of JVM GC.
 
-### 3. `libcljseq-rt` Shared Library (§3.5, §19)
-C++ static library shared by `cljseq-sidecar` and `cljseq-audio`: IPC framing,
+### 3. `libnous-rt` Shared Library (§3.5, §19)
+C++ static library shared by `nous-sidecar` and `nous-audio`: IPC framing,
 `SynthTarget` abstract interface, `LinkEngine`, Asio utilities, OSC codec,
 lock-free queues. Concrete implementations (RtMidi, CLAP, libpd) live in their
 respective binaries, not in the shared library.
 
-### 4. `cljseq-audio` Process (§19)
+### 4. `nous-audio` Process (§19)
 Separate process for CLAP/VST3 plugin hosting and libpd. Uses RtAudio; audio
 callback thread runs at platform-native RT priority (CoreAudio / JACK / ASIO).
 Events dispatched with sample-accurate timing: ns-stamped IPC events converted to
@@ -81,9 +81,9 @@ Up to 600 Surge parameters as lazy tree nodes.
 ### 10. Music21 Python Sidecar (§20)
 Separate asyncio Python process. JSON-RPC 2.0 over Unix domain socket. Handles
 all musicological analysis (key detection, roman numeral, voice leading, serial
-operations, corpus access, notation export). Rule: **performance path = cljseq
+operations, corpus access, notation export). Rule: **performance path = nous
 native; analysis path = Music21**. Optional; degrades gracefully when absent.
-`cljseq.m21` functions return Clojure promises — never deref inside a `live-loop`.
+`nous.m21` functions return Clojure promises — never deref inside a `live-loop`.
 
 ### 11. World Music Scale and Rhythm Library (§21)
 Bundled Scala `.scl` files for Arabic maqamat, Javanese gamelan (pelog/slendro,
@@ -133,7 +133,7 @@ phase and by topic area.
 | **Q2** | `live-loop` redefinition semantics: full-iteration vs. `sleep!` boundary | Core semantic | Default = full iteration boundary; opt-in `:hot-swap` flag |
 | **Q3** | `sync!` late-cue edge case: stale cue window | Phase drift in performance | `sync-window` = `sched-ahead-time` + 1-beat grace; search `EventHistory` |
 | **Q11** | `deflive-loop` vs. `live-loop`: API unification | Duplicated API surface | `live-loop` = `deflive-loop` with empty param map (Option A) |
-| **Q15** | `libcljseq-rt` boundary: what goes in the shared library | Coupling between C++ processes | Abstract interfaces only; no RtMidi/RtAudio/CLAP/libpd in shared lib |
+| **Q15** | `libnous-rt` boundary: what goes in the shared library | Coupling between C++ processes | Abstract interfaces only; no RtMidi/RtAudio/CLAP/libpd in shared lib |
 | **Q29** | `param-loop` vs. `live-loop` unification | API and scheduler design | Step-mode = `live-loop` expansion; continuous LFO = separate 100Hz thread |
 | **Q35** | Jitter and virtual-time coherence | Corrupts `sync!` coordination if wrong | Model A: perturb IPC `time_ns` only; `*virtual-time*` stays clean |
 | **Q20** | Music21 async: safe usage from `live-loop` | Breaks virtual-time if deref'd inside loop | Document constraint + `m21/eventually!` helper |
@@ -174,18 +174,18 @@ single decision at the start of Sprint 2:
 | Q14 | HTML rendering | SSR + HTMX; evaluate SPA only if needed |
 | Q17 | CLAP parameter eager vs. lazy registration | Lazy (sidecar holds full map; tree is sparse projection) |
 | Q18 | Pd patch hot-swap audio continuity | Pre-load + atomic swap at buffer boundary |
-| Q19 | `cljseq-audio` Link peer count | Measure drift empirically; consider single-peer (sidecar only) |
+| Q19 | `nous-audio` Link peer count | Measure drift empirically; consider single-peer (sidecar only) |
 | Q21 | Score serialization canonical form | Define rules in Python `_note_to_json`: enharmonic = preserve spelling; tied = merge; grace = omit |
 | Q22 | In-process Music21 | Retain subprocess; batch calls to amortize IPC overhead |
-| Q23 | cljseq vs. Music21 type overlap | Division-of-labor table in §20.8 is the answer |
+| Q23 | nous vs. Music21 type overlap | Division-of-labor table in §20.8 is the answer |
 | Q24 | Music21 corpus licensing | No bundling; delegate to user's Music21 installation |
-| Q26 | Gamelan per-ensemble tuning | `.scl` per ensemble; user `~/.cljseq/scales/` takes priority |
+| Q26 | Gamelan per-ensemble tuning | `.scl` per ensemble; user `~/.nous/scales/` takes priority |
 | Q27 | Non-Western corpus | `m21/register-corpus-path!` calling `corpus.addPath()` |
 | Q28 | Colotomic layering API | No special API; `irama` atom + `at-sync!` for ratio changes |
 | Q31 | Arpeggiation library format | EDN with `:order :rhythm :dur :source`; ship pre-extracted |
-| Q33 | nREPL integration scope | Resolved: standard nREPL; optional `cljseq-nrepl` middleware later |
+| Q33 | nREPL integration scope | Resolved: standard nREPL; optional `nous-nrepl` middleware later |
 | Q34 | DEJA VU ring buffer across redefines | `defonce` outside loop body; `defstochastic` macro does this automatically |
-| Q38 | `stochastic` context auto-registration | Auto-register at `/cljseq/stochastic/<name>/`; matches `deflive-loop` behavior |
+| Q38 | `stochastic` context auto-registration | Auto-register at `/nous/stochastic/<name>/`; matches `deflive-loop` behavior |
 | Q40 | Ornament timing and virtual time | Ornaments = pure functions returning sub-step sequences; caller iterates with `sleep!` |
 | Q41 | Unified step map: plain map vs. record | Plain map + `clojure.spec.alpha` for validation |
 | Q42 | `play-bloom-step!` vs. `play!` overload | Overload `play!` to accept step map as second argument |
@@ -215,7 +215,7 @@ Maps each R&R section to the open design questions and Sprint 2 tasks that depen
 | §16 | Unified control tree | Q29, **Q45** | Q8, Q9, Q10, Q12, Q16 | `defdevice` schema; control-tree device layer spec; `ensemble` subtree layout |
 | §17 | Ring/Netty OSC server | — | Q12, Q14 | Two-port vs. timestamp semantics decision |
 | §18 | MCP integration | Q13 | — | MCP resource server prototype with `doc/*.md` corpus |
-| §19 | CLAP plugin hosting | Q15, Q20 | Q17, Q18, Q19 | `libcljseq-rt` boundary spec; `cljseq-audio` stub |
+| §19 | CLAP plugin hosting | Q15, Q20 | Q17, Q18, Q19 | `libnous-rt` boundary spec; `nous-audio` stub |
 | §20 | Music21 sidecar | Q20 | Q21, Q22, Q23 | `m21/eventually!` helper; serialization rules |
 | §21 | World music / microtonality | Q25 | Q26, Q27, Q28 | Maqam representation; gamelan `.scl` files; colotomic API |
 | §22 | Rhythmic modulation / param-loop | Q29, Q35 | Q30 | `param-loop` unification design decision |
@@ -234,25 +234,25 @@ The following topics require analysis before the design phase closes. Some were 
 
 ### Voice Organization: NDLR Parts vs. Elektron Tracks (Q45)
 
-The NDLR organizes four voices into typed *parts* — Drone, Pad, Motif 1, Motif 2 — each with a defined musical role that determines how it responds to chord changes. Elektron instruments (Digitakt, Digitone) organize voices into generic, interchangeable *tracks* with no semantic role differentiation. Both impose hardware voice-count limits that cljseq, as a software system, need not share.
+The NDLR organizes four voices into typed *parts* — Drone, Pad, Motif 1, Motif 2 — each with a defined musical role that determines how it responds to chord changes. Elektron instruments (Digitakt, Digitone) organize voices into generic, interchangeable *tracks* with no semantic role differentiation. Both impose hardware voice-count limits that nous, as a software system, need not share.
 
-The research task is to synthesize these two models into a single cljseq abstraction — tentatively called `ensemble` — that:
+The research task is to synthesize these two models into a single nous abstraction — tentatively called `ensemble` — that:
 
 - Groups N named voices (no fixed limit) with an optional semantic role per voice
 - Carries a shared harmonic context (key, mode, live-mutable chord) that harmony-relative voices respond to automatically
 - Provides group-level operations: `start!`, `stop!`, `arm!`, `chord!`
-- Maps to a named subtree in the control tree: `/cljseq/ensembles/<name>/`
+- Maps to a named subtree in the control tree: `/nous/ensembles/<name>/`
 - Leaves the door open for voice roles beyond the NDLR's four (e.g., `:bass`, `:percussion`, arbitrary user-defined roles)
 
 Part of this analysis is surveying how other live-coding environments handle multi-voice grouping: Sonic Pi (none — `cue!`/`sync!` only), TidalCycles (`stack`/`cat` pattern composition), Sardine (`Bowl`), Overtone (SuperCollider groups and buses). See **Q45** in `doc/open-design-questions.md` for the full exploration path.
 
-**Key design principle**: the NDLR's four-part limit and Elektron's eight-track limit are hardware constraints, not musical ones. cljseq should capture the *concepts* (harmony-relative voice roles, shared harmonic context, group coordination) while imposing no artificial ceiling on the number of voices.
+**Key design principle**: the NDLR's four-part limit and Elektron's eight-track limit are hardware constraints, not musical ones. nous should capture the *concepts* (harmony-relative voice roles, shared harmonic context, group coordination) while imposing no artificial ceiling on the number of voices.
 
 
 ### Tracker-Style Sequencing (Polyend Tracker)
 Tracker sequencers originated in the Amiga/demo-scene era (ProTracker, FastTracker)
 and have seen a hardware renaissance with instruments like the Polyend Tracker.
-Key concepts to analyze and map onto the cljseq design:
+Key concepts to analyze and map onto the nous design:
 
 - **Pattern grid**: fixed rows × columns; rows = steps, columns = tracks/voices
 - **Note, instrument, volume, effect columns per step** — more data per step than
@@ -265,7 +265,7 @@ Key concepts to analyze and map onto the cljseq design:
   routing in the control tree (§16.8)?
 - **Tracker file formats** (`.mod`, `.xm`, `.it`) as potential import/export targets
   alongside MusicXML/MIDI
-- **What trackers do uniquely well** that cljseq could absorb: dense per-step
+- **What trackers do uniquely well** that nous could absorb: dense per-step
   articulation data, sample-accurate effect scheduling, the "note + instrument +
   volume + FX" column model as a richer step type
 
@@ -316,7 +316,7 @@ Key sequencing concepts to analyze:
   `BIT SHIFT + ADVANCE`. The write head can lead or lag the play head, creating
   feedback-style self-modification where the CORRUPT function mutates a future
   position while the current position plays. This is a novel read-ahead / write-
-  ahead model not present in Marbles or Bloom — and not currently in cljseq's
+  ahead model not present in Marbles or Bloom — and not currently in nous's
   generative model
 
 - **BIT FLIP via CV**: the `BIT FLIP` patch bay input (per sequencer) flips the
@@ -341,7 +341,7 @@ Key sequencing concepts to analyze:
   have independently settable lengths (1–8). With different lengths, playheads
   drift out of phase producing polyrhythm as a natural consequence, not an explicit
   design. The LCM of the two lengths defines the full cycle. Mirrors the Elektron
-  track-scaling concept; in cljseq this already works via coprime `live-loop`
+  track-scaling concept; in nous this already works via coprime `live-loop`
   periods (§22.4) but the Labyrinth confirms it as a primary interaction model
 
 - **CHAIN SEQ → 16-step unified sequence + independent play head offset**: when
@@ -362,7 +362,7 @@ Key sequencing concepts to analyze:
 - **MIDI Note On = root transposition**: when quantizer is active, an incoming
   MIDI note transposes the root of *both* sequencers' scales simultaneously.
   A keyboard or external sequencer drives the harmonic context while Labyrinth
-  drives the melodic content. Mirrors `ctrl/set! "/cljseq/global/key" new-key`
+  drives the melodic content. Mirrors `ctrl/set! "/nous/global/key" new-key`
   from the control tree; confirms the key/root-transposition-as-realtime-control
   model is hardware-validated
 
@@ -371,30 +371,30 @@ Key sequencing concepts to analyze:
   triggers fire at full velocity. At 12 o'clock: both fire equally. In between:
   one stream fires at lower velocity, creating automatic accent patterns from the
   rhythmic interplay of two sequences. This is a simple but powerful dynamic
-  shaping model — not currently in cljseq. Could motivate a `:trig-mix` parameter
+  shaping model — not currently in nous. Could motivate a `:trig-mix` parameter
   on `play!` or a velocity-blend node in the control tree
 
 - **16 quantization modes**: Unquantized, Chromatic, Major, Pentatonic, Melodic
   Minor, Harmonic Minor, Diminished 6th, Whole Tone, Hirajoshi Pentatonic,
   7sus4 (1 4 5 b7), Major 7th (1 3 5 7), Major 13th (1 3 5 6 7 9),
   Minor 7th (1 b3 5 b7), Minor 11th (1 b3 4 5 b7 9), Hang Drum, Quads (minor 3rds).
-  A useful reference set for the cljseq scale library; Hirajoshi, Hang Drum, and
+  A useful reference set for the nous scale library; Hirajoshi, Hang Drum, and
   Quads are not in the current world music scale list (§21.8)
 
 - **What the Labyrinth does uniquely well**: the separated play/write head model
   with CORRUPT operating on the write head is the most distinctive concept — it
   creates a self-modifying feedback loop where the sequence mutates itself ahead
   of playback. This has no direct analog in Marbles or Bloom and is worth modeling
-  explicitly in cljseq as a `write-head-offset` parameter on `stochastic-sequence`
+  explicitly in nous as a `write-head-offset` parameter on `stochastic-sequence`
   that allows the mutation function to operate N steps ahead of the current play
   position
 
 ### Morph vocabulary library (future sprint)
 
-`cljseq.morph` provides the `defmorph` form and the multi-input binding mechanism.
+`nous.morph` provides the `defmorph` form and the multi-input binding mechanism.
 A companion vocabulary of common pure transfer functions for morph targets would
 reduce boilerplate and make complex gesture mappings composable. Analogous to the
-modulator vocabulary in `cljseq.mod` and the clock vocabulary in `cljseq.clock`.
+modulator vocabulary in `nous.mod` and the clock vocabulary in `nous.clock`.
 
 Candidate functions to design:
 - **Coordinate transforms**: rectangular→polar, polar→rectangular, vector rotation,
@@ -405,9 +405,9 @@ Candidate functions to design:
 - **Multi-axis combinators**: cross-product, dot-product, max/min of axes,
   weighted blend
 
-Design questions to address: namespace (`cljseq.morph.vocab`? `cljseq.xform`?);
+Design questions to address: namespace (`nous.morph.vocab`? `nous.xform`?);
 whether functions compose as plain Clojure functions or as `ITemporalValue` wrappers;
-relationship to the `cljseq.mod` vocabulary (some transforms may be shared).
+relationship to the `nous.mod` vocabulary (some transforms may be shared).
 
 ### Arturia KeyStep Pro and BeatStep Pro (future sprint)
 
@@ -432,15 +432,15 @@ Topics to explore in a future sprint:
   step count and direction (forward, reverse, ping-pong, random) — compare with
   `clock-div` and polyrhythmic phase coherence (Q32)
 - **Chord mode and scale lock** on the KeyStep Pro: harmony-relative step input maps
-  to cljseq's interval/scale model (§4, §10)
+  to nous's interval/scale model (§4, §10)
 - **CV/gate output model**: the sequencers output raw voltages, not MIDI note numbers
   — relationship to the `ITemporalValue` / Q44 abstraction and Eurorack integration
 - **Swing and timing**: both devices have per-track swing; maps to Q46's timing
   modulation design question
 - **Pattern chaining and song mode**: how linear arrangement is built from patterns;
   relationship to the Stream/Score model (§9)
-- **What these devices do that cljseq should absorb**: first-hand user familiarity
-  makes them particularly valuable as a usability reference; test that cljseq can
+- **What these devices do that nous should absorb**: first-hand user familiarity
+  makes them particularly valuable as a usability reference; test that nous can
   replicate common KeyStep Pro / BeatStep Pro workflows from the REPL
 
 ### Hang Drum / Handpan Tuning Systems (future sprint)
@@ -453,7 +453,7 @@ drawn from non-Western modal or pentatonic systems (Kurd, Integral, Pygmy,
 Celtic Minor, etc.). The result is an instrument that is harmonically
 self-consistent — almost every combination of struck tones sounds musical.
 
-**Why this matters for cljseq**:
+**Why this matters for nous**:
 - Handpan scales are small (7–9 tones), root-relative, and modal — a natural fit
   for the Scala tuning pipeline and the `scale-constrained` quantization layer
 - The "any combination sounds good" property is a generative composition
@@ -474,7 +474,7 @@ that does a stochastic nearest-neighbor walk within the scale.
 
 The Eurorack maxim "you can never have enough VCAs" captures something
 important: the most expressive modular patches are built by routing modulators
-into other modulators, not just into sound sources. cljseq already contemplates
+into other modulators, not just into sound sources. nous already contemplates
 LFOs that can target any parameter in the control tree (§16), but there is a
 richer vocabulary of modulation primitives worth formalising, grounded in the
 module designs below.
@@ -557,12 +557,12 @@ unlocks a range of modulation topologies:
   contains the sum of all four processed signals — an implicit mixer requiring
   no additional patching
 
-#### cljseq implications: a modulator vocabulary
+#### nous implications: a modulator vocabulary
 
 These three modules together define a vocabulary of modulation primitives that
 maps naturally onto Clojure functions operating on time-varying values:
 
-| Hardware primitive | cljseq DSL concept |
+| Hardware primitive | nous DSL concept |
 |---|---|
 | Function generator (triggered) | `(envelope :rise t :fall t :curve :exp)` → time-indexed fn |
 | Function generator (cycle mode) | `(lfo :rate hz :shape :exp :phase 0)` |
@@ -581,8 +581,8 @@ maps naturally onto Clojure functions operating on time-varying values:
 
 The most important design insight is that **all of these are composable
 functions on values that vary over virtual time** — which is exactly the model
-cljseq already uses for LFOs targeting control-tree parameters (§16). The gap to
-close is formalising the vocabulary: a `cljseq.mod` namespace that provides
+nous already uses for LFOs targeting control-tree parameters (§16). The gap to
+close is formalising the vocabulary: a `nous.mod` namespace that provides
 these primitives as first-class values that can be passed anywhere a
 time-varying number is expected.
 
@@ -599,7 +599,7 @@ The Eurorack "modulator of modulators" pattern then emerges naturally:
 
 **Suggested sprint scope**: survey 3–5 additional Eurorack modules with
 distinctive modulation vocabularies (candidates: Mutable Instruments Stages,
-Tides; Befaco Rampage; Serge DUSG), then specify the `cljseq.mod` namespace
+Tides; Befaco Rampage; Serge DUSG), then specify the `nous.mod` namespace
 interface — function signatures, composability contract, and how modulator
 values interact with the `ctrl/bind!` control tree.
 
@@ -610,7 +610,7 @@ table (required by the MIDI specification) that enumerates exactly which MIDI
 messages the device transmits and recognizes: channel range, note numbers,
 velocity, Control Change assignments, Program Change, System Exclusive, NRPN,
 RPN, and so on. The research question is: **can we extract that chart and use it
-to automatically populate a device node in the cljseq unified control tree
+to automatically populate a device node in the nous unified control tree
 (§16)?**
 
 #### Why this matters
@@ -690,15 +690,15 @@ The next sprint can begin implementation of **Phase 0** (C++ foundation) as soon
 as the blocking questions above are resolved. The Phase 0 deliverables are in
 `doc/implementation-plan.md`:
 
-1. **`libcljseq-rt`** — IPC framing, `SynthTarget` interface, `LinkEngine`,
+1. **`libnous-rt`** — IPC framing, `SynthTarget` interface, `LinkEngine`,
    Asio utilities, OSC codec, lock-free queues, CMakeLists
-2. **`cljseq-sidecar`** — RT dispatch thread, RtMidi, Link, Unix socket server,
+2. **`nous-sidecar`** — RT dispatch thread, RtMidi, Link, Unix socket server,
    `MidiTarget`, `OscTarget`
-3. **`cljseq-audio` skeleton** — `AudioEngine`, `RtAudio` callback, `ClapTarget`
+3. **`nous-audio` skeleton** — `AudioEngine`, `RtAudio` callback, `ClapTarget`
    stub, `PdTarget` stub
 
 Immediately after Phase 0, **Phase 1** (Clojure virtual time model) can begin:
-the `cljseq.time`, `cljseq.pitch`, `cljseq.scale` namespaces — the pure-Clojure
+the `nous.time`, `nous.pitch`, `nous.scale` namespaces — the pure-Clojure
 foundation that does not depend on the C++ sidecar.
 
 ---
@@ -719,7 +719,7 @@ The following are explicitly **out of scope** for the initial implementation:
 
 ## Documentation Strategy (plan for upcoming sprint)
 
-cljseq will accumulate documentation across four distinct layers that need to
+nous will accumulate documentation across four distinct layers that need to
 stay coherent as the system grows:
 
 | Layer | Source | Audience |
@@ -740,7 +740,7 @@ stay coherent as the system grows:
 
 **C++ sidecar docs — Doxygen**
 - Doxygen config at `cpp/Doxyfile`; HTML output to `doc/cpp-api/`
-- All public header symbols in `libcljseq-rt` and `cljseq-sidecar` carry
+- All public header symbols in `libnous-rt` and `nous-sidecar` carry
   `///` doc comments; implementation files use `//` comments only
 - Run `doxygen` as part of the CMake `docs` target
 
@@ -775,27 +775,27 @@ failure" policy.
 
 ## Licensing Strategy (to be resolved in Sprint 2)
 
-cljseq spans two distinct technical domains with different dependency graphs and
+nous spans two distinct technical domains with different dependency graphs and
 different licensing ecosystems. Getting the licensing right early avoids
 irreversible architectural commitments later.
 
 ### The two domains
 
-**C++ sidecar components** (`libcljseq-rt`, `cljseq-sidecar`, `cljseq-audio`)
+**C++ sidecar components** (`libnous-rt`, `nous-sidecar`, `nous-audio`)
 link against third-party C/C++ libraries with copyleft terms. The Clojure
 library communicates with the sidecar exclusively over OSC/Unix sockets — there
 is no link-time dependency, so copyleft does not propagate across the boundary.
 The two domains can carry different licenses.
 
-**Clojure library** (`cljseq` proper) lives in an ecosystem where EPL-2.0 is
+**Clojure library** (`nous` proper) lives in an ecosystem where EPL-2.0 is
 the dominant license (Clojure itself, most clojure.contrib libraries, many
-community libraries). A cljseq license that harmonizes with EPL-2.0 avoids
+community libraries). A nous license that harmonizes with EPL-2.0 avoids
 friction for users assembling EPL-licensed systems.
 
 ### C++ licensing: Ableton Link
 
 The Ableton Link SDK is **GPL-2.0**. This is confirmed and is not a problem for
-cljseq: the project is intended to be available on fully FOSS terms, so GPL on
+nous: the project is intended to be available on fully FOSS terms, so GPL on
 the C++ sidecar components is acceptable. Our own C++ code can be authored as
 LGPL-2.1-or-later; the act of linking against GPL-2.0 Link produces a
 GPL-2.0-or-later combined work, which is a well-understood and legally clean
@@ -803,12 +803,12 @@ outcome for a FOSS project.
 
 | Component | Links against | Authored as | Combined result |
 |---|---|---|---|
-| `libcljseq-rt` | Ableton Link (GPL-2.0), Asio (BSL-1.0) | LGPL-2.1-or-later | GPL-2.0-or-later |
-| `cljseq-sidecar` | `libcljseq-rt`, RtMidi (MIT), Link (GPL-2.0) | LGPL-2.1-or-later | GPL-2.0-or-later |
-| `cljseq-audio` | CLAP SDK (MIT), libpd (BSD-3), RtAudio (MIT) | LGPL-2.1-or-later | LGPL-2.1-or-later (no GPL dep) |
+| `libnous-rt` | Ableton Link (GPL-2.0), Asio (BSL-1.0) | LGPL-2.1-or-later | GPL-2.0-or-later |
+| `nous-sidecar` | `libnous-rt`, RtMidi (MIT), Link (GPL-2.0) | LGPL-2.1-or-later | GPL-2.0-or-later |
+| `nous-audio` | CLAP SDK (MIT), libpd (BSD-3), RtAudio (MIT) | LGPL-2.1-or-later | LGPL-2.1-or-later (no GPL dep) |
 
 Authoring our code as LGPL-2.1-or-later (rather than GPL outright) preserves
-the option to build `cljseq-audio` as a genuinely LGPL library if it is kept
+the option to build `nous-audio` as a genuinely LGPL library if it is kept
 free of direct Link linkage.
 
 The OSC boundary between the sidecar and the Clojure library cleanly isolates
@@ -817,7 +817,7 @@ the Clojure library from any GPL obligation.
 ### Open question: opt-in Ableton Link support
 
 Worth exploring in Sprint 2 — **but not necessarily worth implementing**: could
-`libcljseq-rt` and `cljseq-sidecar` be designed so that Ableton Link support is
+`libnous-rt` and `nous-sidecar` be designed so that Ableton Link support is
 a compile-time opt-in (`-DCLJSEQ_LINK_ENABLED=ON`), with a Link-free build path
 that has no GPL dependency?
 
@@ -826,7 +826,7 @@ GPL-2.0, which marginally increases reusability of the sidecar components in
 non-GPL contexts. It also allows users without a need for Ableton Link sync to
 build a simpler system.
 
-**The case against it**: cljseq as a whole is a FOSS project with no intention
+**The case against it**: nous as a whole is a FOSS project with no intention
 of commercialization under proprietary terms, so the GPL vs LGPL distinction for
 the sidecar has no practical downstream impact. Conditional compilation for an
 optional subsystem adds meaningful implementation complexity — a second build
@@ -884,7 +884,7 @@ EPL-2.0 (Eclipse Public License 2.0) is the right choice for the Clojure side:
 
 ## Intellectual Property Attribution (to be formalised in Sprint 2)
 
-cljseq draws design inspiration from a wide range of commercial products and
+nous draws design inspiration from a wide range of commercial products and
 open source projects. The following principles govern how that relationship is
 represented:
 
@@ -895,7 +895,7 @@ distinctive feature and choosing to implement an analogous capability in a new
 system is normal creative and engineering practice. The intellectual property
 rights in the original products — trademarks, patents, trade dress, and any
 unpublished algorithms — remain the exclusive property of their respective
-owners. cljseq makes no claim to those rights and does not use proprietary
+owners. nous makes no claim to those rights and does not use proprietary
 source code, firmware, or confidential technical specifications unless a
 compatible FOSS license explicitly permits it.
 
@@ -906,10 +906,10 @@ license terms are honoured as described in the Licensing Strategy section above.
 ### Commercial products referenced for design inspiration
 
 The following commercial products and their respective owners have informed the
-design of cljseq. No source code, firmware, or proprietary materials from these
+design of nous. No source code, firmware, or proprietary materials from these
 products are used. All trademarks are the property of their respective owners.
 
-| Product | Owner | Concepts informing cljseq |
+| Product | Owner | Concepts informing nous |
 |---|---|---|
 | Ableton Live / Ableton Link | Ableton AG | Tempo sync protocol (Link SDK used under GPL-2.0) |
 | Elektron Digitakt / Digitone | Elektron Music Machines | P-locks, trig conditions, micro-timing, track scaling, sound locks |
@@ -922,10 +922,10 @@ products are used. All trademarks are the property of their respective owners.
 ### Open source projects referenced but not used as code
 
 The following open source projects informed design decisions but are not
-included in the cljseq codebase. Their licenses and copyrights remain with
+included in the nous codebase. Their licenses and copyrights remain with
 their respective authors.
 
-| Project | License | Relationship to cljseq |
+| Project | License | Relationship to nous |
 |---|---|---|
 | Overtone | EPL-1.0 | Spiritual predecessor; informed the nREPL-centric live coding model |
 | Sonic Pi | MIT | Live coding idiom reference; informed DSL design principles |
@@ -941,7 +941,7 @@ their respective authors.
    regardless
 2. Add a brief IP disclaimer to `README.md` stating that all referenced product
    names and trademarks are the property of their respective owners and that
-   cljseq is an independent work drawing on publicly available information
+   nous is an independent work drawing on publicly available information
 3. Review the design documents (`research-and-requirements.md` in particular)
    to ensure no section inadvertently reproduces proprietary documentation
    verbatim; paraphrase or cite publicly available sources where needed
@@ -951,7 +951,7 @@ their respective authors.
 
 ### Eurorack Clock Vocabulary (future sprint)
 
-cljseq already has a BPM-based master clock and virtual time model (§3). But
+nous already has a BPM-based master clock and virtual time model (§3). But
 the Eurorack clock ecosystem reveals that **a clock is not merely a pulse train
 — it is a family of time-domain relationships**. Surveying three modules from
 their official manuals reveals a vocabulary of clocking primitives that could
@@ -1047,12 +1047,12 @@ The Wogglebug is a complete feedback system: Speed/Chaos, Ego/Id, and the
 Influence input all interact. The whole system can "lock up" (hang at a fixed
 voltage) and must be disturbed to restart — an intentional design feature.
 
-#### cljseq implications: a clock vocabulary
+#### nous implications: a clock vocabulary
 
 These three modules together define a vocabulary of clocking primitives that
-extends the cljseq BPM clock into a rich temporal language:
+extends the nous BPM clock into a rich temporal language:
 
-| Hardware primitive | cljseq DSL concept |
+| Hardware primitive | nous DSL concept |
 |---|---|
 | Clock division/multiplication | `(clock-div n master)`, `(clock-mult n master)` — rational n for dotted/triplet |
 | Phase offset | `(phase-shift clock :beats n)` or `:frac 1/4` |
@@ -1070,13 +1070,13 @@ extends the cljseq BPM clock into a rich temporal language:
 | Woggle CV | `(woggle-random clock)` — decaying sinusoidal chase |
 | Burst gate | `(burst-gate clock :prob p)` — probabilistic gate burst |
 
-The key compositional insight is that **a clock output in cljseq should be a
+The key compositional insight is that **a clock output in nous should be a
 first-class value that can be passed anywhere a time-domain reference is
 expected** — as the timing source for a sequencer, as the modulation rate of an
 LFO, as the S&H trigger for a random voltage, or as the input to a cross
 operation with another clock. The vocabulary of modulators (Maths, Blinds,
 PoliMATHS) and the vocabulary of clocks are the same abstraction at different
-time scales, both operating on time-varying values in the `cljseq.mod` namespace.
+time scales, both operating on time-varying values in the `nous.mod` namespace.
 
 ```clojure
 ;; A slow sine LFO clocked at 1/3 of master, phase-shifted by half a cycle,
@@ -1088,8 +1088,8 @@ time scales, both operating on time-varying values in the `cljseq.mod` namespace
 ```
 
 **Suggested sprint scope**: formalise the clock primitive taxonomy above,
-specify the `cljseq.clock` namespace interface, and determine how clock values
-interact with the `cljseq.mod` modulator vocabulary — specifically, whether
+specify the `nous.clock` namespace interface, and determine how clock values
+interact with the `nous.mod` modulator vocabulary — specifically, whether
 clocks and modulators share a single protocol or are distinct types with
 explicit coercion.
 
@@ -1097,11 +1097,11 @@ explicit coercion.
 
 This design question — whether clocks and modulators share a protocol — is one
 of the highest-leverage architectural decisions in Phase 1, and it should be
-answered *before* implementing `cljseq.clock`, `cljseq.mod`, or any scheduler
+answered *before* implementing `nous.clock`, `nous.mod`, or any scheduler
 binding code. The goal is **best-in-class abstractions for timing and modulation
 that harmonize with the rest of the system**.
 
-The central observation is that everything varying over virtual time in cljseq
+The central observation is that everything varying over virtual time in nous
 — clocks, LFOs, envelopes, slew limiters, stepped random, probability gates —
 can be described as a function `Beat → Value`. The differences (binary output
 vs. continuous, one-shot vs. repeating, edge-driven vs. sampled) are *roles*,
@@ -1121,7 +1121,7 @@ is a design decision record, not production code.
 
 ## Project Structure (to be decided in Sprint 2)
 
-cljseq spans three language ecosystems and several categories of static data.
+nous spans three language ecosystems and several categories of static data.
 The Sprint 2 goal is to settle the top-level repository layout, the build
 system strategy, and the conventions for static data files — before Phase 0
 implementation begins and directory trees become hard to move.
@@ -1130,27 +1130,27 @@ implementation begins and directory trees become hard to move.
 
 | Component | Language | Build tool | Role |
 |---|---|---|---|
-| `cljseq` library | Clojure | Leiningen | Core DSL, scheduler, pitch/scale, control tree, analysis |
-| `libcljseq-rt` | C++ | CMake | IPC framing, `SynthTarget`, `LinkEngine`, lock-free queues |
-| `cljseq-sidecar` | C++ | CMake | RT dispatch, RtMidi, Ableton Link, Unix socket server |
-| `cljseq-audio` | C++ | CMake | CLAP host, `libpd`, RtAudio |
-| `cljseq-m21` | Python | pyproject.toml | Music21 sidecar subprocess |
+| `nous` library | Clojure | Leiningen | Core DSL, scheduler, pitch/scale, control tree, analysis |
+| `libnous-rt` | C++ | CMake | IPC framing, `SynthTarget`, `LinkEngine`, lock-free queues |
+| `nous-sidecar` | C++ | CMake | RT dispatch, RtMidi, Ableton Link, Unix socket server |
+| `nous-audio` | C++ | CMake | CLAP host, `libpd`, RtAudio |
+| `nous-m21` | Python | pyproject.toml | Music21 sidecar subprocess |
 | `doc/guide` | Markdown | mdBook | Narrative user guide |
 | Static data | EDN / .scl / etc. | — | Scales, tunings, device maps, corpus |
 
 ### Proposed top-level layout
 
 ```
-cljseq/
-├── src/cljseq/          # Clojure library source
-├── test/cljseq/         # Clojure tests
+nous/
+├── src/nous/          # Clojure library source
+├── test/nous/         # Clojure tests
 ├── cpp/                 # All C++ components
 │   ├── CMakeLists.txt   # Top-level CMake; adds subdirs
-│   ├── libcljseq-rt/    # Shared library
-│   ├── cljseq-sidecar/  # Sidecar executable
-│   └── cljseq-audio/    # Audio engine executable
+│   ├── libnous-rt/    # Shared library
+│   ├── nous-sidecar/  # Sidecar executable
+│   └── nous-audio/    # Audio engine executable
 ├── python/              # Python sidecar
-│   ├── cljseq_m21/      # Package source
+│   ├── nous_m21/      # Package source
 │   └── pyproject.toml
 ├── resources/           # Static data consumed at runtime
 │   ├── scales/          # .scl (Scala) files + EDN index
@@ -1220,7 +1220,7 @@ Where no established standard format exists for a category of static data,
 | Tuning definitions beyond Scala | EDO tables, just-intonation rationals, maqam cent-offset tables |
 | Handpan / world-music scale catalog | Small maps of root-relative intervals |
 | Corpus index / metadata | Annotations on MusicXML/Humdrum files; query metadata |
-| Configuration | All cljseq runtime configuration |
+| Configuration | All nous runtime configuration |
 | Saved control-tree snapshots | `ctrl/snapshot` output format |
 
 ### Sprint 2 tasks

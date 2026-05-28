@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.clock
-  "cljseq clock subsystem — ITemporalValue protocol, Phasor record, BPM utilities.
+(ns nous.clock
+  "nous clock subsystem — ITemporalValue protocol, Phasor record, BPM utilities.
 
-  `ITemporalValue` is the single protocol for all time-varying values in cljseq:
+  `ITemporalValue` is the single protocol for all time-varying values in nous:
   phasors, LFOs, envelopes, swing modulators, and any user-defined signal.
 
   `Phasor` is the canonical implementation: a unipolar ramp in [0.0, 1.0) at a
@@ -15,7 +15,7 @@
 
   Key design decisions: R&R §28 (Phasor Signal Architecture), Q44 (ITemporalValue),
   Q1 (virtual time), Q35 (timing returns Long nanoseconds)."
-  (:require [cljseq.phasor :as phasor]))
+  (:require [nomos.maths.phasor :as phasor]))
 
 ;; ---------------------------------------------------------------------------
 ;; Protocol
@@ -117,7 +117,7 @@
 ;;    :beat0-epoch-ms <long>       ; epoch-ms at which beat0-beat occurred
 ;;    :beat0-beat     <double>}    ; beat position corresponding to beat0-epoch-ms
 ;;
-;; The anchor rolls on every BPM change (see cljseq.core/set-bpm!), so the
+;; The anchor rolls on every BPM change (see nous.core/set-bpm!), so the
 ;; linear mapping is always valid within the current tempo segment.
 
 (defn beat->epoch-ms

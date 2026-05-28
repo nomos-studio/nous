@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.timeline
-  "Master timeline — shared beat/wall-clock coordinate system for cljseq.
+(ns nous.timeline
+  "Master timeline — shared beat/wall-clock coordinate system for nous.
 
-  Holds a reference to the system-state atom injected by cljseq.core/start!
-  via -register-system!. Provides read-only accessors so cljseq.loop,
-  cljseq.ctrl, cljseq.sc, and other consumers can query beat position and
-  tempo without introducing a circular dependency on cljseq.core.
+  Holds a reference to the system-state atom injected by nous.core/start!
+  via -register-system!. Provides read-only accessors so nous.loop,
+  nous.ctrl, nous.sc, and other consumers can query beat position and
+  tempo without introducing a circular dependency on nous.core.
 
   The local timeline is stored under :timeline in system-state as:
     {:bpm            <double>   ; current tempo
@@ -17,11 +17,11 @@
 
   Key design decisions: Q1 (virtual time), Q59 (beat↔epoch-ms arithmetic),
   Q60 (drift-free LockSupport park)."
-  (:require [cljseq.clock :as clock])
+  (:require [nous.clock :as clock])
   (:import  [java.util UUID]))
 
 ;; ---------------------------------------------------------------------------
-;; System state reference — injected by cljseq.core/start!
+;; System state reference — injected by nous.core/start!
 ;; ---------------------------------------------------------------------------
 
 (def ^:private system-ref (atom nil))

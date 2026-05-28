@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq-ui.core
+(ns nous-ui.core
   "cljseq browser control surface.
 
   Connects to the cljseq HTTP server via WebSocket (/ws) for live ctrl-tree
@@ -31,7 +31,7 @@
 ;; {path-str {:value v :type t :meta m :path-arr [...]}}
 (defonce ctrl-state       (r/atom (sorted-map)))
 (defonce bpm-state        (r/atom nil))
-;; Ephemeral runtime state — nested map mirroring cljseq.runtime on the server.
+;; Ephemeral runtime state — nested map mirroring nous.runtime on the server.
 (defonce runtime-state    (r/atom {}))
 (defonce ws-status        (r/atom :connecting))  ; :connecting :open :closed
 (defonce log-entries      (r/atom []))            ; newest-first
@@ -428,7 +428,7 @@
 (defn- app []
   [:div.container
    [:header
-    [:h1 "cljseq"]
+    [:h1 "nous"]
     [connection-badge]
     [beat-dot]
     [bpm-display]]

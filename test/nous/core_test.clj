@@ -1,14 +1,14 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.core-test
+(ns nous.core-test
   "Phase 0 unit tests — clock, virtual time, live loop, play!."
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.clock :as clock]
-            [cljseq.core  :as core]
-            [cljseq.ctrl  :as ctrl]
-            [cljseq.loop  :as loop-ns]))
+            [nous.clock :as clock]
+            [nous.core  :as core]
+            [nous.ctrl  :as ctrl]
+            [nous.loop  :as loop-ns]))
 
 ;; ---------------------------------------------------------------------------
-;; cljseq.clock
+;; nous.clock
 ;; ---------------------------------------------------------------------------
 
 (deftest master-clock-test
@@ -182,11 +182,11 @@
                   {:type :midi-cc :channel 1 :cc-num 74 :range [0 127]})
       (let [send-at-calls (atom [])
             note-on-calls (atom [])]
-        (with-redefs [cljseq.sidecar/connected?   (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [t ch n v]
+        (with-redefs [nous.sidecar/connected?   (constantly true)
+                      nous.sidecar/send-note-on!  (fn [t ch n v]
                                                       (swap! note-on-calls conj {:t t :ch ch :n n :v v}))
-                      cljseq.sidecar/send-note-off! (fn [& _])
-                      cljseq.sidecar/send-cc!        (fn [t ch cc val]
+                      nous.sidecar/send-note-off! (fn [& _])
+                      nous.sidecar/send-cc!        (fn [t ch cc val]
                                                        (swap! send-at-calls conj {:t t :ch ch :cc cc :val val}))]
           (binding [loop-ns/*virtual-time*   0.0
                     loop-ns/*step-mod-ctx*   {[:step-mod/cutoff] 80}]
@@ -209,10 +209,10 @@
       (ctrl/bind! [:step-mod/vel]
                   {:type :midi-cc :channel 1 :cc-num 11 :range [0 127]})
       (let [cc11-calls (atom [])]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [& _])
-                      cljseq.sidecar/send-note-off! (fn [& _])
-                      cljseq.sidecar/send-cc!        (fn [_t _ch cc _val]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [& _])
+                      nous.sidecar/send-note-off! (fn [& _])
+                      nous.sidecar/send-cc!        (fn [_t _ch cc _val]
                                                        (when (= 11 cc)
                                                          (swap! cc11-calls conj cc)))]
           (binding [loop-ns/*virtual-time*   0.0

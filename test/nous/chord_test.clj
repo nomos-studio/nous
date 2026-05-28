@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.chord-test
-  "Tests for cljseq.chord — Chord record, quality library, and progressions."
+(ns nous.chord-test
+  "Tests for nous.chord — Chord record, quality library, and progressions."
   (:require [clojure.test  :refer [deftest is testing]]
-            [cljseq.pitch  :as pitch]
-            [cljseq.scale  :as scale]
-            [cljseq.chord  :as chord]))
+            [nous.pitch  :as pitch]
+            [nous.scale  :as scale]
+            [nous.chord  :as chord]))
 
 ;; ---------------------------------------------------------------------------
 ;; Constructor
@@ -13,7 +13,7 @@
 (deftest chord-constructor-test
   (testing "chord builds from step/octave/quality"
     (let [c (chord/chord :C 4 :major)]
-      (is (instance? cljseq.chord.Chord c))
+      (is (instance? nous.chord.Chord c))
       (is (= :major (:quality c)))
       (is (= 0      (:inversion c))))))
 
@@ -144,7 +144,7 @@
     (let [c  (chord/chord :C 4 :major)
           ps (chord/chord->pitches c)]
       (is (= 3 (count ps)))
-      (is (every? #(instance? cljseq.pitch.Pitch %) ps)))))
+      (is (every? #(instance? nous.pitch.Pitch %) ps)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Unknown quality throws

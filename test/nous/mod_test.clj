@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.mod-test
-  "Unit tests for cljseq.mod — Lfo, envelope, OneShot, and mod-route! runner."
+(ns nous.mod-test
+  "Unit tests for nous.mod — Lfo, envelope, OneShot, and mod-route! runner."
   (:require [clojure.test :refer [deftest is testing]]
-            [cljseq.clock  :as clock]
-            [cljseq.core   :as core]
-            [cljseq.ctrl   :as ctrl]
-            [cljseq.mod    :as mod]
-            [cljseq.phasor :as phasor])
+            [nous.clock  :as clock]
+            [nous.core   :as core]
+            [nous.ctrl   :as ctrl]
+            [nous.mod    :as mod]
+            [nomos.maths.phasor :as phasor])
 )
 
 ;; ---------------------------------------------------------------------------

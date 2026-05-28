@@ -1,15 +1,15 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.device
-  "cljseq MIDI device model — defdevice and EDN device map loading.
+(ns nous.device
+  "nous MIDI device model — defdevice and EDN device map loading.
 
   Loads device maps from EDN files in resources/devices/ and registers
   devices in the control tree. Two device roles are supported:
 
-    :target     — cljseq drives the device (e.g. Korg Minilogue XD)
+    :target     — nous drives the device (e.g. Korg Minilogue XD)
                   defdevice registers a ctrl node for every concrete CC entry
                   and binds each node to the corresponding MIDI CC number.
 
-    :controller — device transmits to cljseq (e.g. Arturia KeyStep)
+    :controller — device transmits to nous (e.g. Arturia KeyStep)
                   defdevice registers the device's bind-sources so that
                   device-bind! can translate human-readable source names
                   (e.g. :touch-strip) into ctrl tree bindings.
@@ -51,8 +51,8 @@
   Q55 (defdevice design — see inline notes in device.clj prior sprint)."
   (:require [clojure.java.io :as io]
             [clojure.edn     :as edn]
-            [cljseq.ctrl     :as ctrl]
-            [cljseq.dirs     :as dirs]))
+            [nous.ctrl     :as ctrl]
+            [nous.dirs     :as dirs]))
 
 ;; ---------------------------------------------------------------------------
 ;; Device registry
@@ -87,7 +87,7 @@
                 name-or-path)]
     (if-let [url (dirs/resolve-device-resource fname)]
       (edn/read-string (slurp url))
-      (throw (ex-info "cljseq.device/load-device-map: device map not found"
+      (throw (ex-info "nous.device/load-device-map: device map not found"
                       {:name name-or-path
                        :searched [(dirs/devices-dir)
                                   (str "classpath:resources/devices/" fname)]})))))
@@ -250,12 +250,12 @@
   [device-id path value]
   (let [reg (clojure.core/get @device-registry device-id)]
     (when-not reg
-      (throw (ex-info "cljseq.device/device-send!: unknown device"
+      (throw (ex-info "nous.device/device-send!: unknown device"
                       {:device device-id :registered (keys @device-registry)})))
     (let [resolved (if (keyword? value)
                      (let [lv (get-in reg [:resolvers path value])]
                        (if (nil? lv)
-                         (throw (ex-info "cljseq.device/device-send!: no resolver for label"
+                         (throw (ex-info "nous.device/device-send!: no resolver for label"
                                          {:device device-id :path path :label value
                                           :known-labels (keys (clojure.core/get-in reg [:resolvers path]))}))
                          lv))
@@ -284,12 +284,12 @@
   [path {:keys [device source]} & {:keys [priority] :or {priority 20}}]
   (let [reg (clojure.core/get @device-registry device)]
     (when-not reg
-      (throw (ex-info "cljseq.device/device-bind!: unknown device"
+      (throw (ex-info "nous.device/device-bind!: unknown device"
                       {:device device :registered (keys @device-registry)})))
     (let [bind-sources (clojure.core/get-in reg [:map :cljseq/bind-sources])
           source-info  (clojure.core/get bind-sources source)]
       (when-not source-info
-        (throw (ex-info "cljseq.device/device-bind!: unknown bind source"
+        (throw (ex-info "nous.device/device-bind!: unknown bind source"
                         {:device device :source source
                          :available (keys bind-sources)})))
       ;; :source is the bind-source name (e.g. :touch-strip); the underlying

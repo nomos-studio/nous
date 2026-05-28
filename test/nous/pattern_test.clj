@@ -1,14 +1,14 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.pattern-test
-  "Unit tests for cljseq.pattern — Pattern, Rhythm, motif!, transformations,
+(ns nous.pattern-test
+  "Unit tests for nous.pattern — Pattern, Rhythm, motif!, transformations,
   named library, Euclidean bridge."
   (:require [clojure.test    :refer [deftest is testing]]
-            [cljseq.chord    :as chord-ns]
-            [cljseq.core     :as core]
-            [cljseq.live  :as live]
-            [cljseq.loop     :as loop-ns]
-            [cljseq.pattern  :as pat]
-            [cljseq.scale    :as scale-ns]))
+            [nous.chord    :as chord-ns]
+            [nous.core     :as core]
+            [nous.live  :as live]
+            [nous.loop     :as loop-ns]
+            [nous.pattern  :as pat]
+            [nous.scale    :as scale-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; Constructor tests
@@ -78,9 +78,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:midi 60 64 67])
                         (pat/rhythm  [100 80 70])
@@ -97,9 +97,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:pitch :C4 :E4 :G4])
                         (pat/rhythm  [100 90 80])
@@ -118,9 +118,9 @@
       (let [played (atom [])
             ;; C major, root C4 (MIDI 60): degrees 1,2,3 = C4,D4,E4 = 60,62,64
             c-major (scale-ns/scale :C 4 :major)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*harmony-ctx*  c-major]
             (pat/motif! (pat/pattern [:scale 1 2 3])
@@ -137,9 +137,9 @@
             ;; C major 7 degrees; index 8 = degree 7 (idx 6 in 0-based = 7th degree B4 = 71) + octave? No.
             ;; pitch-at uses floorDiv: degree 7 (0-based) in 7-note scale → octave 1, idx 0 → C5 = 72
             c-major (scale-ns/scale :C 4 :major)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*harmony-ctx*  c-major]
             ;; index 8 (1-based) → 0-based degree 7 → pitch-at wraps: C5 = 72
@@ -160,9 +160,9 @@
       (let [played (atom [])
             ;; C major triad: C4=60, E4=64, G4=67
             c-major-chord (chord-ns/chord :C 4 :major)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*chord-ctx*    c-major-chord]
             (pat/motif! (pat/pattern [:chord 1 2 3])
@@ -178,9 +178,9 @@
       (let [played (atom [])
             ;; C major triad: [60 64 67]. Index 4 → 0-based 3 → floorDiv(3,3)=1 octave, idx=0 → 60+12=72
             c-major-chord (chord-ns/chord :C 4 :major)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*chord-ctx*    c-major-chord]
             (pat/motif! (pat/pattern [:chord 4])
@@ -198,9 +198,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             ;; Pattern 3 notes, rhythm: play, rest, play
             (pat/motif! (pat/pattern [:midi 60 64 67])
@@ -214,9 +214,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:midi 60 64])
                         (pat/rhythm  [100 :tie])
@@ -233,9 +233,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:midi 60 64 67])
                         (pat/rhythm  [100 80])
@@ -254,9 +254,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:midi 60 64 67])
                         (pat/rhythm  [100 90 80])
@@ -281,9 +281,9 @@
     (try
       (let [c        (chord-ns/chord :F 4 :min7)
             observed (promise)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [& _] nil)
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [& _] nil)
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (core/deflive-loop :chord-opt-test {:chord c}
             (deliver observed loop-ns/*chord-ctx*)
             (core/stop-loop! :chord-opt-test))
@@ -302,9 +302,9 @@
       (let [played  (atom [])
             ;; C major root = C4 = MIDI 60
             c-major (scale-ns/scale :C 4 :major)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*harmony-ctx*  c-major]
             ;; offsets 0,4,7 from C4(60) = C4,E4,G4 = 60,64,67
@@ -320,9 +320,9 @@
     (try
       (let [played  (atom [])
             c-major (scale-ns/scale :C 4 :major)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*harmony-ctx*  c-major]
             ;; offset -2 from C4(60) = Bb3 = 58
@@ -414,7 +414,7 @@
   (testing "rhythm-from-euclid 3 8 gives tresillo shape"
     ;; euclidean(3,8) = [1 0 0 1 0 0 1 0]
     (let [r (pat/rhythm-from-euclid 3 8)]
-      (is (instance? cljseq.pattern.Rhythm r))
+      (is (instance? nous.pattern.Rhythm r))
       (is (= 8 (count (:data r))))
       ;; 3 onsets (100), 5 rests (nil)
       (is (= 3 (count (filter some? (:data r)))))
@@ -443,7 +443,7 @@
 (deftest named-pattern-test
   (testing "named-pattern returns Pattern record for known names"
     (let [p (pat/named-pattern :bounce)]
-      (is (instance? cljseq.pattern.Pattern p))
+      (is (instance? nous.pattern.Pattern p))
       (is (= :chord (:ptype p))))
     (let [p (pat/named-pattern :scale-up)]
       (is (= :scale (:ptype p)))
@@ -468,7 +468,7 @@
 (deftest named-rhythm-test
   (testing "named-rhythm returns Rhythm record for known names"
     (let [r (pat/named-rhythm :tresillo)]
-      (is (instance? cljseq.pattern.Rhythm r))
+      (is (instance? nous.pattern.Rhythm r))
       (is (= 8 (count (:data r)))))
     (let [r (pat/named-rhythm :waltz)]
       (is (= 3 (count (:data r)))))
@@ -501,9 +501,9 @@
     (try
       (let [played        (atom [])
             c-major-chord (chord-ns/chord :C 4 :major)]   ; [60 64 67]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*chord-ctx*    c-major-chord]
             (pat/motif! (pat/named-pattern :up)
@@ -519,9 +519,9 @@
     (try
       (let [played        (atom [])
             c-major-chord (chord-ns/chord :C 4 :major)]
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*chord-ctx*    c-major-chord]
             (pat/motif! (pat/reverse-pattern (pat/named-pattern :up))
@@ -537,9 +537,9 @@
     (try
       (let [played (atom [])
             rhy    (pat/rhythm-from-euclid 5 8)]  ; 5 onsets in 8 steps
-        (with-redefs [cljseq.sidecar/connected?    (constantly true)
-                      cljseq.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      cljseq.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.sidecar/connected?    (constantly true)
+                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
+                      nous.sidecar/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             ;; 1-note pattern × 8-step rhythm = lcm(1,8)=8 steps, 5 onsets
             (pat/motif! (pat/pattern [:midi 60])
@@ -555,7 +555,7 @@
 (deftest locks-constructor-test
   (testing "locks creates Locks record with correct data"
     (let [l (pat/locks [{} {:mod/cutoff 127} nil {}])]
-      (is (instance? cljseq.pattern.Locks l))
+      (is (instance? nous.pattern.Locks l))
       (is (= [{} {:mod/cutoff 127} nil {}] (:data l)))))
 
   (testing "locks rejects empty data"
@@ -570,7 +570,7 @@
   (testing "make-motif-state returns a MotifState"
     (let [ms (pat/make-motif-state (pat/pattern [:midi 60 64])
                                    (pat/rhythm  [100 80]))]
-      (is (instance? cljseq.pattern.MotifState ms))
+      (is (instance? nous.pattern.MotifState ms))
       (is (= (pat/pattern [:midi 60 64]) (:pat ms)))
       (is (= (pat/rhythm  [100 80])      (:rhy ms)))
       (is (nil? (:locks ms)))
@@ -596,31 +596,31 @@
 
 (deftest motif-state-seq-cycle-length-test
   (testing "seq-cycle-length = lcm(pat-len, rhy-len) without locks"
-    (require '[cljseq.seq :as sq])
+    (require '[nous.seq :as sq])
     (let [ms (pat/make-motif-state (pat/pattern [:midi 60 64 67])
                                    (pat/rhythm  [100 80]))]
       ;; lcm(3,2) = 6
-      (is (= 6 ((resolve 'cljseq.seq/seq-cycle-length) ms)))))
+      (is (= 6 ((resolve 'nous.seq/seq-cycle-length) ms)))))
 
   (testing "seq-cycle-length = three-way lcm with locks"
-    (require '[cljseq.seq :as sq])
+    (require '[nous.seq :as sq])
     (let [lk (pat/locks [{} {:mod/cutoff 127} nil {}])   ; 4 steps
           ms (pat/make-motif-state (pat/pattern [:midi 60 64 67])  ; 3 steps
                                    (pat/rhythm  [100 80])          ; 2 steps
                                    :locks lk)]
       ;; lcm(lcm(3,2), 4) = lcm(6, 4) = 12
-      (is (= 12 ((resolve 'cljseq.seq/seq-cycle-length) ms))))))
+      (is (= 12 ((resolve 'nous.seq/seq-cycle-length) ms))))))
 
 (deftest motif-state-next-event-midi-test
   (testing "next-event on MotifState returns correct note maps"
-    (require '[cljseq.seq :as sq])
+    (require '[nous.seq :as sq])
     (let [ms  (pat/make-motif-state (pat/pattern [:midi 60 64 67])
                                     (pat/rhythm  [100 80 60])
                                     :clock-div 1/4
                                     :gate 0.5)
-          r0  ((resolve 'cljseq.seq/next-event) ms)
-          r1  ((resolve 'cljseq.seq/next-event) ms)
-          r2  ((resolve 'cljseq.seq/next-event) ms)]
+          r0  ((resolve 'nous.seq/next-event) ms)
+          r1  ((resolve 'nous.seq/next-event) ms)
+          r2  ((resolve 'nous.seq/next-event) ms)]
       (is (= 60  (get-in r0 [:event :pitch/midi])))
       (is (= 100 (get-in r0 [:event :mod/velocity])))
       (is (= 0.125 (double (get-in r0 [:event :dur/beats])))) ; 0.25 * 0.5
@@ -631,28 +631,28 @@
 
 (deftest motif-state-next-event-rest-test
   (testing "next-event returns {:event nil} for rest steps"
-    (require '[cljseq.seq :as sq])
+    (require '[nous.seq :as sq])
     (let [ms  (pat/make-motif-state (pat/pattern [:midi 60 64 67])
                                     (pat/rhythm  [100 nil 80])
                                     :clock-div 1/8)
-          r0  ((resolve 'cljseq.seq/next-event) ms)
-          r1  ((resolve 'cljseq.seq/next-event) ms)
-          r2  ((resolve 'cljseq.seq/next-event) ms)]
+          r0  ((resolve 'nous.seq/next-event) ms)
+          r1  ((resolve 'nous.seq/next-event) ms)
+          r2  ((resolve 'nous.seq/next-event) ms)]
       (is (= 60  (get-in r0 [:event :pitch/midi])) "step 0: note")
       (is (nil?  (:event r1))                        "step 1: rest (nil vel)")
       (is (= 67  (get-in r2 [:event :pitch/midi])) "step 2: note"))))
 
 (deftest motif-state-parameter-locks-test
   (testing "Locks values are merged into note map at matching step"
-    (require '[cljseq.seq :as sq])
+    (require '[nous.seq :as sq])
     (let [lk (pat/locks [{:mod/cutoff 127} {} {:mod/cutoff 32}])
           ms (pat/make-motif-state (pat/pattern [:midi 60 64 67])
                                    (pat/rhythm  [100 90 80])
                                    :locks lk
                                    :clock-div 1/8)
-          r0  ((resolve 'cljseq.seq/next-event) ms)
-          r1  ((resolve 'cljseq.seq/next-event) ms)
-          r2  ((resolve 'cljseq.seq/next-event) ms)]
+          r0  ((resolve 'nous.seq/next-event) ms)
+          r1  ((resolve 'nous.seq/next-event) ms)
+          r2  ((resolve 'nous.seq/next-event) ms)]
       (is (= 127 (:mod/cutoff (:event r0))) "lock merged at step 0")
       (is (nil?  (:mod/cutoff (:event r1))) "no lock at step 1")
       (is (= 32  (:mod/cutoff (:event r2))) "lock merged at step 2"))))

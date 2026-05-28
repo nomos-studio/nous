@@ -1,10 +1,10 @@
-# cljseq — Explorations
+# nous — Explorations
 
 Explorations are first-class artifacts that document compositional practice with
-cljseq. They are distinct from the user manual (which documents the system) and
+nous. They are distinct from the user manual (which documents the system) and
 from tests (which verify correctness).
 
-An exploration tells the story of *using* cljseq to make something — the musical
+An exploration tells the story of *using* nous to make something — the musical
 decisions, the sequencing layers in play, the harmonic context, what was tried and
 why. Think composer's notebook, not API reference.
 

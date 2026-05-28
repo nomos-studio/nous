@@ -7,7 +7,7 @@ The ctrl tree is a **semantic model of the studio**.
 A studio, for any given session, is the set of devices, processors, and
 compositional state that participate in that session — synthesizers, effects
 processors, controllers, the running loops, the harmony context, session
-configuration. The ctrl tree is cljseq's model of that studio: what devices
+configuration. The ctrl tree is nous's model of that studio: what devices
 exist, what their parameter spaces look like, and what we currently believe
 their state to be.
 

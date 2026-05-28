@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Boss WAZA-TAE (Tube Amp Expander) — cljseq device map
+;; Boss WAZA-TAE (Tube Amp Expander) — nous device map
 ;;
 ;; Power attenuator + cabinet simulation + reactive load + MIDI control.
 ;; Captures speaker cab response and redirects to XLR + headphones outputs.

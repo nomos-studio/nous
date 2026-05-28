@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ensemble
+(ns nous.ensemble
   "Ensemble harmony groundwork — shared harmonic context derived from live
   Temporal Buffer snapshots.
 
@@ -48,7 +48,7 @@
 
   The ear is implemented as a named deflive-loop (:harmony-ear) so it
   participates fully in the loop lifecycle — stop-loop!, hot-swap on
-  re-eval, and master clock sync all apply. Requires cljseq.core/start!
+  re-eval, and master clock sync all apply. Requires nous.core/start!
   to have been called first (same requirement as any live loop).
 
   On empty buffer / insufficient pitch diversity, the prior context is
@@ -57,12 +57,12 @@
   Key detection requires at least 3 distinct pitch classes; below that
   threshold :harmony/key and :harmony/chord are omitted from the returned
   context."
-  (:require [cljseq.analyze         :as analyze]
-            [cljseq.ctrl            :as ctrl]
-            [cljseq.live  :as live]
-            [cljseq.loop            :as loop-ns]
-            [cljseq.scale           :as scale-ns]
-            [cljseq.temporal-buffer :as tb]))
+  (:require [nous.analyze         :as analyze]
+            [nous.ctrl            :as ctrl]
+            [nous.live  :as live]
+            [nous.loop            :as loop-ns]
+            [nous.scale           :as scale-ns]
+            [nous.temporal-buffer :as tb]))
 
 ;; ---------------------------------------------------------------------------
 ;; ImprovisationContext derivation
@@ -183,7 +183,7 @@
   `buf-name` and publishes the result to *harmony-ctx*.
 
   The ear is opt-in: nothing runs automatically when a Temporal Buffer is
-  defined. Requires cljseq.core/start! to have been called first.
+  defined. Requires nous.core/start! to have been called first.
 
   Options:
     :cadence    — analysis interval in beats (default 4); phrase-boundary

@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Boss SDE-3000D Digital Delay (Dual) — cljseq device map
+;; Boss SDE-3000D Digital Delay (Dual) — nous device map
 ;;
 ;; Source: Boss SDE-3000D Owner's Manual, MIDI Implementation Chart (Appendix)
 ;;         https://www.boss.info/global/support/by_product/sde-3000d/owners_manuals/
@@ -78,7 +78,7 @@
   :transmit false}
 
  ;; -------------------------------------------------------------------------
- ;; Notes for cljseq integration
+ ;; Notes for nous integration
  ;; -------------------------------------------------------------------------
  ;; The dual-engine + stereo pan architecture enables a "ping-pong" delay
  ;; that can be automated in real time:

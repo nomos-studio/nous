@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.looper
+(ns nous.looper
   "Protocol and registry for looper/tape devices.
 
   `LooperDevice` defines the common vocabulary shared across loop-based and
@@ -7,9 +7,9 @@
   in all three supported devices (Aeros, EHX 95000, Strymon Volante). The rich
   device-specific vocabulary lives in the device namespaces:
 
-    cljseq.aeros     — part transitions, RPO state machine, song select
-    cljseq.ehx95000  — DUB feedback trajectories, OCT/half-speed, punch, SPP
-    cljseq.volante   — head matrix routing, Mechanics/Wear, preset system, SOS
+    nous.aeros     — part transitions, RPO state machine, song select
+    nous.ehx95000  — DUB feedback trajectories, OCT/half-speed, punch, SPP
+    nous.volante   — head matrix routing, Mechanics/Wear, preset system, SOS
 
   ## Protocol
 
@@ -36,8 +36,8 @@
 
   ## Example
 
-    (require '[cljseq.looper :as looper])
-    (require '[cljseq.aeros  :as aeros])
+    (require '[nous.looper :as looper])
+    (require '[nous.aeros  :as aeros])
 
     (def my-aeros (aeros/connect! {:channel 1}))
     (looper/register-looper! :aeros my-aeros)

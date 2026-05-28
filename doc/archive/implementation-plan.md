@@ -1,4 +1,4 @@
-# cljseq Implementation Plan
+# nous Implementation Plan
 
 ## Guiding Principles
 
@@ -24,9 +24,9 @@
 ## Repository Structure
 
 ```
-cljseq/
+nous/
 ├── src/
-│   └── cljseq/
+│   └── nous/
 │       ├── sidecar.clj      ; IPC client: launch, connect, schedule!
 │       ├── time.clj         ; virtual time, sleep!, in-thread
 │       ├── link.clj         ; Link API (wraps sidecar IPC)
@@ -50,7 +50,7 @@ cljseq/
 │   │   ├── rtmidi/          ; RtMidi (git submodule)
 │   │   ├── rtaudio/         ; RtAudio (git submodule)
 │   │   └── libpd/           ; libpd (git submodule)
-│   ├── libcljseq-rt/        ; shared C++ library (static or dynamic)
+│   ├── libnous-rt/        ; shared C++ library (static or dynamic)
 │   │   ├── CMakeLists.txt
 │   │   ├── include/
 │   │   │   ├── ipc_framing.hpp      ; message types, encode/decode
@@ -63,7 +63,7 @@ cljseq/
 │   │       ├── ipc_framing.cpp
 │   │       ├── link_engine.cpp
 │   │       └── osc_codec.cpp
-│   ├── cljseq-sidecar/      ; MIDI/OSC timing process (links libcljseq-rt)
+│   ├── nous-sidecar/      ; MIDI/OSC timing process (links libnous-rt)
 │   │   ├── CMakeLists.txt
 │   │   ├── include/
 │   │   │   ├── dispatcher.hpp
@@ -76,7 +76,7 @@ cljseq/
 │   │       ├── midi_out.cpp
 │   │       ├── osc_out.cpp
 │   │       └── ipc_server.cpp
-│   └── cljseq-audio/        ; plugin host / audio engine (links libcljseq-rt)
+│   └── nous-audio/        ; plugin host / audio engine (links libnous-rt)
 │       ├── CMakeLists.txt
 │       ├── include/
 │       │   ├── audio_engine.hpp
@@ -90,7 +90,7 @@ cljseq/
 │           ├── pd_target.cpp
 │           └── ipc_client.cpp
 ├── test/
-│   └── cljseq/
+│   └── nous/
 │       ├── time_test.clj
 │       ├── pitch_test.clj
 │       ├── scale_test.clj
@@ -108,10 +108,10 @@ No MIDI, no Link yet. This phase establishes the IPC contract and the build syst
 
 ### C++ deliverables
 
-**`libcljseq-rt` (built first; both binaries link against it)**
+**`libnous-rt` (built first; both binaries link against it)**
 
-- [ ] Top-level `native/CMakeLists.txt` with three targets: `cljseq-rt` (static lib),
-  `cljseq-sidecar` (executable), `cljseq-audio` (executable)
+- [ ] Top-level `native/CMakeLists.txt` with three targets: `nous-rt` (static lib),
+  `nous-sidecar` (executable), `nous-audio` (executable)
 - [ ] Link SDK, RtMidi, RtAudio, libpd as git submodules under `native/third_party/`
 - [ ] `ipc_framing.hpp/.cpp`: message types enum, `encode_frame()`, `decode_frame()`
 - [ ] `synth_target.hpp`: `SynthTarget` abstract class (note_on, note_off, param_change,
@@ -122,28 +122,28 @@ No MIDI, no Link yet. This phase establishes the IPC contract and the build syst
 - [ ] `spsc_queue.hpp`: lock-free single-producer/single-consumer queue template
 - [ ] `logging.hpp`: `log_info()`, `log_warn()`, `log_error()` writing to stderr
 
-**`cljseq-sidecar` (links `cljseq-rt`)**
+**`nous-sidecar` (links `nous-rt`)**
 
 - [ ] Standalone Asio available via Link's bundled headers
   (`modules/link/include/ableton/platforms/asio/`); no separate Asio dependency
 - [ ] `asio::io_context` constructed in `main()`; shared with Link SDK
 - [ ] Asio thread pool: `std::thread` × N calling `io_ctx.run()`
 - [ ] Unix domain socket IPC server via `asio::local::stream_protocol::acceptor`
-- [ ] IPC message framing delegated to `libcljseq-rt`'s `ipc_framing`
+- [ ] IPC message framing delegated to `libnous-rt`'s `ipc_framing`
 - [ ] Ping (`0xFF`) / Pong (`0xFF`) round-trip
 - [ ] Signal handling: `asio::signal_set` for `SIGTERM`/`SIGINT` graceful shutdown
-- [ ] Logging via `libcljseq-rt` logger
+- [ ] Logging via `libnous-rt` logger
 
-**`cljseq-audio` (links `cljseq-rt`) — skeleton only in Phase 0**
+**`nous-audio` (links `nous-rt`) — skeleton only in Phase 0**
 
-- [ ] Empty `main.cpp` that links `cljseq-rt` and exits cleanly; confirms the shared
+- [ ] Empty `main.cpp` that links `nous-rt` and exits cleanly; confirms the shared
   library builds and links correctly on the target platform
 - [ ] IPC client stub (connect to a Unix socket path passed as argv) — used in Phase 6
   when audio engine features are added
 
 ### Clojure deliverables
 
-- [ ] `cljseq.sidecar` namespace
+- [ ] `nous.sidecar` namespace
   - `(start! opts)` — launch sidecar subprocess, resolve socket path
   - `(stop!)` — send shutdown signal, wait for process exit
   - `(ping!)` — send ping, await pong with timeout; throws on failure
@@ -185,17 +185,17 @@ entire architecture.
 
 ### Clojure deliverables
 
-- [ ] `cljseq.time` namespace
+- [ ] `nous.time` namespace
   - Dynamic vars: `*virtual-time*` (plain rational, not atom — see Q1),
     `*beat*`, `*start-time*`, `*bpm*`, `*sched-ahead-ns*`
   - `(sleep! beats)` — virtual time advance + `LockSupport/parkNanos`
   - `(in-thread & body)` macro — captures bindings, spawns future
   - `(beat->ns bpm beats)` — pure conversion function
-- [ ] `cljseq.midi` namespace (data layer only — no device I/O)
+- [ ] `nous.midi` namespace (data layer only — no device I/O)
   - `(note-on port ch note vel time-ns)` → IPC message map
   - `(note-off port ch note vel time-ns)` → IPC message map
   - `(cc port ch cc-num val time-ns)` → IPC message map
-- [ ] `cljseq.sidecar/schedule!` — serialize event map → binary IPC message → send
+- [ ] `nous.sidecar/schedule!` — serialize event map → binary IPC message → send
 
 ### Test milestone
 
@@ -220,9 +220,9 @@ Verify with a MIDI monitor: note arrives within 1ms of target.
 
 ### Clojure deliverables
 
-- [ ] `cljseq.time`: `sleep!` full implementation with overrun detection
+- [ ] `nous.time`: `sleep!` full implementation with overrun detection
   - `*overrun-threshold-ns*` (default 10ms = weak warning, 100ms = kill)
-- [ ] `cljseq.seq` namespace
+- [ ] `nous.seq` namespace
   - `(live-loop name & body)` macro
     - Named loop registry (`defonce` atom of `{name → fn-atom}`)
     - Re-evaluation atomically replaces `fn-atom`; current iteration runs to
@@ -259,27 +259,27 @@ dependency — all pure functions.
 
 ### Clojure deliverables
 
-- [ ] `cljseq.pitch`
+- [ ] `nous.pitch`
   - Pitch record: `{:step :C :octave 4 :accidental nil :microtone 0}`
   - Derived views: `pitch->midi`, `pitch->ps`, `pitch->freq`, `pitch->pc`
   - `(spell midi)` — MIDI int → Pitch (with spelling inference)
   - `(enharmonic? p1 p2)` — same pitch space, different spelling
-- [ ] `cljseq.interval`
+- [ ] `nous.interval`
   - `(interval name-kw)` — `:M3`, `:m7`, `:P5`, etc.
   - `(interval semitones)` — chromatic, spelling inferred
   - `(interval p1 p2)` — from two pitches
   - Properties: `:semitones`, `:interval-class`, `:directed`, `:diatonic`
-- [ ] `cljseq.duration`
+- [ ] `nous.duration`
   - Duration record using Clojure rationals for `quarter-length`
   - `(duration type)` — `:quarter`, `:eighth`, `:whole`, etc.
   - `(dotted d)`, `(tuplet d actual normal)` — transformers
-- [ ] `cljseq.scale`
+- [ ] `nous.scale`
   - IntervalNetwork representation (directed edge graph)
   - `(pitch-at scale root degree)`, `(degree-of scale root pitch)`
   - `(next-pitch scale root pitch direction)`
   - `(pitches scale root lo hi)` — lazy seq
   - Bundled scales: port Overtone's 50+ scales + Sonic Pi additions
-- [ ] `cljseq.chord`
+- [ ] `nous.chord`
   - `(chord root quality)`, `(chord-at scale root numeral)`
   - Voicings: `:close`, `:open`, `:drop2`, `:drop3`
   - Post-tonal: `prime-form`, `forte-class`, `interval-vector`
@@ -304,15 +304,15 @@ probabilistic triggers. `play!` wired to sidecar.
 
 ### Clojure deliverables
 
-- [ ] `cljseq.harmony`
+- [ ] `nous.harmony`
   - `*harmony*` dynamic var: `{:key :C :mode :major :degree :I :chord-type :maj7}`
   - `(with-harmony opts & body)` macro
   - `(resolve-note selector harmony)` — chord/scale index → Pitch
-- [ ] `cljseq.rhythm`
+- [ ] `nous.rhythm`
   - `(euclid steps pulses)` → binary vector; `(euclid steps pulses rotate)`
   - `(rhythm velocities)` — nil = rest, `:tie` = tie
   - Clojure `Metronome` record: rational BPM arithmetic
-- [ ] `cljseq.seq` additions
+- [ ] `nous.seq` additions
   - `(pattern type indices)` — `:chord`, `:scale`, `:pitch` selectors
   - `(motif pattern rhythm opts)` — zip and play; independent cycle lengths
   - `(play! note-or-chord opts)` — resolves pitch, computes timestamp, → sidecar
@@ -352,7 +352,7 @@ probabilistic triggers. `play!` wired to sidecar.
 
 ### Clojure deliverables
 
-- [ ] `cljseq.link` namespace (see §15.8 API sketch)
+- [ ] `nous.link` namespace (see §15.8 API sketch)
 - [ ] `sleep!` Link branch: `(link/time-at-beat target-beat *quantum*)` replaces
   local BPM formula
 - [ ] `live-loop` Link preamble: park until `(link/next-quantum-start-ns)`
@@ -361,7 +361,7 @@ probabilistic triggers. `play!` wired to sidecar.
 
 ### Test milestone
 
-1. Run cljseq on two machines on the same LAN
+1. Run nous on two machines on the same LAN
 2. Start `live-loop` on machine A; start `live-loop` on machine B
 3. Both loops should align to the same beat grid within one quantum (4 beats)
 4. Change BPM on machine A; machine B's loop accelerates/decelerates to match
@@ -406,17 +406,17 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 - [ ] IPC types `0x50`/`0x51`: JVM registers/deregisters OSC address patterns with
   the sidecar. Sidecar updates its match set; subsequent incoming messages matching
   the pattern are forwarded.
-- [ ] Clojure: `cljseq.osc` namespace
+- [ ] Clojure: `nous.osc` namespace
   - `(on-osc address fn)` — register IPC type `0x50`; incoming `0x40` events fire
     `fn` as a `cue!` (inheriting virtual time from the cue mechanism)
   - `(send-osc! address args opts)` — encode to IPC type `0x10`, submit to sidecar
   - `(osc-bundle events time-ns)` — construct a bundle for simultaneous dispatch
 - [ ] `(on-osc "/vcv/cv1" (fn [val] (set-param! :filter-cutoff val)))` — typical use:
-  VCV Rack CV value controlling a cljseq parameter in real time
+  VCV Rack CV value controlling a nous parameter in real time
 
 ### 6b — Microtonality / Scala (Clojure)
 
-- [ ] `cljseq.tuning` namespace
+- [ ] `nous.tuning` namespace
   - `(parse-scl text)`, `(parse-kbm text)` — pure parsers
   - `(build-freq-table scl kbm)` — MIDI note → Hz map
   - `(retune-note midi-note scl kbm pb-range)` → `{:note :pitch-bend}`
@@ -426,7 +426,7 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 
 ### 6c — Tone Row + Misha-style Navigation (Clojure)
 
-- [ ] `cljseq.tone-row` namespace
+- [ ] `nous.tone-row` namespace
   - `retrograde`, `invert`, `retrograde-invert`, `transpose`, `row-matrix`
   - Generalized rows over any scale
   - `(advance row-state interval)` → `[pitch next-state]`
@@ -436,7 +436,7 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 
 *Implements §16. MIDI input surface is now tree bindings, not ad-hoc handlers.*
 
-- [ ] `cljseq.ctrl` namespace
+- [ ] `nous.ctrl` namespace
   - `ConcurrentHashMap<String, Node>` tree registry
   - `(defnode path opts)` — register value node (type, range, default); backed by atom
   - `(defmethod* path opts fn)` — register method node
@@ -453,11 +453,11 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
   - Conflict detection at bind time (Q9)
 - [ ] `(deflive-loop path param-map body-fn)` — registers loop + param subtree +
   standard method nodes (`trigger`, `stop`); `(live-loop name ...)` is sugar for this
-  with empty param-map and auto-generated path `/cljseq/loops/<name>` (Q11)
+  with empty param-map and auto-generated path `/nous/loops/<name>` (Q11)
 - [ ] `(defdevice path device-opts param-map)` — registers external MIDI device as
   tree node; writing a child node → MIDI CC send via `ctrl/send!` (Q10)
 - [ ] MIDI input integration: sidecar receives MIDI, pushes IPC type `0x60`
-  (new) to JVM; `cljseq.ctrl` dispatches to matching bindings
+  (new) to JVM; `nous.ctrl` dispatches to matching bindings
 - [ ] OSC input integration: incoming `0x40` events route directly to tree by
   OSC address match — no registration needed beyond the tree node existing
 
@@ -466,27 +466,27 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 *Implements §17 and §18. Depends on §16 control tree (Phase 6d).*
 
 - [ ] Add dependencies: `aleph`, `manifold`, `metosin/reitit` to `project.clj`
-- [ ] `cljseq.server.handler` — core tree handler + middleware stack
+- [ ] `nous.server.handler` — core tree handler + middleware stack
   (`wrap-coerce`, `wrap-osc-wildcards`, `wrap-log`)
-- [ ] `cljseq.server.http` — Ring ↔ `ctrl/*` adapter; HTTP start/stop
-- [ ] `cljseq.server.osc` — `aleph.udp` socket; OSC decode → normalized request;
+- [ ] `nous.server.http` — Ring ↔ `ctrl/*` adapter; HTTP start/stop
+- [ ] `nous.server.osc` — `aleph.udp` socket; OSC decode → normalized request;
   optional reply encoding; control-plane port (57121) distinct from sidecar
   data-plane path (Q12 resolution)
-- [ ] `cljseq.server.ws` — WebSocket subscription handler; `ctrl/watch!` integration
+- [ ] `nous.server.ws` — WebSocket subscription handler; `ctrl/watch!` integration
 - [ ] Content negotiation: JSON (default), EDN, HTML (Hiccup SSR + HTMX for live
   value updates via WebSocket) — Q14 resolution
-- [ ] `cljseq.server.mcp` — MCP JSON-RPC handler
+- [ ] `nous.server.mcp` — MCP JSON-RPC handler
   - `tools/list` → enumerate method nodes from tree
   - `tools/call` → `ctrl/call!` with arg coercion
   - `resources/list` / `resources/read` → `ctrl/ls` / `ctrl/describe` + value
   - `prompts/list` / `prompts/get` → static prompt registry
   - SSE stream for `notifications/resources/updated` (pushed by `ctrl/watch!`)
 - [ ] `repl/eval` tool: per-session authorization prompt; namespace whitelist
-  (`cljseq.user` by default); session transcript log (Q13)
-- [ ] `cljseq.server/start!` / `stop!` — unified lifecycle; both HTTP and OSC
+  (`nous.user` by default); session transcript log (Q13)
+- [ ] `nous.server/start!` / `stop!` — unified lifecycle; both HTTP and OSC
   share the same aleph `NioEventLoopGroup`
-- [ ] Test: `curl http://localhost:7000/cljseq/global/bpm` returns current BPM;
-  `curl -X PUT -d 138 /cljseq/global/bpm` changes it; TouchOSC OSC message does
+- [ ] Test: `curl http://localhost:7000/nous/global/bpm` returns current BPM;
+  `curl -X PUT -d 138 /nous/global/bpm` changes it; TouchOSC OSC message does
   the same; MCP `tools/call ctrl_set` does the same
 
 ### 6f — Music21 Python Sidecar (Clojure + Python)
@@ -498,7 +498,7 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
   - Method dispatch table: `corpus.*`, `analyze.*`, `tone-row.*`, `score.*`, `session.*`
   - Session handle registry (`_handles` dict) for server-side score objects
   - Graceful shutdown on `SIGTERM`
-- [ ] `cljseq.m21` Clojure namespace (§20.6)
+- [ ] `nous.m21` Clojure namespace (§20.6)
   - `(start!)` / `(stop!)` / `(running?)` lifecycle; `ProcessBuilder` launch
   - Background sender + reader threads; promise registry
   - Full RPC API: `analyze-key`, `analyze-key-floating`, `analyze-roman`,
@@ -508,9 +508,9 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
   - Corpus API: `search-corpus`, `parse-corpus`, `parse-file`, `soprano`, `part`, `measures`
   - Export API: `export-xml`, `export-midi`, `show`
   - `(m21/eventually! atom method params)` helper for safe use near live loops (Q20)
-- [ ] `cljseq.analyze` namespace — thin adapters delegating to `cljseq.m21` (§20.11)
-- [ ] `cljseq.corpus` namespace — thin adapters delegating to `cljseq.m21` (§20.11)
-- [ ] MCP bridge: register `m21_*` tools in `cljseq.server.mcp` dispatch (§20.12)
+- [ ] `nous.analyze` namespace — thin adapters delegating to `nous.m21` (§20.11)
+- [ ] `nous.corpus` namespace — thin adapters delegating to `nous.m21` (§20.11)
+- [ ] MCP bridge: register `m21_*` tools in `nous.server.mcp` dispatch (§20.12)
 - [ ] Test: `(m21/start!)` + `@(m21/analyze-key [{:pitch/midi 60} ...])` returns key map;
   `@(m21/parse-corpus "bach/bwv66.6")` returns handle; `@(m21/soprano handle)` returns
   note sequence; corpus round-trip from EDN → MusicXML → parse → EDN preserves MIDI numbers
@@ -519,14 +519,14 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 
 *Implements §24. Depends on §3 (pitch/scale), §5 (rhythm), Phase 2 (live-loop).*
 
-- [ ] **Unified step map spec** (`cljseq.step`):
+- [ ] **Unified step map spec** (`nous.step`):
   - `clojure.spec.alpha/def ::step` — validates all step map keys
   - Keys: `:pitch/midi :pitch/cents :dur/beats :gate/on? :gate/len :gate/ratchet`
     `:note/slew :mod/mode :mod/value :mod/shape :mod/rate`
   - `(step/make & kvs)` — constructor with defaults; validates via spec in dev mode
   - `play!` overload: `(play! target step-map)` dispatches note + ratchet + mod bundle
 
-- [ ] **`cljseq.bloom` namespace** — sequence transformation algebra (§24.3, §24.4):
+- [ ] **`nous.bloom` namespace** — sequence transformation algebra (§24.3, §24.4):
   - `(bloom/reverse-seq seq)` — reverse step order
   - `(bloom/inverse-seq seq scale root)` — mirror pitches around root
   - `(bloom/transpose-seq seq semitones scale)` — diatonic transposition
@@ -556,7 +556,7 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 
 - [ ] **`bloom` macro** (§24.8):
   - `(bloom name & opts)` — creates trunk + branch tree context
-  - Uses `defonce`; auto-registers in control tree at `/cljseq/bloom/<name>/`
+  - Uses `defonce`; auto-registers in control tree at `/nous/bloom/<name>/`
   - Reactive trunk watch with filter (Q39 resolution): `(bloom/freeze! name)` / `(bloom/thaw! name)`
   - `(next-step! my-bloom)`, `(set-path! my-bloom N)`, `(reseed! my-bloom)`,
     `(unmutate! my-bloom)`, `(mutate! my-bloom)`, `(current-branch my-bloom)`
@@ -574,13 +574,13 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 
 *Implements §23. Depends on §5 (rhythm), §16 (control tree), Phase 2 (virtual time).*
 
-- [ ] `cljseq.random` namespace:
+- [ ] `nous.random` namespace:
   - `(distribution :spread S :bias B)` → sampler fn `(fn [] → float in [0,1])`
   - Distribution shapes: point-mass (spread=0), gaussian (0.25), uniform (0.5-0.75), quantized (1.0)
   - `(weighted-scale scale-type weights)` → weighted scale map with `:scale/weights`
   - `(learn-scale-weights notes & {:keys [key]})` → pitch-class histogram → weighted scale
   - `(progressive-quantize value weighted-scale steps)` — steps [0,1] controls degree survival
-- [ ] `cljseq.stochastic` namespace:
+- [ ] `nous.stochastic` namespace:
   - `(stochastic-rhythm & opts)` → lazy seq of `{:beat offset :channel k}` events
     - Modes: `:complementary-bernoulli :independent-bernoulli :three-states :divider :drums`
     - Parameters: `:bias :jitter :channels :rate`
@@ -597,7 +597,7 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
   - `(stochastic-loops name targets durs)` — drives N live-loops from a single stochastic context
 - [ ] LFO-as-X-source: `stochastic-sequence` with `:rhythm :continuous` feeds `param-loop`
 - [ ] Control tree registration: all `defstochastic` parameters auto-registered at
-  `/cljseq/stochastic/<name>/t-bias`, `/x-deja-vu`, etc. for live CC/OSC control
+  `/nous/stochastic/<name>/t-bias`, `/x-deja-vu`, etc. for live CC/OSC control
 - [ ] Test: `(stochastic-rhythm :mode :complementary-bernoulli :bias 0.6)` produces mutually
   exclusive events; `(stochastic-sequence :spread 0.5 :deja-vu (atom 0.8) :loop-len 4)`
   repeats a 4-step pattern 80% of the time; jitter test confirms virtual time is unperturbed
@@ -614,7 +614,7 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 - [ ] `resources/rhythms/iqa.edn` — Arabic iqa'at hit patterns (§21.2.4)
 - [ ] `resources/rhythms/timeline.edn` — African timeline patterns (§21.4.1)
 - [ ] `resources/rhythms/clave.edn` — Afro-Cuban clave patterns (§21.5)
-- [ ] `cljseq.rhythm` namespace additions:
+- [ ] `nous.rhythm` namespace additions:
   - `(rhythm/iqa name)` → `{:hits [...] :period N :subdivisions N}`
   - `(rhythm/timeline name)` → same format
   - `(rhythm/clave name)` → same format
@@ -624,7 +624,7 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 
 *Implements §22. Depends on §16 (control tree), Phase 1 (sidecar CC output).*
 
-- [ ] `cljseq.rhythm` LFO primitives (§22.3):
+- [ ] `nous.rhythm` LFO primitives (§22.3):
   - `(lfo shape & opts)` → returns a value function `(fn [beat bpm] → value)`
   - Shapes: `:sine :cosine :triangle :sawtooth :square :s&h :envelope`
   - All shapes are beat-relative; frequency auto-adjusts with BPM via Link
@@ -686,9 +686,9 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 |---|---|---|---|
 | Ableton Link SDK | C++ (header-only) | MIT | Tempo/beat sync; bundles standalone Asio |
 | Standalone Asio (via Link) | C++ (header-only) | BSL-1.0 | All async I/O in both native binaries |
-| RtMidi | C++ | MIT | Cross-platform MIDI I/O (`cljseq-sidecar`) |
-| RtAudio | C++ | MIT | Cross-platform audio I/O (`cljseq-audio`) |
-| libpd | C | BSD | Embeddable Pure Data (`cljseq-audio`) |
+| RtMidi | C++ | MIT | Cross-platform MIDI I/O (`nous-sidecar`) |
+| RtAudio | C++ | MIT | Cross-platform audio I/O (`nous-audio`) |
+| libpd | C | BSD | Embeddable Pure Data (`nous-audio`) |
 | CMake ≥ 3.25 | Build | — | Native build system for all three targets |
 | Clojure ≥ 1.12 | JVM | EPL | DSL runtime |
 | nREPL | Clojure | EPL | Live coding interface |
@@ -705,10 +705,10 @@ forwards matched events to the JVM without any GC-induced jitter on the receive 
 
 No other runtime dependencies are required. Standalone Asio is not a separate
 install — it is present in the Link SDK submodule. RtAudio and libpd are only
-pulled into `cljseq-audio`; `cljseq-sidecar` does not link them. The shared
-`libcljseq-rt` library has no dependency on RtMidi, RtAudio, CLAP, or libpd headers.
+pulled into `nous-audio`; `nous-sidecar` does not link them. The shared
+`libnous-rt` library has no dependency on RtMidi, RtAudio, CLAP, or libpd headers.
 
-Music21 and Python are optional — the system runs fully without them; `cljseq.m21/start!`
+Music21 and Python are optional — the system runs fully without them; `nous.m21/start!`
 fails gracefully if Python is not found, and all `m21/` calls return `nil` with a
 warning rather than throwing.
 
@@ -731,15 +731,15 @@ substitution should be a project-wide decision made before Phase 0.
 | Q5: sched-ahead per-target | Phase 1: per-target config map in sidecar |
 | Q6: Stream consumption | Deferred to Phase 6+ (not blocking core) |
 | Q7: Ableton Link | Phase 5, with C++ sidecar from Phase 0 |
-| Q15: `libcljseq-rt` boundary | Phase 0: interfaces only; no RtMidi/RtAudio/CLAP/libpd headers |
+| Q15: `libnous-rt` boundary | Phase 0: interfaces only; no RtMidi/RtAudio/CLAP/libpd headers |
 | Q16: Process topology | Phase 0: Option A (direct JVM→process connections) |
 | Q17: CLAP parameter count | Phase 6: lazy tree + bulk-fetch IPC `0x75` |
 | Q18: Pd patch hot-swap | Phase 6: pre-load pool + atomic swap at buffer boundary |
-| Q19: `cljseq-audio` Link peers | Phase 5/6: measure drift; fallback to single-peer IPC forwarding |
+| Q19: `nous-audio` Link peers | Phase 5/6: measure drift; fallback to single-peer IPC forwarding |
 | Q20: Music21 async from live-loop | Phase 6f: `m21/eventually!` helper; doc constraint |
 | Q21: Score serialization canonical form | Phase 6f: defined in Python server `_note_to_json()` |
 | Q22: In-process Music21 | Resolved: subprocess is sufficient |
-| Q23: cljseq vs Music21 overlap | Resolved: §20.8 division-of-labor table |
+| Q23: nous vs Music21 overlap | Resolved: §20.8 division-of-labor table |
 | Q24: Music21 corpus licensing | Resolved: no bundling; runtime delegation |
 | Q25: Maqam microtonal representation | Phase 6g: cents-offset + CLAP_EXT_TUNING |
 | Q26: Gamelan tuning | Phase 6g: `.scl` files in resources/ |

@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Behringer 2600 / Grey Meanie — cljseq device map
+;; Behringer 2600 / Grey Meanie — nous device map
 ;;
 ;; ARP 2600 clone. The original ARP 2600 had no MIDI; Behringer added a
 ;; MIDI-to-CV engine compatible with the optional ARP 3620 keyboard connector.

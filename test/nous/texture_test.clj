@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.texture-test
-  "Tests for cljseq.texture — ITexture protocol, registry, TemporalBufferTexture,
+(ns nous.texture-test
+  "Tests for nous.texture — ITexture protocol, registry, TemporalBufferTexture,
   and texture-transition!."
   (:require [clojure.test           :refer [deftest is testing use-fixtures]]
-            [cljseq.texture         :as tx]
-            [cljseq.temporal-buffer :as tb]))
+            [nous.texture         :as tx]
+            [nous.temporal-buffer :as tb]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

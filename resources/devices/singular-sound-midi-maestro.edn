@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Singular Sound MIDI Maestro — cljseq device map
+;; Singular Sound MIDI Maestro — nous device map
 ;;
 ;; 6-button MIDI foot controller. TRANSMIT-ONLY — no MIDI IN port.
 ;; Designed as primary foot controller for the Singular Sound ecosystem
@@ -8,7 +8,7 @@
 ;; CCs; additional custom modes via MIDI Maestro Manager app.
 ;;
 ;; !! NO MIDI IN !! — cannot receive any MIDI messages; cannot be addressed
-;; by cljseq. This device is a CONTROLLER only.
+;; by nous. This device is a CONTROLLER only.
 ;;
 ;; Ecosystem chain: MIDI Maestro OUT → BeatBuddy IN (BeatBuddy merges + forwards to Aeros)
 ;;
@@ -19,11 +19,11 @@
  :device/name         "Singular Sound MIDI Maestro"
  :device/manufacturer "Singular Sound"
  :device/type         :foot-controller
- :device/role         :source    ; transmit-only; cljseq cannot address this device
+ :device/role         :source    ; transmit-only; nous cannot address this device
  :device/connectivity [:din-midi]
 
  ;; MIDI Maestro has NO MIDI IN — transmit only
- ;; cljseq has no way to send to this device
+ ;; nous has no way to send to this device
  :midi/receive        false
  :midi/channel        1         ; default transmit channel; configurable
 
@@ -36,7 +36,7 @@
   :din-out  true    ; MIDI OUT only; connects to BeatBuddy IN in standard chain
   :usb      true}   ; USB for MIDI Maestro Manager app config
 
- ;; MIDI Maestro transmits; cljseq receives (via monitoring) but cannot control it.
+ ;; MIDI Maestro transmits; nous receives (via monitoring) but cannot control it.
  ;; The following documents what it SENDS in its two built-in App Modes.
 
  ;; APP MODE 1 — BeatBuddy Mode
@@ -79,10 +79,10 @@
   :note    "MIDI Maestro cannot be placed downstream (no MIDI IN); must be first in chain"}
 
  :device/notes
- {:no-midi-in        "MIDI Maestro has NO MIDI IN — it is a pure transmitter; cljseq cannot address or LED-control it"
+ {:no-midi-in        "MIDI Maestro has NO MIDI IN — it is a pure transmitter; nous cannot address or LED-control it"
   :chain-constraint  "Must connect MIDI Maestro OUT → BeatBuddy IN; BeatBuddy's merge port then forwards to Aeros"
-  :cljseq-use        "cljseq can monitor MIDI Maestro output (via BeatBuddy or dedicated interface channel) but cannot send to it"
-  :custom-modes      "Custom CC assignments via MIDI Maestro Manager app; not visible to cljseq at runtime"}
+  :nous-use        "nous can monitor MIDI Maestro output (via BeatBuddy or dedicated interface channel) but cannot send to it"
+  :custom-modes      "Custom CC assignments via MIDI Maestro Manager app; not visible to nous at runtime"}
 
  :device/map-source    "Singular Sound MIDI Maestro User Manual — singularsound.com"
  :device/map-version   "2026-04-06"

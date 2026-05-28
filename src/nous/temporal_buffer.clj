@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.temporal-buffer
+(ns nous.temporal-buffer
   "Temporal Buffer — accumulating beat-timestamped event store with windowed
   playback zones.
 
@@ -51,9 +51,9 @@
     Phase 5: Hold control remapping, named presets, trajectory integration
 
   Design: doc/design-temporal-buffer.md (§§2–5, §11, §16 Phase 1–2)"
-  (:require [cljseq.clock   :as clock]
-            [cljseq.loop    :as loop-ns]
-            [cljseq.sidecar :as sidecar])
+  (:require [nous.clock   :as clock]
+            [nous.loop    :as loop-ns]
+            [nous.sidecar :as sidecar])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
@@ -63,7 +63,7 @@
 (defonce ^:private system-ref (atom nil))
 
 (defn -register-system!
-  "Called by cljseq.core/start! to inject the system-state atom."
+  "Called by nous.core/start! to inject the system-state atom."
   [state-atom]
   (reset! system-ref state-atom))
 
@@ -497,11 +497,11 @@
                       :thread      nil
                       :skew-thread nil}]
      (swap! registry assoc buf-name entry)
-     (let [t (start-thread! (str "cljseq-tbuf-" (name buf-name))
+     (let [t (start-thread! (str "nous-tbuf-" (name buf-name))
                             #(playback-runner buf-name running? :a))]
        (swap! registry update buf-name assoc :thread t))
      (when skew
-       (let [st (start-thread! (str "cljseq-tbuf-" (name buf-name) "-skew")
+       (let [st (start-thread! (str "nous-tbuf-" (name buf-name) "-skew")
                                #(playback-runner buf-name running? :b))]
          (swap! registry update buf-name assoc :skew-thread st)))
      buf-name)))
@@ -522,7 +522,7 @@
   nil)
 
 (defn stop-all!
-  "Stop all active temporal buffers. Called by cljseq.core/stop!."
+  "Stop all active temporal buffers. Called by nous.core/stop!."
   []
   (doseq [n (keys @registry)]
     (stop! n))
@@ -893,7 +893,7 @@
   Returns nil when the buffer is not registered.
   Returns an empty vector when the buffer exists but has no events in window.
 
-  Intended for analysis consumers (e.g. cljseq.ensemble/analyze-buffer)
+  Intended for analysis consumers (e.g. nous.ensemble/analyze-buffer)
   that need a point-in-time pitch snapshot without touching internal state."
   [buf-name]
   (when-let [entry (get @registry buf-name)]

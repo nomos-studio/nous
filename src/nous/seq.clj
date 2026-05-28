@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.seq
+(ns nous.seq
   "IStepSequencer — unified protocol for all step-based generators.
 
-  Every sequencer in cljseq — Pattern×Rhythm motifs, arpeggiators, raw note
+  Every sequencer in nous — Pattern×Rhythm motifs, arpeggiators, raw note
   lists, generative engines — implements IStepSequencer. The protocol has two
   operations: advance one step and report cycle length.
 
@@ -24,7 +24,7 @@
 
   ## The note map
 
-  Every :event returned by next-event is a standard cljseq step map:
+  Every :event returned by next-event is a standard nous step map:
     {:pitch/midi   long     — MIDI note number
      :dur/beats    number   — gate duration in beats
      :mod/velocity long     — velocity 0–127
@@ -51,16 +51,16 @@
 
   ## Relationship to ITransformer
 
-  ITransformer (cljseq.transform) is post-generation: it receives a note map
+  ITransformer (nous.transform) is post-generation: it receives a note map
   and returns zero or more transformed events (echoes, harmonies, etc.).
   IStepSequencer is pre-dispatch: it generates the note maps. They compose:
 
     (run-cycle! sq {:xf (compose-xf (harmonize ...) (echo ...))})
 
-  See cljseq.pattern/make-motif-state, cljseq.arp/make-arp-state."
-  (:require [cljseq.loop      :as loop-ns]
-            [cljseq.live      :as live]
-            [cljseq.transform :as xf]))
+  See nous.pattern/make-motif-state, nous.arp/make-arp-state."
+  (:require [nous.loop      :as loop-ns]
+            [nous.live      :as live]
+            [nous.transform :as xf]))
 
 ;; ---------------------------------------------------------------------------
 ;; Protocol
@@ -72,7 +72,7 @@
 
     Returns a map:
       {:event note-map :beats duration}   — a note; note-map is a standard
-                                            cljseq step map (see ns docstring).
+                                            nous step map (see ns docstring).
       {:event nil      :beats duration}   — a rest; sleep only.")
   (seq-cycle-length [sq]
     "Number of steps in one full cycle.
@@ -120,7 +120,7 @@
   "Play one full cycle of sequencer `sq`, blocking until complete.
 
   Options:
-    :xf — an ITransformer (from cljseq.transform) applied to each event.
+    :xf — an ITransformer (from nous.transform) applied to each event.
           nil means play directly via live/play!.
 
   Returns nil. Intended to be called from inside a deflive-loop body.

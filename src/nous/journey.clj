@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.journey
+(ns nous.journey
   "Journey composition conductor — Phaedra/Rubycon structural arc support.
 
   A 'journey' composition in the Berlin School tradition is not a sequence of
@@ -24,7 +24,7 @@
 
   ## Quick start
 
-    (require '[cljseq.journey :as journey])
+    (require '[nous.journey :as journey])
 
     ;; Start the global bar counter (ticks every 4 beats)
     (journey/start-bar-counter!)
@@ -40,8 +40,8 @@
     (journey/phase-pair 12 17)
     ;; => {:lcm 204 :alignment-beats [204 408 612 816 1020]
     ;;     :drift-rate 0.0294 :at-bpm {:bpm 100 :minutes 2.04}}"
-  (:require [cljseq.core :as core]
-            [cljseq.loop :as loop-ns]))
+  (:require [nous.core :as core]
+            [nous.loop :as loop-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; 1. Global bar counter

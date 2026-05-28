@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.transform-test
-  "Tests for cljseq.transform — ITransformer protocol, composition,
+(ns nous.transform-test
+  "Tests for nous.transform — ITransformer protocol, composition,
   play-transformed!, and all eight built-in transformers."
   (:require [clojure.test     :refer [deftest is testing use-fixtures]]
-            [cljseq.transform :as xf]
-            [cljseq.scale     :as scale-ns]
-            [cljseq.loop      :as loop-ns]))
+            [nous.transform :as xf]
+            [nous.scale     :as scale-ns]
+            [nous.loop      :as loop-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; Test helpers
@@ -446,7 +446,7 @@
     (let [played (atom [])
           x      (xf/note-repeat {:n-copies 3 :window-beats 0})  ; all at delay 0
           ev     (note)]
-      (with-redefs [cljseq.core/play! (fn [e] (swap! played conj e) nil)]
+      (with-redefs [nous.core/play! (fn [e] (swap! played conj e) nil)]
         (xf/play-transformed! x ev)
         ;; Wait briefly for any threads (there should be none since delays = 0)
         (Thread/sleep 5))
@@ -456,7 +456,7 @@
   (testing "play-transformed! with nil event does not throw"
     (let [played (atom 0)
           x      (xf/echo {:repeats 2})]
-      (with-redefs [cljseq.core/play! (fn [_] (swap! played inc) nil)]
+      (with-redefs [nous.core/play! (fn [_] (swap! played inc) nil)]
         (xf/play-transformed! x nil))
       (is (= 0 @played)))))
 
@@ -465,8 +465,8 @@
     (let [played  (atom [])
           ;; Use a very short delay so the test completes quickly
           x       (xf/echo {:repeats 1 :decay 0.9 :delay-beats 0.001})]  ; ~0.5ms at 120 BPM
-      (with-redefs [cljseq.core/play! (fn [e] (swap! played conj e) nil)
-                    cljseq.core/get-bpm (constantly 120)]
+      (with-redefs [nous.core/play! (fn [e] (swap! played conj e) nil)
+                    nous.core/get-bpm (constantly 120)]
         (xf/play-transformed! x (note))
         ;; Immediate event plays synchronously; delayed one may not have fired yet
         (Thread/sleep 50))  ; generous window for the 0.5ms delay thread

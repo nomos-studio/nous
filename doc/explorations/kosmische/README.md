@@ -8,7 +8,7 @@
 
 ## Intent
 
-An extended piece built entirely from cljseq's compositional stack:
+An extended piece built entirely from nous's compositional stack:
 drone voices via the s42 patch, ostinati layered over the top, a journey arc
 governing harmonic evolution over tens of minutes. The exploration is also a
 live test of the travel-rig setup — headless SC, Hydrasynth, mobile dev
@@ -23,14 +23,14 @@ compositional tool rather than a limitation.
 
 ## What this exploration exercises
 
-- `cljseq.journey` — `start-journey!`, `phase-pair`, bar counter as
+- `nous.journey` — `start-journey!`, `phase-pair`, bar counter as
   compositional clock; section boundaries derived from bar position rather than
   wall-clock time
-- `cljseq.berlin` — drone and texture namespaces ported from `explore/berlin-school`
-- `cljseq.sc` — headless scsynth startup, sc-play!, sc-sync! reliability fixes
+- `nous.berlin` — drone and texture namespaces ported from `explore/berlin-school`
+- `nous.sc` — headless scsynth startup, sc-play!, sc-sync! reliability fixes
 - s42 patch — four-voice SuperCollider synth (drone, VCO, papa, filter);
   stereo reverb workaround for SC 3.14 integer-arg bug
-- `cljseq.conductor` — section-based arc management across the full piece
+- `nous.conductor` — section-based arc management across the full piece
 - Frippertronics arc — tape-delay-style feedback loop built from live-loops
   with overlapping sleep periods
 

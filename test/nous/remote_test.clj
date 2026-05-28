@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.remote-test
+(ns nous.remote-test
   (:require [clojure.test   :refer [deftest is testing use-fixtures]]
-            [cljseq.bencode :as bc]
-            [cljseq.remote  :as remote]))
+            [nous.bencode :as bc]
+            [nous.remote  :as remote]))
 
 ;; ---------------------------------------------------------------------------
 ;; Mock socket infrastructure
@@ -160,6 +160,6 @@
              [])))]
     (binding [remote/*open-connection* conn-fn]
       (let [conn (remote/connect! "localhost" 7888)]
-        (remote/remote-eval! conn "1" {:ns "cljseq.peer"})
-        (is (= "cljseq.peer" @received-ns))
+        (remote/remote-eval! conn "1" {:ns "nous.peer"})
+        (is (= "nous.peer" @received-ns))
         (remote/disconnect! conn)))))

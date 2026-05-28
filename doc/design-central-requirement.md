@@ -97,4 +97,4 @@ should be able to:
 
 The NDLR cannot do this. No current instrument can do this.
 
-That is what cljseq is for.
+That is what nous is for.

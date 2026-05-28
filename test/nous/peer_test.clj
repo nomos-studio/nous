@@ -1,15 +1,15 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.peer-test
-  "Tests for cljseq.peer — node identity, beacon format, peer registry,
+(ns nous.peer-test
+  "Tests for nous.peer — node identity, beacon format, peer registry,
   ctrl-tree mounting, and ImprovisationContext serialization helpers.
 
   Network IO (UDP sockets, HTTP) is tested via the *http-get* dynamic binding
   and direct atom manipulation; no live network is required."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
             [clojure.edn   :as edn]
-            [cljseq.peer   :as peer]
-            [cljseq.pitch  :as pitch-ns]
-            [cljseq.scale  :as scale-ns]))
+            [nous.peer   :as peer]
+            [nous.pitch  :as pitch-ns]
+            [nous.scale  :as scale-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers — private atom access
@@ -289,7 +289,7 @@
                              "harmony/tension" 0.65}
                    "type" "data"}]
       (binding [peer/*http-get* (fn [_] resp)]
-        (with-redefs [cljseq.ctrl/set! (fn [path v] (reset! written {:path path :value v}) nil)]
+        (with-redefs [nous.ctrl/set! (fn [path v] (reset! written {:path path :value v}) nil)]
           (#'peer/poll-ctrl-node! "http://10.0.0.1:7177"
                                   "/ctrl/ensemble/harmony-ctx"
                                   [:peers :ubuntu :ensemble :ctx])))
@@ -301,7 +301,7 @@
   (testing "poll-ctrl-node! returns nil when *http-get* returns nil"
     (let [written (atom ::not-called)]
       (binding [peer/*http-get* (constantly nil)]
-        (with-redefs [cljseq.ctrl/set! (fn [_ v] (reset! written v) nil)]
+        (with-redefs [nous.ctrl/set! (fn [_ v] (reset! written v) nil)]
           (let [r (#'peer/poll-ctrl-node! "http://10.0.0.1:7177"
                                           "/ctrl/ensemble/harmony-ctx"
                                           [:peers :ubuntu :ensemble :ctx])]
@@ -313,7 +313,7 @@
     (let [written (atom ::not-called)
           resp    {"path" ["ensemble" "harmony-ctx"] "type" "data"}]
       (binding [peer/*http-get* (constantly resp)]
-        (with-redefs [cljseq.ctrl/set! (fn [_ v] (reset! written v) nil)]
+        (with-redefs [nous.ctrl/set! (fn [_ v] (reset! written v) nil)]
           (#'peer/poll-ctrl-node! "http://10.0.0.1:7177"
                                   "/ctrl/ensemble/harmony-ctx"
                                   [:peers :ubuntu :ensemble :ctx])))

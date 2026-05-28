@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Chaos Synthesis — cljseq SCLang showcase
+;; Chaos Synthesis — nous SCLang showcase
 ;; =========================================
 ;;
 ;; Demonstrates:
@@ -24,7 +24,7 @@
 ;;   a tone becomes two tones, then four, then eight, then chaos. This transition
 ;;   is a spectrum of timbral states impossible to produce with standard methods.
 ;;
-;;   In cljseq, :chaos [0..1] is a first-class trajectory target. A bifurcation
+;;   In nous, :chaos [0..1] is a first-class trajectory target. A bifurcation
 ;;   arc drives the Lorenz r from 10 (stable) to 50 (deep chaos) — the composition
 ;;   is the trajectory across this parameter space.
 ;;

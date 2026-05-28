@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.supervisor-test
-  "Tests for cljseq.supervisor — event bus, service registry, watchdog,
+(ns nous.supervisor-test
+  "Tests for nous.supervisor — event bus, service registry, watchdog,
   loop pause/resume integration."
   (:require [clojure.test      :refer [deftest is testing use-fixtures]]
-            [cljseq.core       :as core]
-            [cljseq.loop       :as loop-ns]
-            [cljseq.supervisor :as supervisor]))
+            [nous.core       :as core]
+            [nous.loop       :as loop-ns]
+            [nous.supervisor :as supervisor]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures

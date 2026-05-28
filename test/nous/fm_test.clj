@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.fm-test
+(ns nous.fm-test
   (:require [clojure.test  :refer [deftest is testing are]]
             [clojure.string :as str]
-            [cljseq.fm     :as fm]))
+            [nous.fm     :as fm]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers

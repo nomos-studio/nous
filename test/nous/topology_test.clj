@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.topology-test
-  "Tests for cljseq.topology -- Layer 1: load, query, port resolution."
+(ns nous.topology-test
+  "Tests for nous.topology -- Layer 1: load, query, port resolution."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
-            [cljseq.topology :as topology]))
+            [nous.topology :as topology]))
 
 ;; ---------------------------------------------------------------------------
 ;; Test topology EDN (written to a temp file for each test)
@@ -31,7 +31,7 @@
    {:iface-1 {:manufacturer "Test" :model "TestMio" :port-pattern "TestMio"
               :host :host-a}}
    :hosts
-   {:host-a {:role :cljseq-host :os :macos}}})
+   {:host-a {:role :nous-host :os :macos}}})
 
 (def ^:private bad-topology-edn
   {:topology/id :bad
@@ -188,7 +188,7 @@
   (testing "resolve-output-port calls find-midi-port with :port-pattern"
     (topology/load-topology! (write-temp-edn test-topology-edn))
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/find-midi-port
+      (with-redefs [nous.sidecar/find-midi-port
                     (fn [pat & {:keys [direction]}]
                       (swap! calls conj {:pat pat :dir direction})
                       42)]
@@ -202,7 +202,7 @@
   (testing "resolve-input-port uses :in-pattern when present"
     (topology/load-topology! (write-temp-edn test-topology-edn))
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/find-midi-port
+      (with-redefs [nous.sidecar/find-midi-port
                     (fn [pat & {:keys [direction]}]
                       (swap! calls conj {:pat pat :dir direction})
                       7)]
@@ -215,7 +215,7 @@
   (testing "resolve-input-port falls back to :port-pattern when :in-pattern absent"
     (topology/load-topology! (write-temp-edn test-topology-edn))
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/find-midi-port
+      (with-redefs [nous.sidecar/find-midi-port
                     (fn [pat & {:keys [direction]}]
                       (swap! calls conj {:pat pat :dir direction})
                       3)]
@@ -242,8 +242,8 @@
   (testing "start-sidecar! resolves alias and passes port index to sidecar"
     (topology/load-topology! (write-temp-edn test-topology-edn))
     (let [sidecar-calls (atom nil)]
-      (with-redefs [cljseq.sidecar/find-midi-port (fn [_ & _] 2)
-                    cljseq.sidecar/start-sidecar!  (fn [& args]
+      (with-redefs [nous.sidecar/find-midi-port (fn [_ & _] 2)
+                    nous.sidecar/start-sidecar!  (fn [& args]
                                                      (reset! sidecar-calls args))]
         (topology/start-sidecar! :synth-a)
         (let [args @sidecar-calls]
@@ -254,8 +254,8 @@
   (testing "start-sidecar! with :input resolves both output and input ports"
     (topology/load-topology! (write-temp-edn test-topology-edn))
     (let [sidecar-calls (atom nil)]
-      (with-redefs [cljseq.sidecar/find-midi-port (fn [_ & _] 5)
-                    cljseq.sidecar/start-sidecar!  (fn [& args]
+      (with-redefs [nous.sidecar/find-midi-port (fn [_ & _] 5)
+                    nous.sidecar/start-sidecar!  (fn [& args]
                                                      (reset! sidecar-calls args))]
         (topology/start-sidecar! :synth-a :input :ctrl-1)
         (let [args @sidecar-calls]

@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.scala-test
-  "Unit tests for cljseq.scala — Scala (.scl) file parsing and microtonal pitch math.
+(ns nous.scala-test
+  "Unit tests for nous.scala — Scala (.scl) file parsing and microtonal pitch math.
 
   All tests are pure (no REPL, no sidecar, no file I/O beyond inline strings).
   The :pitch/bend-cents integration with core/play! is tested in core_test."
   (:require [clojure.string :as str]
             [clojure.test   :refer [deftest is testing]]
-            [cljseq.scala   :as scala]))
+            [nous.scala   :as scala]))
 
 ;; ---------------------------------------------------------------------------
 ;; SCL string fixtures

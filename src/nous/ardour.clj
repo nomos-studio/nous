@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ardour
+(ns nous.ardour
   "Ardour DAW integration via OSC (Phase 1).
 
   Provides transport control, session management, and the 'ubiquitous capture'
@@ -54,7 +54,7 @@
   When :osc-path binding type is implemented, Ardour/Mixbus will become
   a defdevice with osc-path bindings. This namespace is the precursor."
   (:require [clojure.string :as str]
-            [cljseq.osc     :as osc])
+            [nous.osc     :as osc])
   (:import  [java.time Instant]))
 
 ;; ---------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.freesound
+(ns nous.freesound
   "Freesound API integration — fetch-on-use sample discovery and caching.
 
   Provides a thin client over the Freesound API v2 for sample discovery,
-  download, and integration with the cljseq.sample buffer registry.
+  download, and integration with the nous.sample buffer registry.
 
   ## Setup
 
@@ -11,7 +11,7 @@
 
     (freesound/set-api-key! \"your-api-key-here\")
 
-  Or set the FREESOUND_API_KEY environment variable before starting cljseq.
+  Or set the FREESOUND_API_KEY environment variable before starting nous.
 
   ## Fetching individual samples
 
@@ -42,8 +42,8 @@
 
   ## Cache layout
 
-    ~/.cache/cljseq/samples/{id}.{ext}   — downloaded sample files
-    ~/.cache/cljseq/samples/meta/        — cached API metadata (JSON)
+    ~/.cache/nous/samples/{id}.{ext}   — downloaded sample files
+    ~/.cache/nous/samples/meta/        — cached API metadata (JSON)
 
   ## Essentials catalog
 
@@ -57,8 +57,8 @@
   (:require [clojure.java.io :as io]
             [clojure.edn     :as edn]
             [clojure.data.json :as json]
-            [cljseq.dirs     :as dirs]
-            [cljseq.sample   :as smp])
+            [nous.dirs     :as dirs]
+            [nous.sample   :as smp])
   (:import [java.net HttpURLConnection URL]
            [java.io  File]))
 

@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.dirs-test
-  "Unit tests for cljseq.dirs — layout selection, path resolution,
+(ns nous.dirs-test
+  "Unit tests for nous.dirs — layout selection, path resolution,
   environment variable overrides, and device resource search order."
   (:require [clojure.java.io  :as io]
             [clojure.string   :as str]
             [clojure.test     :refer [deftest is testing use-fixtures]]
-            [cljseq.dirs      :as dirs]))
+            [nous.dirs      :as dirs]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixture — restore the active layout after each test
@@ -51,40 +51,40 @@
 
 (deftest xdg-layout-data-dir-default-test
   (testing "xdg-layout data dir uses ~/.local/share when XDG_DATA_HOME unset"
-    (with-redefs [cljseq.dirs/read-env (fn [k] (when (= k "CLJSEQ_LAYOUT") nil))]
+    (with-redefs [nous.dirs/read-env (fn [k] (when (= k "CLJSEQ_LAYOUT") nil))]
       (let [layout (dirs/xdg-layout)
             result ((:data layout))]
         (is (str/starts-with? result (str (home) "/.local/share")))
-        (is (str/ends-with? result "/cljseq"))))))
+        (is (str/ends-with? result "/nous"))))))
 
 (deftest xdg-layout-respects-xdg-data-home-test
   (testing "xdg-layout uses XDG_DATA_HOME when set"
-    (with-redefs [cljseq.dirs/read-env (fn [k]
+    (with-redefs [nous.dirs/read-env (fn [k]
                                          (case k
                                            "XDG_DATA_HOME" "/custom/data"
                                            nil))]
       (let [layout (dirs/xdg-layout)]
-        (is (= "/custom/data/cljseq" ((:data layout))))))))
+        (is (= "/custom/data/nous" ((:data layout))))))))
 
 (deftest xdg-layout-config-dir-test
   (testing "xdg-layout config dir uses ~/.config by default"
-    (with-redefs [cljseq.dirs/read-env (constantly nil)]
+    (with-redefs [nous.dirs/read-env (constantly nil)]
       (let [layout (dirs/xdg-layout)]
         (is (str/starts-with? ((:config layout)) (str (home) "/.config")))))))
 
 (deftest xdg-layout-cache-dir-test
   (testing "xdg-layout cache dir uses ~/.cache by default"
-    (with-redefs [cljseq.dirs/read-env (constantly nil)]
+    (with-redefs [nous.dirs/read-env (constantly nil)]
       (let [layout (dirs/xdg-layout)]
         (is (str/starts-with? ((:cache layout)) (str (home) "/.cache")))))))
 
 (deftest macos-native-layout-paths-test
   (testing "macos-native-layout data dir uses ~/Library/Application Support"
     (let [layout (dirs/macos-native-layout)]
-      (is (str/includes? ((:data layout)) "Library/Application Support/cljseq"))))
+      (is (str/includes? ((:data layout)) "Library/Application Support/nous"))))
   (testing "macos-native-layout cache dir uses ~/Library/Caches"
     (let [layout (dirs/macos-native-layout)]
-      (is (str/includes? ((:cache layout)) "Library/Caches/cljseq")))))
+      (is (str/includes? ((:cache layout)) "Library/Caches/nous")))))
 
 ;; ---------------------------------------------------------------------------
 ;; set-layout! / active-layout-id
@@ -107,7 +107,7 @@
 
 (deftest set-layout-custom-map-test
   (testing "set-layout! accepts a custom layout map"
-    (dirs/set-layout! (test-layout "/tmp/cljseq-test"))
+    (dirs/set-layout! (test-layout "/tmp/nous-test"))
     (is (= :test (dirs/active-layout-id)))))
 
 ;; ---------------------------------------------------------------------------
@@ -117,13 +117,13 @@
 (deftest user-data-dir-uses-layout-test
   (testing "user-data-dir returns layout data path"
     (dirs/set-layout! (test-layout "/tmp/test-data"))
-    (with-redefs [cljseq.dirs/read-env (constantly nil)]
+    (with-redefs [nous.dirs/read-env (constantly nil)]
       (is (= "/tmp/test-data/data" (dirs/user-data-dir))))))
 
 (deftest user-data-dir-env-override-test
   (testing "CLJSEQ_DATA_DIR overrides the active layout"
     (dirs/set-layout! (test-layout "/tmp/test-data"))
-    (with-redefs [cljseq.dirs/read-env (fn [k]
+    (with-redefs [nous.dirs/read-env (fn [k]
                                          (when (= k "CLJSEQ_DATA_DIR")
                                            "/override/data"))]
       (is (= "/override/data" (dirs/user-data-dir))))))
@@ -131,7 +131,7 @@
 (deftest user-config-dir-env-override-test
   (testing "CLJSEQ_CONFIG_DIR overrides the active layout"
     (dirs/set-layout! (test-layout "/tmp/test-cfg"))
-    (with-redefs [cljseq.dirs/read-env (fn [k]
+    (with-redefs [nous.dirs/read-env (fn [k]
                                          (when (= k "CLJSEQ_CONFIG_DIR")
                                            "/override/config"))]
       (is (= "/override/config" (dirs/user-config-dir))))))
@@ -139,7 +139,7 @@
 (deftest user-cache-dir-env-override-test
   (testing "CLJSEQ_CACHE_DIR overrides the active layout"
     (dirs/set-layout! (test-layout "/tmp/test-cache"))
-    (with-redefs [cljseq.dirs/read-env (fn [k]
+    (with-redefs [nous.dirs/read-env (fn [k]
                                          (when (= k "CLJSEQ_CACHE_DIR")
                                            "/override/cache"))]
       (is (= "/override/cache" (dirs/user-cache-dir))))))
@@ -147,12 +147,12 @@
 (deftest env-overrides-take-priority-over-xdg-vars-test
   (testing "CLJSEQ_DATA_DIR takes priority over XDG_DATA_HOME"
     (dirs/set-layout! :xdg)
-    (with-redefs [cljseq.dirs/read-env (fn [k]
+    (with-redefs [nous.dirs/read-env (fn [k]
                                          (case k
-                                           "CLJSEQ_DATA_DIR" "/cljseq-override"
+                                           "CLJSEQ_DATA_DIR" "/nous-override"
                                            "XDG_DATA_HOME"   "/xdg-home"
                                            nil))]
-      (is (= "/cljseq-override" (dirs/user-data-dir))))))
+      (is (= "/nous-override" (dirs/user-data-dir))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Subdirectory helpers — structure checks (avoid real filesystem writes)
@@ -161,7 +161,7 @@
 (deftest devices-dir-under-data-dir-test
   (testing "devices-dir is a subdirectory of user-data-dir"
     (dirs/set-layout! (test-layout (System/getProperty "java.io.tmpdir")))
-    (with-redefs [cljseq.dirs/read-env (constantly nil)]
+    (with-redefs [nous.dirs/read-env (constantly nil)]
       (let [data    (dirs/user-data-dir)
             devices (dirs/devices-dir)]
         (is (str/starts-with? devices data))
@@ -170,7 +170,7 @@
 (deftest corpora-dir-under-data-dir-test
   (testing "corpora-dir is a subdirectory of user-data-dir"
     (dirs/set-layout! (test-layout (System/getProperty "java.io.tmpdir")))
-    (with-redefs [cljseq.dirs/read-env (constantly nil)]
+    (with-redefs [nous.dirs/read-env (constantly nil)]
       (let [data    (dirs/user-data-dir)
             corpora (dirs/corpora-dir)]
         (is (str/starts-with? corpora data))
@@ -179,7 +179,7 @@
 (deftest sessions-dir-under-data-dir-test
   (testing "sessions-dir is a subdirectory of user-data-dir"
     (dirs/set-layout! (test-layout (System/getProperty "java.io.tmpdir")))
-    (with-redefs [cljseq.dirs/read-env (constantly nil)]
+    (with-redefs [nous.dirs/read-env (constantly nil)]
       (let [data     (dirs/user-data-dir)
             sessions (dirs/sessions-dir)]
         (is (str/starts-with? sessions data))
@@ -204,13 +204,13 @@
 (deftest resolve-device-user-shadows-classpath-test
   (testing "user devices-dir shadows classpath for same filename"
     (let [tmp-dir (str (System/getProperty "java.io.tmpdir")
-                       "/cljseq-dirs-test-" (System/currentTimeMillis))
+                       "/nous-dirs-test-" (System/currentTimeMillis))
           tmp-file (io/file tmp-dir "hydrasynth-explorer.edn")]
       (try
         (.mkdirs (io/file tmp-dir))
         (spit tmp-file ";; user override\n{:device/id :test}")
         ;; Point devices-dir to our temp dir
-        (with-redefs [cljseq.dirs/devices-dir (constantly tmp-dir)]
+        (with-redefs [nous.dirs/devices-dir (constantly tmp-dir)]
           (let [url (dirs/resolve-device-resource "hydrasynth-explorer.edn")]
             (is (some? url))
             ;; The resolved URL should serve our override content, not the bundled map

@@ -1,14 +1,14 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.server-test
-  "Unit tests for cljseq.server — control-plane HTTP API and WebSocket broadcast."
+(ns nous.server-test
+  "Unit tests for nous.server — control-plane HTTP API and WebSocket broadcast."
   (:require [clojure.test      :refer [deftest is testing use-fixtures]]
             [clojure.string    :as str]
             [clojure.data.json :as json]
-            [cljseq.core       :as core]
-            [cljseq.ctrl       :as ctrl]
-            [cljseq.loop       :as loop]
-            [cljseq.peer       :as peer]
-            [cljseq.server     :as server])
+            [nous.core       :as core]
+            [nous.ctrl       :as ctrl]
+            [nous.loop       :as loop]
+            [nous.peer       :as peer]
+            [nous.server     :as server])
   (:import  [java.net.http HttpClient HttpRequest
              HttpRequest$BodyPublishers HttpResponse$BodyHandlers
              WebSocket WebSocket$Listener]

@@ -10,12 +10,12 @@ just the server-side WebSocket endpoint and the ctrl-tree broadcast hook.
 
 ## Current state
 
-`cljseq.server` (server.clj) uses `com.sun.net.httpserver.HttpServer` — Java's
+`nous.server` (server.clj) uses `com.sun.net.httpserver.HttpServer` — Java's
 built-in HTTP server, no external dependencies. Routes: GET/PUT `/ctrl`, GET/PUT
 `/bpm`, GET `/ping`. Two total deps: `org.clojure/clojure` and
 `org.clojure/data.json`.
 
-`cljseq.ctrl` already has `ctrl/watch!` / `ctrl/unwatch!` — per-path watcher
+`nous.ctrl` already has `ctrl/watch!` / `ctrl/unwatch!` — per-path watcher
 registration with a `{path {watch-key fn}}` atom. `fire-watchers!` is called
 from `ctrl/set!` and `ctrl/send!` on every value change.
 
@@ -38,11 +38,11 @@ The existing routes are simple — direct translation. Replace the Java interop
 with Ring handler functions and `org.httpkit.server/run-server`:
 
 ```clojure
-(ns cljseq.server
+(ns nous.server
   (:require [org.httpkit.server :as hk]
             [clojure.data.json  :as json]
-            [cljseq.ctrl        :as ctrl]
-            [cljseq.core        :as core]))
+            [nous.ctrl        :as ctrl]
+            [nous.core        :as core]))
 
 (defn- handler [req]
   (let [method (:request-method req)
@@ -145,8 +145,8 @@ to avoid the collision.
 
 ## Test coverage needed
 
-- `cljseq.server-test`: WebSocket connect → receive ctrl-tree change broadcast
-- `cljseq.ctrl-test`: `watch-all!` fires on `set!` and `send!`; `unwatch-global!`
+- `nous.server-test`: WebSocket connect → receive ctrl-tree change broadcast
+- `nous.ctrl-test`: `watch-all!` fires on `set!` and `send!`; `unwatch-global!`
   removes it correctly
 - Existing server tests: all routes still pass after http-kit migration
 - Thread-safety: concurrent `swap!` on `ws-channels` is safe; http-kit channel
@@ -168,11 +168,11 @@ server.clj: header already present; no new files.
 
 Step 2: shadow-cljs + Reagent frontend, served as static files from the same
 http-kit server. See `src/handoff-vocabulary-and-patches.md` and the UI
-research in areas/cljseq memory `project_ui_speculation.md`.
+research in areas/nomos-studio memory `project_ui_speculation.md`.
 
 ## References
 
 - Research session: 2026-04-15 — WebSocket UI research
 - http-kit WebSocket docs: https://http-kit.github.io/server.html
 - Broadcasting pattern: https://yogthos.net/posts/2015-06-11-Websockets.html
-- Memory: `project_ui_speculation.md` (in areas/cljseq-src-cljseq project memory)
+- Memory: `project_ui_speculation.md` (in areas/nomos-studio-src-nous project memory)

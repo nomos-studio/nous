@@ -1,11 +1,11 @@
-# cljseq
+# nous
 
 A music-theory-aware Clojure sequencer for live coding. Runs at a Clojure
 nREPL; sends MIDI to hardware synthesisers, controllers, and FX units via a
 native real-time sidecar process.
 
 ```clojure
-(require '[cljseq.user :refer :all])
+(require '[nous.user :refer :all])
 
 (start! :bpm 120)
 
@@ -86,7 +86,7 @@ native real-time sidecar process.
   bounce) for parameter automation over bars or sections
 
 ### Bach corpus (Music21)
-- **`cljseq.m21`** — load and play Bach chorales from the Music21 corpus;
+- **`nous.m21`** — load and play Bach chorales from the Music21 corpus;
   chordified or SATB per-voice on separate MIDI channels; persistent server
   with two-level cache (memory + disk)
 
@@ -104,11 +104,11 @@ See [BUILD.md](BUILD.md) for platform-specific instructions and all options.
 ### Build
 
 ```bash
-git clone https://github.com/rodgert/cljseq.git
-cd cljseq
+git clone https://github.com/nomos-studio/nous.git
+cd nous
 
 # Build the real-time MIDI sidecar (fetches Asio + RtMidi on first run)
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCLJSEQ_BUILD_AUDIO=OFF
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DNOUS_BUILD_AUDIO=OFF
 cmake --build build --parallel
 
 # Run the Clojure test suite
@@ -122,7 +122,7 @@ lein repl
 ```
 
 ```clojure
-(require '[cljseq.user :refer :all])
+(require '[nous.user :refer :all])
 
 ;; Connect MIDI output (by port name substring)
 (start-sidecar! :midi-port "IAC")
@@ -148,15 +148,15 @@ See [doc/user-manual.md](doc/user-manual.md) for a complete guide.
 Clojure REPL
   │  deflive-loop / play! / sleep! / ctrl/set!
   │
-  ├── cljseq.loop      — virtual time, live-loop threads, *tuning-ctx*
-  ├── cljseq.ctrl      — control tree (MIDI CC binding, undo, checkpoints)
-  ├── cljseq.dsl       — play!, arp!, phrase!, harmony/chord/tuning context
-  ├── cljseq.device    — device map loader, device-send!, NRPN dispatch
-  ├── cljseq.link      — Ableton Link client (optional)
-  └── cljseq.sidecar
+  ├── nous.loop      — virtual time, live-loop threads, *tuning-ctx*
+  ├── nous.ctrl      — control tree (MIDI CC binding, undo, checkpoints)
+  ├── nous.dsl       — play!, arp!, phrase!, harmony/chord/tuning context
+  ├── nous.device    — device map loader, device-send!, NRPN dispatch
+  ├── nous.link      — Ableton Link client (optional)
+  └── nous.sidecar
         │  TCP IPC (little-endian framed messages)
         │
-        └── cljseq-sidecar (C++)
+        └── nous-sidecar (C++)
               ├── Scheduler    — priority queue, fires at wall-clock time
               ├── MIDI output  — RtMidi → IAC / hardware
               ├── MIDI input   — RtMidi input monitor, pushes 0x20 frames to JVM
@@ -201,8 +201,8 @@ Build with Link to sync with other apps on the LAN:
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release \
-      -DCLJSEQ_BUILD_AUDIO=OFF \
-      -DCLJSEQ_ENABLE_LINK=ON
+      -DNOUS_BUILD_AUDIO=OFF \
+      -DNOUS_ENABLE_LINK=ON
 cmake --build build --parallel
 ```
 
@@ -217,8 +217,8 @@ cmake --build build --parallel
 | Component | License |
 |-----------|---------|
 | Clojure library (`src/`, `test/`) | [EPL-2.0](LICENSE) |
-| C++ runtime (`cpp/libcljseq-rt/`, `cpp/cljseq-sidecar/`) | [LGPL-2.1-or-later](LICENSES/LGPL-2.1.txt) |
-| Link engine (`cpp/libcljse-link/`) | [GPL-2.0-or-later](LICENSES/GPL-2.0.txt) |
+| C++ runtime (`cpp/libnous-rt/`, `cpp/nous-sidecar/`) | [LGPL-2.1-or-later](LICENSES/LGPL-2.1.txt) |
+| Link engine (`cpp/libnous-link/`) | [GPL-2.0-or-later](LICENSES/GPL-2.0.txt) |
 
 See [doc/licensing.md](doc/licensing.md) for the full licensing strategy and
 the implications of building with Ableton Link enabled.

@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.midi-in
-  "cljseq MIDI input listener — routes inbound MIDI to the ctrl tree and/or
+(ns nous.midi-in
+  "nous MIDI input listener — routes inbound MIDI to the ctrl tree and/or
   direct note handlers.
 
   Opens a JVM MIDI input port by partial device name and attaches a Receiver
@@ -43,8 +43,8 @@
 
   Key design decisions: R&R §28.8 (MIDI input routing)."
   (:require [clojure.string :as str]
-            [cljseq.ctrl    :as ctrl]
-            [cljseq.device  :as device])
+            [nous.ctrl    :as ctrl]
+            [nous.device  :as device])
   (:import  [javax.sound.midi MidiSystem ShortMessage Receiver]))
 
 ;; ---------------------------------------------------------------------------
@@ -229,7 +229,7 @@
   nil)
 
 (defn close-all-inputs!
-  "Close all open MIDI input ports. Called by cljseq.core/stop!."
+  "Close all open MIDI input ports. Called by nous.core/stop!."
   []
   (doseq [id (keys @inputs)]
     (close-input! id))

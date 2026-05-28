@@ -1,4 +1,4 @@
-# cljseq Design Sprint 3 — Summary and Handoff
+# nous Design Sprint 3 — Summary and Handoff
 
 **Sprint dates**: 2026-03-30
 **Status**: Complete
@@ -12,11 +12,11 @@ resolved or explicitly deferred. The project has no unresolved blocking question
 the next sprint can focus entirely on execution.
 
 Sprint 3 also produced:
-- R&R §1.1: broader scope framing — cljseq as a platform for novel instruments
+- R&R §1.1: broader scope framing — nous as a platform for novel instruments
 - R&R §25: Configuration Registry — all tuneable system parameters with defaults
-- The `morph` abstraction (`defmorph` / `cljseq.morph`) — synth-style parameter
+- The `morph` abstraction (`defmorph` / `nous.morph`) — synth-style parameter
   mapping, fully designed
-- The `fractal` sequencer rename — `cljseq.fractal`, `deffractal` — avoiding IP
+- The `fractal` sequencer rename — `nous.fractal`, `deffractal` — avoiding IP
   concerns while accurately describing the self-similar branching model
 - A morph vocabulary library queued as a future design topic
 
@@ -32,7 +32,7 @@ The control tree is a Clojure persistent map held in a single system-state atom:
 
 ```clojure
 {:tree        {}    ; the control tree
- :serial      0     ; structural change counter (queryable at /cljseq/tree/serial)
+ :serial      0     ; structural change counter (queryable at /nous/tree/serial)
  :undo-stack  []    ; bounded ring; default depth 50, configurable
  :checkpoints {}}   ; named snapshots for panic/revert
 ```
@@ -93,40 +93,40 @@ Fallback: two ports (57121 control, 57110 data) for controllers without bundle s
 
 **Q16 — Process topology**
 
-Option A: direct JVM-to-process IPC. Routing key in `cljseq.sidecar` Clojure map.
+Option A: direct JVM-to-process IPC. Routing key in `nous.sidecar` Clojure map.
 
 ### Low-Effort Sweep (24 questions resolved)
 
 | Questions | Summary |
 |---|---|
 | Q6 | `Playable` protocol; offline = materialized map; real-time = lazy seq |
-| Q13 | Per-session MCP auth; `cljseq.*` namespace whitelist; audit log |
+| Q13 | Per-session MCP auth; `nous.*` namespace whitelist; audit log |
 | Q14 | SSR + HTMX; SPA deferred |
 | Q17 | Sparse JVM tree; sidecar holds full CLAP param map; lazy fetch |
 | Q18 | PdTarget pool ≤2; preload + atomic swap at buffer boundary |
 | Q19 | Measure Link drift < 100µs empirically; single-peer fallback if needed |
 | Q21 | Score wire format: preserve enharmonics; flatten ties; omit grace notes |
 | Q22 | Retain Music21 subprocess; batch calls to amortize overhead |
-| Q23 | cljseq native hot-path; Music21 for musicological depth |
+| Q23 | nous native hot-path; Music21 for musicological depth |
 | Q24 | No corpus bundling; user's Music21 at runtime |
-| Q26 | `.scl`/`.kbm` for gamelan; user `~/.cljseq/scales/` priority |
+| Q26 | `.scl`/`.kbm` for gamelan; user `~/.nous/scales/` priority |
 | Q27 | `m21/register-corpus-path!` wraps `corpus.addPath()` |
 | Q28 | No special colotomic API; irama atom + `at-sync!` |
 | Q31 | EDN pattern maps; pre-extracted; min 50 corpus occurrences |
-| Q33 | Standard nREPL; optional `cljseq-nrepl` middleware later |
+| Q33 | Standard nREPL; optional `nous-nrepl` middleware later |
 | Q34 | `defonce` ring buffer outside loop; `defstochastic` handles it |
 | Q36 | `:scale/weights` optional key on existing scale map |
 | Q37 | `promise`-per-step for correlated channels; `lerp` perturbation |
-| Q38 | `defstochastic` auto-registers at `/cljseq/stochastic/<name>/` |
+| Q38 | `defstochastic` auto-registers at `/nous/stochastic/<name>/` |
 | Q39–Q43 | Fractal sequencer: `deffractal`, `fractal/freeze!`, `fractal/path`; reactive regen with filter predicate; ornaments as pure functions; step maps as plain maps + spec; `play!` overloaded for step maps; all three path forms supported |
 
 ### New Abstractions
 
-**Q49 — `defmorph` / `cljseq.morph`**
+**Q49 — `defmorph` / `nous.morph`**
 
 Named, multi-input parameter mapping. Pure transfer functions only (patch-serializable).
 Single-input and multi-input (XY pad, joystick) forms. Registers at
-`/cljseq/morphs/<name>/`.
+`/nous/morphs/<name>/`.
 
 ```clojure
 (defmorph :xy-filter
@@ -142,14 +142,14 @@ the control tree implementation is stable.
 
 ### Naming
 
-**`fractal`** replaces `bloom` throughout the cljseq codebase and API. The Teenage
+**`fractal`** replaces `bloom` throughout the nous codebase and API. The Teenage
 Engineering Bloom sequencer is the design inspiration; §24 of the R&R retains the
-subtitle "Bloom-Inspired" as attribution. The namespace is `cljseq.fractal`, the
+subtitle "Bloom-Inspired" as attribution. The namespace is `nous.fractal`, the
 form is `deffractal`.
 
 ### R&R Additions
 
-**§1.1 — Broader scope**: cljseq as a platform for novel instruments, not only a
+**§1.1 — Broader scope**: nous as a platform for novel instruments, not only a
 live coding environment. Covers hardware appliances, embedded firmware, drum
 machines, effects processors, direct Eurorack CV via CLAP.
 
@@ -173,7 +173,7 @@ fixed to date; to be updated as new configurable parameters are decided.
 
 ## Future Design Topics Captured
 
-- **Morph vocabulary library** (`cljseq.morph.vocab` or `cljseq.xform`): common
+- **Morph vocabulary library** (`nous.morph.vocab` or `nous.xform`): common
   pure transfer functions — coordinate transforms (rect↔polar, vector rotation),
   curve shaping (exponential, S-curve, power-law), signal conditioning (dead-zone,
   range remap, polarity inversion), multi-axis combinators.
@@ -196,7 +196,7 @@ blocking questions remain; Sprint 4 is implementation preparation.
 
 ### `ITemporalValue` design spike
 
-Implement the minimal protocol in a scratch namespace (`src/cljseq/spike/temporal.clj`)
+Implement the minimal protocol in a scratch namespace (`src/nous/spike/temporal.clj`)
 and verify the three composition acceptance criteria from Q44:
 
 ```clojure
@@ -206,7 +206,7 @@ and verify the three composition acceptance criteria from Q44:
 ```
 
 Output: a design decision record in `doc/spike-itemporalvalue.md`. This unblocks
-implementation of `cljseq.clock`, `cljseq.mod`, `cljseq.timing`, and control-tree
+implementation of `nous.clock`, `nous.mod`, `nous.timing`, and control-tree
 parameter binding.
 
 ### Project scaffold
@@ -214,15 +214,15 @@ parameter binding.
 Establish the directory layout and build system stubs:
 
 ```
-cljseq/
-  src/cljseq/          ; Clojure source
-  test/cljseq/         ; Clojure tests
+nous/
+  src/nous/          ; Clojure source
+  test/nous/         ; Clojure tests
   cpp/
-    libcljseq-rt/      ; shared C++ library
-    cljseq-sidecar/    ; MIDI/CV sidecar binary
-    cljseq-audio/      ; CLAP/audio binary
+    libnous-rt/      ; shared C++ library
+    nous-sidecar/    ; MIDI/CV sidecar binary
+    nous-audio/      ; CLAP/audio binary
   python/
-    cljseq_m21/        ; Music21 sidecar package
+    nous_m21/        ; Music21 sidecar package
   resources/
     scales/            ; .scl/.kbm tuning files
     grooves/           ; EDN groove templates
@@ -234,8 +234,8 @@ cljseq/
   project.clj          ; Clojure project
 ```
 
-Deliverables: `CMakeLists.txt` stubs for `libcljseq-rt`, `cljseq-sidecar`,
-`cljseq-audio`; `pyproject.toml`; root `Makefile` with `build`, `test`, `clean`;
+Deliverables: `CMakeLists.txt` stubs for `libnous-rt`, `nous-sidecar`,
+`nous-audio`; `pyproject.toml`; root `Makefile` with `build`, `test`, `clean`;
 skeleton Clojure namespaces.
 
 ### Licensing and attribution
@@ -256,7 +256,7 @@ skeleton Clojure namespaces.
 
 ### DSL usability corpus
 
-Begin a systematic comparison of equivalent musical concepts expressed in cljseq vs.
+Begin a systematic comparison of equivalent musical concepts expressed in nous vs.
 Sonic Pi, Overtone, and TidalCycles. Identifies syntactic sugar opportunities.
 Output: `doc/dsl-usability-corpus.md` (living document, grows with DSL design).
 

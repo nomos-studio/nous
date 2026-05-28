@@ -1,4 +1,4 @@
-# cljseq Temporal Buffer — Design Document
+# nous Temporal Buffer — Design Document
 
 **Status:** Design / pre-implementation
 **Author:** Thomas Rodgers
@@ -345,7 +345,7 @@ back-and-forth phrase fragments; in Zone 0 it creates percussive artifacts.
 
 ## 12. Named Presets — Flux, Memory Field, Note Mimeophon
 
-All prior cljseq temporal concepts are presets of the Temporal Buffer:
+All prior nous temporal concepts are presets of the Temporal Buffer:
 
 ### Flux
 ```clojure
@@ -401,14 +401,14 @@ adjacent transform. Probabilistic decay becomes a buffer management policy.
 
 ## 13. The Generator / Transformer / Extractor / Buffer Family
 
-cljseq now has four distinct event paradigms:
+nous now has four distinct event paradigms:
 
 | Paradigm | Concept | Input | Output | Namespace |
 |----------|---------|-------|--------|-----------|
 | Generator | `deflive-loop`, stochastic, fractal | None / seed | Note events | various |
-| Transformer | Temporal Buffer | Note events | Note events | `cljseq.temporal-buffer` |
-| Extractor | Threshold Extractor | Continuous values | Note/control events | `cljseq.extractor` |
-| Buffer | Temporal Buffer (self-oscillating) | None (after priming) | Note events | `cljseq.temporal-buffer` |
+| Transformer | Temporal Buffer | Note events | Note events | `nous.temporal-buffer` |
+| Extractor | Threshold Extractor | Continuous values | Note/control events | `nous.extractor` |
+| Buffer | Temporal Buffer (self-oscillating) | None (after priming) | Note events | `nous.temporal-buffer` |
 
 The Temporal Buffer unifies the Transformer and Buffer roles — at low feedback
 it transforms input; at high feedback it sustains without input.
@@ -436,9 +436,9 @@ replacing audio-domain hardware:
 |-------|--------|-------------|---------------|--------------|
 | Audio | Mimeophon | 8 overlapping zones | Spectral filter chain | Temporal smear |
 | Audio/CV | VCVRack Mimeophon-patch | Configurable | Filter module | Diffusion |
-| Note-event | `cljseq.temporal-buffer` | Beat-depth zones | Event transform fn | Timing neighbors |
+| Note-event | `nous.temporal-buffer` | Beat-depth zones | Event transform fn | Timing neighbors |
 
-cljseq Temporal Buffer → MIDI → Cascadia → CV → Eurorack → audio →
+nous Temporal Buffer → MIDI → Cascadia → CV → Eurorack → audio →
 Mimeophon (audio-domain processing). The note-event and audio layers process
 the same musical material at different abstraction levels simultaneously.
 
@@ -475,11 +475,11 @@ the note accumulation drives its own rhythm extraction.
    *Proposed: separate Note On events on adjacent MIDI channels to avoid
    pitch-bend collision; or configurable.*
 
-6. **Namespace:** `cljseq.temporal-buffer`? `cljseq.buffer`? `cljseq.mimeophon`?
-   *Proposed: `cljseq.temporal-buffer` — descriptive without tying to hardware.*
+6. **Namespace:** `nous.temporal-buffer`? `nous.buffer`? `nous.mimeophon`?
+   *Proposed: `nous.temporal-buffer` — descriptive without tying to hardware.*
 
-7. **Flux migration:** Same question as Memory Field — does `cljseq.flux` remain
-   a separate namespace or become a thin wrapper over `cljseq.temporal-buffer`?
+7. **Flux migration:** Same question as Memory Field — does `nous.flux` remain
+   a separate namespace or become a thin wrapper over `nous.temporal-buffer`?
    *Proposed: keep flux API unchanged; implement as temporal-buffer preset
    internally. No breaking change for existing code.*
 
@@ -494,7 +494,7 @@ the note accumulation drives its own rhythm extraction.
 ## 16. Implementation Phases
 
 ### Phase 1 — Core buffer and zones
-- `cljseq.temporal-buffer` namespace
+- `nous.temporal-buffer` namespace
 - Single-zone buffer (Flux parity)
 - Zone definition and switching (pitch-free)
 - `deftemporal-buffer`, `temporal-buffer-send!`, `temporal-buffer-info!`
@@ -546,10 +546,10 @@ the note accumulation drives its own rhythm extraction.
   this document; Memory Field is now a named preset of Temporal Buffer
 - **design-threshold-extractor.md** — Threshold Extractor design (2026-04-07);
   Extractor can consume Temporal Buffer pitch output as its source
-- **cljseq.flux** — existing single-cursor buffer; becomes Flux preset
-- **cljseq.phasor** — phasor values as Rate-equivalent sources in Zone 0
-- **cljseq.trajectory** — curves as Color, Halo, Rate, and Zone trajectory targets
-- **cljseq.scala / *tuning-ctx*** — scale-gravity pitch drift uses tuning for
+- **nous.flux** — existing single-cursor buffer; becomes Flux preset
+- **nous.phasor** — phasor values as Rate-equivalent sources in Zone 0
+- **nous.trajectory** — curves as Color, Halo, Rate, and Zone trajectory targets
+- **nous.scala / *tuning-ctx*** — scale-gravity pitch drift uses tuning for
   Halo neighbor pitch offsets and Color pitch bias in non-ET contexts
 - **Intellijel Cascadia** — note-event output → CV → the audio-domain
-  Mimeophon closes the loop between cljseq and hardware processing
+  Mimeophon closes the loop between nous and hardware processing

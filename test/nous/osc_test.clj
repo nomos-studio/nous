@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.osc-test
-  "Unit tests for cljseq.osc — OSC UDP receiver and ctrl routing."
+(ns nous.osc-test
+  "Unit tests for nous.osc — OSC UDP receiver and ctrl routing."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.core  :as core]
-            [cljseq.ctrl  :as ctrl]
-            [cljseq.osc   :as osc])
+            [nous.core  :as core]
+            [nous.ctrl  :as ctrl]
+            [nous.osc   :as osc])
   (:import  [java.net DatagramSocket DatagramPacket InetSocketAddress]
             [java.nio ByteBuffer ByteOrder]
             [java.util Arrays]))

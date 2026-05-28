@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.spike.temporal
+(ns nous.spike.temporal
   "ITemporalValue design spike.
 
   Implements the minimal ITemporalValue protocol in a scratch namespace and
@@ -162,11 +162,11 @@
 
   ;; Criterion 2: modulator to parameter
   (ctrl-bind! [:filter/cutoff] (lfo :rate 0.25))
-  @*bound-params*             ;=> {[:filter/cutoff] #cljseq.spike.temporal.Lfo{...}}
+  @*bound-params*             ;=> {[:filter/cutoff] #nous.spike.temporal.Lfo{...}}
 
   ;; Criterion 3: timing modulator to time_ns
   (timing-bind! (swing :amount 0.55))
-  @*bound-timing*             ;=> [#cljseq.spike.temporal.Swing{:amount 0.55}]
+  @*bound-timing*             ;=> [#nous.spike.temporal.Swing{:amount 0.55}]
   (sample (first @*bound-timing*) 0.5) ;=> positive ns offset (late swing)
   (sample (first @*bound-timing*) 0.0) ;=> 0 (on the beat)
   )

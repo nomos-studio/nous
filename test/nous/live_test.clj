@@ -1,16 +1,16 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.live-test
-  "Unit tests for cljseq.live — synth context, play!, phrase!, ring/tick!."
+(ns nous.live-test
+  "Unit tests for nous.live — synth context, play!, phrase!, ring/tick!."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.clock :as clock]
-            [cljseq.core  :as core]
-            [cljseq.ctrl  :as ctrl]
-            [cljseq.live  :as live]
-            [cljseq.loop  :as loop-ns]
-            [cljseq.phasor :as phasor]
-            [cljseq.pitch :as pitch]
-            [cljseq.scala :as scala]
-            [cljseq.scale :as scale]))
+            [nous.clock :as clock]
+            [nous.core  :as core]
+            [nous.ctrl  :as ctrl]
+            [nous.live  :as live]
+            [nous.loop  :as loop-ns]
+            [nomos.maths.phasor :as phasor]
+            [nous.pitch :as pitch]
+            [nous.scala :as scala]
+            [nous.scale :as scale]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers

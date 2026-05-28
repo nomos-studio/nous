@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.arc
+(ns nous.arc
   "Arc type routing — fan-out from abstract arc nodes to device parameters.
 
   An arc node (e.g. [:arc/tension]) is an abstract ctrl tree value in [0.0, 1.0].
@@ -37,7 +37,7 @@
     [:arc/gravity]    — tonal pull toward tonic; 0=away, 1=strong cadential
 
   Key design decisions: R&R §31 (trajectory/arc vocabulary)."
-  (:require [cljseq.ctrl :as ctrl]))
+  (:require [nous.ctrl :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state

@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
 ;;
-;; cljseq Rosetta Stone — Sonic-Pi and Overtone vocabulary in cljseq
+;; nous Rosetta Stone — Sonic-Pi and Overtone vocabulary in nous
 ;;
 ;; This file shows how common live-coding patterns from Sonic-Pi and Overtone
 ;; are expressed in nous. Read each section as a side-by-side translation.
 ;;
-;; cljseq diverges from both systems in key ways:
+;; nous diverges from both systems in key ways:
 ;;   - Music theory is first-class data (scales, chords, intervals as values)
 ;;   - Device/synth targets are resolved at session time, not hardcoded
 ;;   - Synthesis graphs are Clojure data — inspectable, transformable, serializable
@@ -13,7 +13,7 @@
 ;;
 ;; Vocabulary mapping summary:
 ;;
-;;   Sonic-Pi              Overtone                cljseq
+;;   Sonic-Pi              Overtone                nous
 ;;   --------              --------                ------
 ;;   play N                (inst freq)             (play! {:pitch/midi N})
 ;;   play :C4              (note :C4)              (play! :C4)
@@ -42,7 +42,7 @@
 ;;   (demo 2 (sin-osc 261.63))
 ;;   (my-inst :freq (midi->hz 60))
 
-;; cljseq:
+;; nous:
 (play! {:pitch/midi 60})
 (play! :C4)                            ; note name syntax
 (play! :C4 1/2)                        ; note keyword + explicit duration (beats)
@@ -64,7 +64,7 @@
 ;;   (def metro (metronome 120))
 ;;   (Thread/sleep 500)  ; ms — no beat abstraction
 
-;; cljseq:
+;; nous:
 (set-bpm! 120)
 
 ;; Inside a live loop, sleep! takes beats (quarter notes at current BPM):
@@ -93,7 +93,7 @@
 ;;     (apply-at (metro (inc beat)) beat-loop (inc beat) []))
 ;;   (beat-loop (metro))
 
-;; cljseq:
+;; nous:
 (deflive-loop :beat {}
   (play! {:pitch/midi 36 :dur/beats 1/4})   ; kick (MIDI note 36)
   (sleep! 1))
@@ -119,7 +119,7 @@
 ;;   (def s (scale :C4 :major))
 ;;   (inst :freq (midi->hz (choose s)))
 
-;; cljseq — scale is a first-class value:
+;; nous — scale is a first-class value:
 (def my-scale (make-scale :C 4 :major))
 (def my-minor (make-scale :A 3 :minor))
 (def my-dorian (make-scale :D 4 :dorian))
@@ -148,7 +148,7 @@
 ;;   (chord :C4 :major)
 ;;   (doseq [note (chord :C4 :major)] (inst :freq (midi->hz note)))
 
-;; cljseq:
+;; nous:
 (def cmaj  (make-chord :C 4 :major))
 (def cmin7 (make-chord :C 4 :minor7))
 (def g7    (make-chord :G 3 :dominant7))
@@ -174,7 +174,7 @@
 ;;   (def notes [60 62 64 67 69])
 ;;   (inst :freq (midi->hz (rand-nth notes)))
 
-;; cljseq — same Clojure idioms, no special API:
+;; nous — same Clojure idioms, no special API:
 (deflive-loop :random-melody {}
   (play! {:pitch/midi (rand-nth [60 62 64 67 69])})
   (sleep! 1/4))
@@ -210,7 +210,7 @@
 ;;   (definst blade [freq 440 amp 0.5 attack 0.1 release 2.0] ...)
 ;;   (blade :freq 440 :attack 0.1 :release 2.0)
 
-;; cljseq — synth is session config; graph is data:
+;; nous — synth is session config; graph is data:
 ;;   (require '[nous.sc :as sc])
 ;;   (sc/connect-sc!)
 ;;   (sc/send-synthdef! :blade)
@@ -231,11 +231,11 @@
     (scale-amp 0.8))                       ; slightly quieter
 
 ;; ============================================================================
-;; 8. Harmony context — cljseq-specific
+;; 8. Harmony context — nous-specific
 ;; ============================================================================
 
 ;; No direct equivalent in Sonic-Pi or Overtone.
-;; cljseq propagates a harmony context through live loops dynamically.
+;; nous propagates a harmony context through live loops dynamically.
 
 (use-harmony! (make-scale :D 4 :dorian))
 
@@ -260,7 +260,7 @@
 ;; Overtone:
 ;;   (def rev (freeverb :room 0.5))   ; audio graph node
 
-;; cljseq — FX is device control via MIDI CC or OSC trajectory:
+;; nous — FX is device control via MIDI CC or OSC trajectory:
 ;;   (device-send! :strymon/nightsky [:mix] 64)     ; reverb mix CC
 ;;   (device-send! :boss/rv-500 [:engine-a :time] 80)
 
@@ -277,11 +277,11 @@
 ;;     (trajectory :from 0.0 :to 0.8 :beats 32 :curve :s-curve :start (now))))
 
 ;; ============================================================================
-;; 10. Analysis — cljseq-specific
+;; 10. Analysis — nous-specific
 ;; ============================================================================
 
 ;; No equivalent in Sonic-Pi. Overtone has some pitch analysis.
-;; cljseq: music theory as computation on values.
+;; nous: music theory as computation on values.
 
 (def prog [(make-chord :C 4 :major)
            (make-chord :A 3 :minor)
@@ -313,7 +313,7 @@
 ;;     (at (metro beat) (inst :freq (midi->hz note)))
 ;;     (swap! beat + dur))
 
-;; cljseq:
+;; nous:
 (deflive-loop :pattern {}
   (phrase! [1/4 1/4 1/4 1/2 1/4]        ; durations
            [60  62  64  65  67])          ; MIDI pitches
@@ -326,7 +326,7 @@
   (sleep! 1/4))
 
 ;; ============================================================================
-;; 12. Note transformers — cljseq-specific
+;; 12. Note transformers — nous-specific
 ;; ============================================================================
 
 ;; No direct equivalent in Sonic-Pi or Overtone.
@@ -348,11 +348,11 @@
   (sleep! 2))
 
 ;; ============================================================================
-;; 13. Multi-loop ensemble — cljseq-specific
+;; 13. Multi-loop ensemble — nous-specific
 ;; ============================================================================
 
 ;; Sonic-Pi uses multiple live_loops independently.
-;; cljseq adds ensemble awareness: loops share harmony context.
+;; nous adds ensemble awareness: loops share harmony context.
 
 (deflive-loop :bass {}
   (play! {:pitch/midi 36 :dur/beats 1})

@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.stochastic
-  "cljseq stochastic generative sequencer.
+(ns nous.stochastic
+  "nous stochastic generative sequencer.
 
   Inspired by Mutable Instruments' Marbles Eurorack module (see doc/attribution.md).
   Provides non-deterministic, probabilistic pattern generation with controllable
@@ -33,9 +33,9 @@
 
   Key design decisions: Q34 (defonce ring buffer), Q37 (correlated channels,
   lerp perturbation), Q38 (auto-register stochastic context), §23."
-  (:require [cljseq.ctrl   :as ctrl]
-            [cljseq.random :as random]
-            [cljseq.seq    :as sq]))
+  (:require [nous.ctrl   :as ctrl]
+            [nous.random :as random]
+            [nous.seq    :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry (Q38: auto-registration)
@@ -322,7 +322,7 @@
     :gate      — gate fraction of clock-div (default 0.9)
 
   Returns a StochasticSeq. seq-cycle-length returns nil (infinite/generative).
-  Use with run-step! from cljseq.seq inside a deflive-loop.
+  Use with run-step! from nous.seq inside a deflive-loop.
 
   Example:
     (defstochastic marble {:channels 2 :x-spread 0.6})

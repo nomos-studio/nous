@@ -18,7 +18,7 @@ of stored sequence values.
 
 The Labyrinth is the most architecturally novel device in this survey. Its play/write
 head model describes a class of generative sequencing behaviour with no close precedent
-in the other exemplars, and it directly motivates a new cljseq abstraction.
+in the other exemplars, and it directly motivates a new nous abstraction.
 
 ---
 
@@ -58,7 +58,7 @@ The phase relationship between the heads is continuously adjustable.
 
 ### DSL implications — the `defflux` abstraction
 
-This model motivates a new cljseq abstraction: **`defflux`** in `cljseq.flux`.
+This model motivates a new nous abstraction: **`defflux`** in `nous.flux`.
 
 A `defflux` sequence is a step buffer with two independent processes:
 
@@ -89,7 +89,7 @@ value is written into positions the play head will later reach.
 4. The phase offset between heads is a configurable parameter, not a derived consequence.
 
 **Naming rationale**: "Flux" is from Latin *fluxus* (a flowing), appropriately
-describing a sequence in a continuous state of change. The namespace is `cljseq.flux`;
+describing a sequence in a continuous state of change. The namespace is `nous.flux`;
 the macro is `defflux`. No trademark conflict; the term is purely descriptive.
 
 ---
@@ -118,7 +118,7 @@ and decreasing the degree of sequence degradation/evolution).
 
 ### DSL implications
 
-CORRUPT is a mutation strategy in `cljseq.morph`, distinct from the BeatStep Pro's
+CORRUPT is a mutation strategy in `nous.morph`, distinct from the BeatStep Pro's
 "one-shot randomize" because it operates **continuously and probabilistically**, driven
 by an `ITemporalValue` intensity source:
 
@@ -168,7 +168,7 @@ to CORRUPT intensity.
 This is a **side-channel event** — an event stream generated as a by-product of an
 internal state change, rather than by the primary sequencer clock.
 
-In cljseq:
+In nous:
 
 ```clojure
 ;; Side-channel events from a defflux mutation process
@@ -198,7 +198,7 @@ inputs, and the BIT FLIP trigger. EG TRIG MIX enables the envelope to fire on:
 
 ### DSL implications
 
-EG TRIG MIX is a **trigger merge/routing** concept. In cljseq terms:
+EG TRIG MIX is a **trigger merge/routing** concept. In nous terms:
 
 ```clojure
 ;; Merge multiple trigger sources for a voice's envelope
@@ -224,7 +224,7 @@ future capability — not blocked by current design, but not yet specified.
 ### Key insight: scale as `ITemporalValue`
 
 CV-controlled scale selection means the output transform has a **time-varying
-parameter**. In cljseq terms, the scale applied to pitch quantization is an
+parameter**. In nous terms, the scale applied to pitch quantization is an
 `ITemporalValue` — a value that changes over time:
 
 ```clojure
@@ -258,7 +258,7 @@ value is determined by what is patched to the CV output, not by the sequencer.
 
 ### DSL implications
 
-A cljseq step sequence should be semantically agnostic about what its `:value` controls.
+A nous step sequence should be semantically agnostic about what its `:value` controls.
 The routing — not the step — determines the parameter. This reinforces the existing
 control tree design: `ctrl/send!` routes a value to a path; the path determines
 the output adapter.
@@ -274,12 +274,12 @@ the output adapter.
 
 ## The `defflux` Abstraction — Summary
 
-`defflux` is a new cljseq sequencer archetype motivated by the Moog Labyrinth.
+`defflux` is a new nous sequencer archetype motivated by the Moog Labyrinth.
 
 | Dimension | `defflux` |
 |-----------|-----------|
 | Attribution | Moog Labyrinth (Labyrinth-Inspired) |
-| Namespace | `cljseq.flux` |
+| Namespace | `nous.flux` |
 | Macro | `defflux` |
 | R&R section | §26 (to be written) |
 | Core concept | Circular step buffer with independent read and write heads |

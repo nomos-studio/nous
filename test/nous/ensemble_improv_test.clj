@@ -1,11 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ensemble-improv-test
-  "Tests for cljseq.ensemble-improv — note generation, texture routing,
+(ns nous.ensemble-improv-test
+  "Tests for nous.ensemble-improv — note generation, texture routing,
   agent lifecycle, and conductor gesture integration."
   (:require [clojure.test            :refer [deftest is testing use-fixtures]]
-            [cljseq.ensemble-improv  :as improv]
-            [cljseq.scale            :as scale-ns]
-            [cljseq.texture          :as tx]))
+            [nous.ensemble-improv  :as improv]
+            [nous.scale            :as scale-ns]
+            [nous.texture          :as tx]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers — direct atom access via Var

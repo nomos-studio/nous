@@ -1,13 +1,13 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.trajectory-test
-  "Unit tests for cljseq.trajectory — curve functions, Trajectory record,
+(ns nous.trajectory-test
+  "Unit tests for nous.trajectory — curve functions, Trajectory record,
   ITemporalValue contract, named gestures."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.clock      :as clock]
-            [cljseq.conductor  :as conductor]
-            [cljseq.core       :as core]
-            [cljseq.mod        :as mod]
-            [cljseq.trajectory :as traj]))
+            [nous.clock      :as clock]
+            [nous.conductor  :as conductor]
+            [nous.core       :as core]
+            [nous.mod        :as mod]
+            [nous.trajectory :as traj]))
 
 (defn with-system [f]
   (core/start! :bpm 60000)
@@ -483,7 +483,7 @@
     (let [m      (traj/buildup :bars 16 :start 0.0)
           warped (traj/time-warp m 8)]
       (doseq [[path tr] warped]
-        (when (instance? cljseq.trajectory.Trajectory tr)
+        (when (instance? nous.trajectory.Trajectory tr)
           ;; After 8 bars (32 beats) the trajectory should be at or near :to
           (is (>= (clock/sample tr 32.0) 0.8)
               (str (pr-str path) " should be near target at 32 beats"))

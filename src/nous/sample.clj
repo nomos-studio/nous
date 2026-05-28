@@ -1,14 +1,14 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.sample
+(ns nous.sample
   "Sample player — SC buffer management and playback.
 
-  Wraps SC's Buffer/PlayBuf/TGrains machinery with the cljseq naming and
+  Wraps SC's Buffer/PlayBuf/TGrains machinery with the nous naming and
   dispatch conventions. Integrates with play! via the :sample step-map key.
 
   ## Basic workflow
 
-    (require '[cljseq.sc     :as sc])
-    (require '[cljseq.sample :as smp])
+    (require '[nous.sc     :as sc])
+    (require '[nous.sample :as smp])
 
     (sc/connect-sc!)
 
@@ -48,9 +48,9 @@
     (smp/load-sample! ::kick-dry)
     (smp/load-sample! ::kick-copy)
     ;; Both share the same SC buffer ID"
-  (:require [cljseq.core   :as core]
-            [cljseq.sc     :as sc]
-            [cljseq.target :as target]))
+  (:require [nous.core   :as core]
+            [nous.sc     :as sc]
+            [nous.target :as target]))
 
 ;; ---------------------------------------------------------------------------
 ;; Buffer registry

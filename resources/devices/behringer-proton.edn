@@ -1,12 +1,12 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Behringer Proton — cljseq device map
+;; Behringer Proton — nous device map
 ;;
 ;; Dual-voice semi-modular analog synthesizer (original Behringer design).
 ;; Two complete signal paths: OSC1+VCF1+ADSR1/ASR1, OSC2+VCF2+ADSR2/ASR2.
 ;; Two independent ASSIGN outputs. Paraphonic: two fully independent voices.
 ;; Minimal MIDI CC (3 entries). Parameter control via SysEx SSPKT system.
-;; Primary cljseq use: MIDI note → pitch CVs + gate for semi-modular patching.
+;; Primary nous use: MIDI note → pitch CVs + gate for semi-modular patching.
 ;;
 ;; Source: Behringer Proton User Manual (March 2025) — behringer.com
 ;; SysEx: Behringer ID [0x00 0x20 0x32], model [0x00 0x01], device ID default 0x25 (37)

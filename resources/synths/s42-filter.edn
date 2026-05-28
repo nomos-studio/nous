@@ -12,7 +12,7 @@
   character that honours the Polivoks heritage (though the analog character differs).
 
   Reads stereo from :in-bus (2 channels) and writes stereo to :out-bus.
-  :cutoff is in the same [0–127] scale used across cljseq filters (× 125 Hz internally).
+  :cutoff is in the same [0–127] scale used across nous filters (× 125 Hz internally).
   :res is reciprocal Q (0–1; higher = more resonant, approaching self-oscillation)."
  :args  {:in-bus  8
          :out-bus 10

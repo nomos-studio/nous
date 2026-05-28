@@ -1,7 +1,7 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.runtime-test
+(ns nous.runtime-test
   (:require [clojure.test    :refer [deftest is testing use-fixtures]]
-            [cljseq.runtime  :as runtime]))
+            [nous.runtime  :as runtime]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixture — reset runtime state between tests

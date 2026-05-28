@@ -87,7 +87,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn session!
-  "Start a cljseq session: boot the system clock and print a status summary.
+  "Start a nous session: boot the system clock and print a status summary.
 
   Options:
     :bpm — initial BPM (default 120)
@@ -548,7 +548,7 @@
     (start-sidecar! :midi-port \"IAC\")
     (start-sidecar! :midi-port \"Hydra\" :midi-in-port \"Hydra\")
     (start-sidecar! :kbd? true)   ; keyboard rig — no MIDI hardware needed
-    (start-sidecar! :binary \"/path/to/cljseq-sidecar\")  ; worktree use"
+    (start-sidecar! :binary \"/path/to/nous-sidecar\")  ; worktree use"
   [& {:keys [binary midi-port midi-in-port kbd?] :or {midi-port 0}}]
   (sidecar/start-sidecar! :binary binary :midi-port midi-port
                            :midi-in-port midi-in-port :kbd? kbd?)

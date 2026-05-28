@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Roger Linn Design LinnStrument 200 — cljseq device map
+;; Roger Linn Design LinnStrument 200 — nous device map
 ;;
 ;; Source: Roger Linn Design LinnStrument MIDI Reference, firmware v2.x
 ;;         https://www.rogerlinndesign.com/linnstrument/support
@@ -25,7 +25,7 @@
  :device/name         "Roger Linn Design LinnStrument 200"
  :device/manufacturer "Roger Linn Design"
  :device/type         :controller
- :device/role         :source             ; transmits to cljseq; not a MIDI target
+ :device/role         :source             ; transmits to nous; not a MIDI target
  :device/connectivity [:usb-midi]         ; USB class-compliant; no DIN
 
  ;; -------------------------------------------------------------------------
@@ -99,7 +99,7 @@
   :transmit false}
 
  ;; -------------------------------------------------------------------------
- ;; Notes for cljseq integration
+ ;; Notes for nous integration
  ;; -------------------------------------------------------------------------
  ;; The LinnStrument is a source-only device. Use ctrl/bind! with :source
  ;; entries to map incoming CC 74 (slide) and channel pressure (Z) to

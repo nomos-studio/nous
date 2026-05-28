@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.fractal
-  "cljseq fractal sequencer — self-similar branching sequence generation.
+(ns nous.fractal
+  "nous fractal sequencer — self-similar branching sequence generation.
 
   Inspired by the Qu-Bit Electronix Bloom sequencer (see doc/attribution.md).
   Generates sequences that exhibit self-similar (fractal) branching structure
@@ -29,9 +29,9 @@
     Q41 — unified step map: plain map, namespace-qualified keys
     Q43 — path supports integer, keyword, or explicit vector
     §24 — Fractal Sequence Architecture (Bloom-Inspired)"
-  (:require [cljseq.ctrl   :as ctrl]
-            [cljseq.random :as random]
-            [cljseq.seq    :as sq]))
+  (:require [nous.ctrl   :as ctrl]
+            [nous.random :as random]
+            [nous.seq    :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry
@@ -80,7 +80,7 @@
   Options:
     :note-prob  — probability of pitch mutation per step [0.0-1.0] (default 0.25)
     :gate-prob  — probability of gate-len mutation per step [0.0-1.0] (default 0.1)
-    :scale      — weighted-scale map from cljseq.random (nil = chromatic ±3 semitone walk)
+    :scale      — weighted-scale map from nous.random (nil = chromatic ±3 semitone walk)
     :root       — root MIDI note for scale-aware mutation (default 60)"
   [steps & {:keys [note-prob gate-prob scale root]
             :or   {note-prob 0.25 gate-prob 0.1 root 60}}]
@@ -305,7 +305,7 @@
     :trunk            — vector of step maps (base sequence)
     :transforms       — vector of transform keywords applied sequentially:
                         :reverse :inverse :transpose :mutate :randomize
-    :scale            — weighted-scale map from cljseq.random/weighted-scale
+    :scale            — weighted-scale map from nous.random/weighted-scale
     :root             — root MIDI note for inverse/transpose/mutate (default 60)
     :mutate-prob      — per-step mutation probability (default 0.25)
     :transpose-semitones — semitone shift for :transpose (default 12, = one octave)
@@ -330,7 +330,7 @@
                {:pitch/midi 67 :dur/beats 1/2 :gate/on? true :gate/len 0.8}
                {:pitch/midi 65 :dur/beats 1/4 :gate/on? true :gate/len 0.5}]
       :transforms [:reverse :inverse :mutate]
-      :scale  (cljseq.random/weighted-scale :major)
+      :scale  (nous.random/weighted-scale :major)
       :root   60)"
   [gen-name & opts]
   (let [opts-map (apply hash-map opts)]
@@ -462,7 +462,7 @@
   Options:
     :vel — default velocity 0–127 (default 100)
 
-  Returns a FractalSeq. Use with run-step! from cljseq.seq (infinite source —
+  Returns a FractalSeq. Use with run-step! from nous.seq (infinite source —
   seq-cycle-length returns nil; caller drives the loop via deflive-loop).
 
   Example:
@@ -556,7 +556,7 @@
   "Expand `step` into a vec of sub-step maps according to `ornament-type`.
 
   `context` map:
-    :scale     — weighted-scale map from cljseq.random (nil = chromatic)
+    :scale     — weighted-scale map from nous.random (nil = chromatic)
     :root      — root MIDI note for scale navigation (default 60)
     :next-step — following step map (for :anticipation, :run-toward, etc.)
     :prev-step — preceding step map (for :suspension)

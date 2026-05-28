@@ -1,6 +1,6 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Arturia KeyStep Pro — cljseq device map
+;; Arturia KeyStep Pro — nous device map
 ;;
 ;; Source: Arturia KeyStep Pro User Manual + MIDI Implementation Chart
 ;;         Arturia MIDI Control Center documentation
@@ -23,7 +23,7 @@
  :device/name         "Arturia KeyStep Pro"
  :device/manufacturer "Arturia"
  :device/type         :controller            ; primarily; also :sequencer
- :device/role         :source                ; transmits to cljseq; keyboard/seq data
+ :device/role         :source                ; transmits to nous; keyboard/seq data
  :device/connectivity [:usb-midi             ; USB-B, class-compliant
                         :din-midi-in         ; 5-pin DIN MIDI input (clock slave, config)
                         :din-midi-out        ; 5-pin DIN MIDI output (track 1 default)
@@ -141,7 +141,7 @@
                     :project-backup]}
 
  ;; -------------------------------------------------------------------------
- ;; cljseq binding hints
+ ;; nous binding hints
  ;; -------------------------------------------------------------------------
  :cljseq/bind-sources
  {:notes       {:source :note-on          :yields :pitch-midi}

@@ -15,7 +15,7 @@ material (dense note streams, unusual voice distributions, ambiguous harmony).
 ### Tier 1 — Synthetic fixtures (always committed)
 
 Hand-crafted note sequences that exhibit exactly the property being tested.
-Examples from `test/cljseq/midi_repair_test.clj`:
+Examples from `test/nous/midi_repair_test.clj`:
 
 - `drone-notes` — two long low notes, exercises drone detection
 - `pad-notes` — D Dorian chord progression with characteristic B♮, exercises mode

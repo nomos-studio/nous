@@ -142,9 +142,9 @@ This allows a single spectral state to simultaneously drive two voices with comp
 
 ---
 
-## Blur and the cljseq.analyze Connection
+## Blur and the nous.analyze Connection
 
-Blur is immediately applicable to `cljseq.analyze` without building the full Resynthesizer.
+Blur is immediately applicable to `nous.analyze` without building the full Resynthesizer.
 
 Currently, `analyze` returns a point-in-time snapshot of harmonic activity. With Blur added as an option, the analyzer maintains a **running weighted pitch distribution** that decays at the configured rate:
 
@@ -157,7 +157,7 @@ Currently, `analyze` returns a point-in-time snapshot of harmonic activity. With
 
 This immediately improves the Ensemble Improvisation design — the ImprovisationContext's `:recent-pitches` and `:current-chord` fields become continuous harmonic gravity maps rather than discrete snapshots.
 
-**Near-term action**: Add `:blur` parameter to `cljseq.analyze` before the full Spectral Resynthesizer is implemented.
+**Near-term action**: Add `:blur` parameter to `nous.analyze` before the full Spectral Resynthesizer is implemented.
 
 ---
 
@@ -211,7 +211,7 @@ Following Temporal Buffer's preset pattern:
 
 ---
 
-## Relationship to Other cljseq Abstractions
+## Relationship to Other nous Abstractions
 
 ```
              Temporal Buffer               Spectral Resynthesizer
@@ -257,11 +257,11 @@ The Resynthesizer is not purely any of the first three. It is a **stateful harmo
 ## Implementation Priority
 
 **Near-term (pre–Temporal Buffer):**
-- Add `:blur` weighted decay to `cljseq.analyze` SpectralState  
+- Add `:blur` weighted decay to `nous.analyze` SpectralState  
 - Connect to ImprovisationContext as living harmonic gravity map
 
 **Medium-term (after Temporal Buffer):**
-- `cljseq.spectral` namespace: SpectralState type, SAM analysis loop, SAO synthesis loop
+- `nous.spectral` namespace: SpectralState type, SAM analysis loop, SAO synthesis loop
 - `defspectral-resynthesizer` macro
 - Harmonic Library: capture, store, recall named snapshots
 - Odd/Even routing via `:odd-target` / `:even-target`

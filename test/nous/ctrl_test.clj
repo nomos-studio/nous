@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
-(ns cljseq.ctrl-test
+(ns nous.ctrl-test
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [cljseq.core  :as core]
-            [cljseq.ctrl  :as ctrl]))
+            [nous.core  :as core]
+            [nous.ctrl  :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixture — fresh system state around each test
@@ -244,8 +244,8 @@
     (ctrl/bind! [:nrpn/portamento]
                 {:type :midi-nrpn :channel 2 :nrpn 1 :bits 14 :range [0 16383]})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/portamento] 500))
       (is (= 4 (count @calls)) "exactly 4 CC messages for 14-bit NRPN")
@@ -265,8 +265,8 @@
     (ctrl/bind! [:nrpn/eg-type]
                 {:type :midi-nrpn :channel 1 :nrpn 0 :bits 7 :range [0 127]})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/eg-type] 64))
       (is (= 4 (count @calls)) "exactly 4 CC messages for 7-bit NRPN (14-bit wire encoding)")
@@ -283,8 +283,8 @@
     (ctrl/bind! [:nrpn/high]
                 {:type :midi-nrpn :channel 1 :nrpn 200 :bits 14 :range [0 16383]})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/high] 0))
       (let [[m99 m98 _ _] @calls]
@@ -298,8 +298,8 @@
     (ctrl/bind! [:nrpn/scaled]
                 {:type :midi-nrpn :channel 1 :nrpn 5 :bits 14 :range [0 100]})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/scaled] 50))
       (let [[_ _ m6 m38] @calls
@@ -312,8 +312,8 @@
     (ctrl/bind! [:nrpn/clamp]
                 {:type :midi-nrpn :channel 1 :nrpn 3 :bits 14 :range [0 16383]})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/clamp] 99999))
       (let [[_ _ m6 m38] @calls]
@@ -332,8 +332,8 @@
     (ctrl/bind! [:nrpn/raw-macro]
                 {:type :midi-nrpn :channel 1 :nrpn 100 :bits 14 :range [0 16383] :raw true})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/raw-macro] 1024))
       (let [[_ _ m6 m38] @calls
@@ -348,8 +348,8 @@
     (ctrl/bind! [:nrpn/raw-narrow]
                 {:type :midi-nrpn :channel 1 :nrpn 5 :bits 14 :range [0 100] :raw true})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/raw-narrow] 50))
       (let [[_ _ m6 m38] @calls
@@ -362,8 +362,8 @@
     (ctrl/bind! [:nrpn/raw-clamp]
                 {:type :midi-nrpn :channel 1 :nrpn 1 :bits 14 :range [0 16383] :raw true})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/raw-clamp] 99999))
       (let [[_ _ m6 m38] @calls]
@@ -377,8 +377,8 @@
     (ctrl/bind! [:nrpn/raw-7bit]
                 {:type :midi-nrpn :channel 1 :nrpn 200 :bits 7 :range [0 127] :raw true})
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send! [:nrpn/raw-7bit] 42))
       (is (= 4 (count @calls)) "7-bit raw: 4 CCs (14-bit wire encoding)")
@@ -394,8 +394,8 @@
   (testing "send-raw-nrpn! fires 4 CCs with correct encoding"
     ;; NRPN 8320 = 65*128+0; value 768 = 0x300: data-msb=6, data-lsb=0
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send-raw-nrpn! 1 8320 768))
       (is (= 4 (count @calls)))
@@ -409,8 +409,8 @@
   (testing "send-raw-nrpn! with :bits 7 uses 14-bit wire encoding"
     ;; value 99: wire = 0*128+99 → CC6=0, CC38=99
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send-raw-nrpn! 2 10 99 7))
       (is (= 4 (count @calls)) "7-bit: 4 CCs (14-bit wire encoding)")
@@ -421,8 +421,8 @@
 (deftest send-raw-nrpn-no-sidecar-test
   (testing "send-raw-nrpn! does nothing when sidecar is not connected"
     (let [calls (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly false)
-                    cljseq.sidecar/send-cc!   (fn [_t ch cc val]
+      (with-redefs [nous.sidecar/connected? (constantly false)
+                    nous.sidecar/send-cc!   (fn [_t ch cc val]
                                                 (swap! calls conj {:ch ch :cc cc :val val}))]
         (ctrl/send-raw-nrpn! 1 1 500))
       (is (empty? @calls) "no CCs sent when disconnected"))))
@@ -437,8 +437,8 @@
     (ctrl/bind! [:send-at/cutoff]
                 {:type :midi-cc :channel 1 :cc-num 74 :range [0 127]})
     (let [recorded-ts (atom nil)]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [t _ch _cc _val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [t _ch _cc _val]
                                                 (reset! recorded-ts t))]
         (ctrl/send-at! 999999999 [:send-at/cutoff] 64))
       (is (= 999999999 @recorded-ts) "send-at! forwards the explicit timestamp"))))
@@ -448,7 +448,7 @@
     (ctrl/defnode! [:send-at/val] :type :int :node-meta {:range [0 127]})
     (ctrl/bind! [:send-at/val]
                 {:type :midi-cc :channel 1 :cc-num 10 :range [0 127]})
-    (with-redefs [cljseq.sidecar/connected? (constantly false)]
+    (with-redefs [nous.sidecar/connected? (constantly false)]
       (binding [ctrl/*dispatch-warn-fn* (fn [& _])]
         (ctrl/send-at! 12345 [:send-at/val] 100)))
     (is (= 100 (ctrl/get [:send-at/val])) "ctrl tree value updated even when sidecar absent")))
@@ -459,8 +459,8 @@
     (ctrl/bind! [:send-at/nrpn]
                 {:type :midi-nrpn :channel 1 :nrpn 10 :bits 14 :range [0 16383]})
     (let [timestamps (atom #{})]
-      (with-redefs [cljseq.sidecar/connected? (constantly true)
-                    cljseq.sidecar/send-cc!   (fn [t _ch _cc _val]
+      (with-redefs [nous.sidecar/connected? (constantly true)
+                    nous.sidecar/send-cc!   (fn [t _ch _cc _val]
                                                 (swap! timestamps conj t))]
         (ctrl/send-at! 777000 [:send-at/nrpn] 8192))
       ;; 1ns sequential offsets are added to preserve scheduler heap order
@@ -478,7 +478,7 @@
     (ctrl/defnode! [:diag/cutoff] :type :float)
     (ctrl/bind! [:diag/cutoff] {:type :midi-cc :channel 1 :cc-num 74 :range [0.0 1.0]})
     (let [warned (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (binding [ctrl/*dispatch-warn-fn* (fn [path btype] (swap! warned conj {:path path :type btype}))]
           (ctrl/send! [:diag/cutoff] 0.5)))
       (is (= 1 (count @warned)) "warn fired exactly once")
@@ -490,7 +490,7 @@
     (ctrl/defnode! [:diag/nrpn-param] :type :int)
     (ctrl/bind! [:diag/nrpn-param] {:type :midi-nrpn :channel 1 :nrpn 5 :bits 14 :range [0 16383]})
     (let [warned (atom [])]
-      (with-redefs [cljseq.sidecar/connected? (constantly false)]
+      (with-redefs [nous.sidecar/connected? (constantly false)]
         (binding [ctrl/*dispatch-warn-fn* (fn [path btype] (swap! warned conj {:path path :type btype}))]
           (ctrl/send! [:diag/nrpn-param] 1000)))
       (is (= 1 (count @warned)) "warn fired exactly once")

@@ -1,11 +1,11 @@
 ;; SPDX-License-Identifier: EPL-2.0
 ;;
-;; Behringer Neutron — cljseq device map
+;; Behringer Neutron — nous device map
 ;;
 ;; Semi-modular analog synthesizer (original Behringer design).
 ;; Minimal MIDI CC (3 entries only). All synthesis parameter control is
 ;; via SysEx global config — no real-time CC parameter automation.
-;; Primary cljseq use: MIDI note → pitch CV + gate for semi-modular patching.
+;; Primary nous use: MIDI note → pitch CV + gate for semi-modular patching.
 ;;
 ;; Source: Behringer Neutron User Manual (firmware v2.0.x) — behringer.com
 ;; SysEx: Behringer ID [0x00 0x20 0x32], Neutron model byte [0x28]
