@@ -80,6 +80,7 @@
             [nous.runtime         :as runtime]
             [nous.kairos          :as kairos]
             [nous.session         :as session]
+            [nous.book            :as book]
             [nous.terrain         :as terr]))
 
 ;; ---------------------------------------------------------------------------
@@ -607,6 +608,20 @@
 (def reload-session!       session/reload-session!)
 (def clear-session!        session/clear-session!)
 (def kairos-grid-plugin-id session/*kairos-grid-plugin-id*)
+
+;; ---------------------------------------------------------------------------
+;; Book of Sounds sequencer (nous.book)
+;; ---------------------------------------------------------------------------
+
+(defmacro defbook [& args] `(book/defbook ~@args))
+(def next-step!          book/next-step!)
+(def go-page!            book/go-page!)
+(def reset-cell!         book/reset-cell!)
+(def make-book-seq       book/make-book-seq)
+(def make-book-context   book/make-book-context)
+(def book-names          book/book-names)
+(def current-page        book/current-page)
+(def current-harmonic    book/current-harmonic)
 
 ;; ---------------------------------------------------------------------------
 ;; Keyboard layout (nous.ivk)
