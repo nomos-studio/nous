@@ -27,6 +27,7 @@
             [nous.live  :as live]
             [nous.loop    :as loop-ns]
             [nous.scale   :as scale]
+            [nous.kairos  :as kairos]
             [nous.sidecar :as sidecar]
             [nous.voice   :as voice]))
 
@@ -103,7 +104,7 @@
 (defn stop-hardware-session!
   "Stop the sidecar and nous system."
   []
-  (sidecar/stop-sidecar!)
+  (kairos/stop-kairos!)
   (core/stop!))
 
 ;; ---------------------------------------------------------------------------
@@ -128,7 +129,7 @@
     (Thread/sleep 100)
     (f)
     (finally
-      (try (sidecar/stop-sidecar!) (catch Exception _))
+      (try (kairos/stop-kairos!) (catch Exception _))
       (try (core/stop!)            (catch Exception _)))))
 
 (defn- await-note-on [note]

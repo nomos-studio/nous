@@ -1,47 +1,37 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.link
-  "nous Ableton Link integration — Phase 1 + Phase 2.
+  "nous beat-clock integration — receives 24 PPQN ticks from kairos/aion.
 
-  Coordinates with the C++ sidecar's LinkEngine via the IPC protocol.
-  When Link is active, nous.loop/sleep! uses the Link timeline instead of
-  the local BPM formula, providing beat-accurate sync with Link peers.
+  kairos and aion are always Link peers; this namespace subscribes to
+  MSG-TICK (0x50) pushes via nous.kairos/on-tick! and derives beat position,
+  BPM, and a timeline compatible with nous.loop/sleep!.
 
   ## Quick start
     (require '[nous.link :as link])
-    (link/enable!)              ; join/create a Link session
-    (link/bpm)                  ; => session BPM (from most recent push)
-    (link/peers)                ; => number of connected peers
-    (link/start-transport!)     ; request all peers begin playing
-    (link/stop-transport!)      ; request all peers stop playing
-    (link/disable!)             ; leave the session
+    (link/active?)          ; => true when kairos/aion is connected and ticking
+    (link/bpm)              ; => estimated session BPM
+    (link/playing?)         ; => true when ticks are arriving
+    (link/link-timeline)    ; => {:bpm N :beat0-beat N :beat0-epoch-ms N}
 
-  ## How it works (Phase 1)
-  The sidecar pushes a LinkState frame (IPC 0x80) whenever tempo, peer count,
-  or transport state changes. This namespace registers a push handler at load
-  time. Each push updates :link-timeline in system-state — a map with the same
-  shape as :timeline but anchored to the Link session.
+  ## How it works
+  kairos/aion push MSG-TICK at 24 PPQN over the IPC channel. Each tick
+  carries {:beat N :tick-n N} (plus :mods when modulators are running).
+  This namespace uses consecutive tick arrivals to estimate BPM, anchors a
+  timeline to each tick, and fires transport-change hooks on start/stop
+  transitions.
 
   nous.loop/sleep! checks (link/active?) and, when true, uses :link-timeline
-  to compute its wall-clock deadline. BPM changes from other Link peers take
-  effect on the next sleep! call with no explicit broadcast (Q60-equivalent).
+  to compute its wall-clock deadline — same contract as before, different source.
 
-  ## Phase 2 additions
-
-  * **BPM push (JVM → Link)**: `core/set-bpm!` calls `link/set-bpm!` when Link
-    is active, propagating local tempo changes to all Link peers.
-
-  * **Transport start/stop**: `start-transport!` / `stop-transport!` send IPC
-    0x13 / 0x14 to the sidecar, which commits the change to the Link session and
-    notifies all peers. The transport state is broadcast back via the 0x80 push.
-
-  * **Transport-change hooks**: register a callback with `on-transport-change!`
-    to react when the Link session's playing state changes (e.g. start/stop
-    nous live loops from a Link peer's transport button).
+  ## Vestigial imperative calls
+  enable!, disable!, set-bpm!, start-transport!, stop-transport! previously
+  sent IPC commands to the sidecar's Link engine. kairos/aion own the Link
+  peer and it is always on; those calls are preserved as no-ops with
+  deprecation notices until explicit kairos MSG types are defined.
 
   Key design decisions: Q7 (Link integration), §15 of R&R doc."
-  (:require [nous.sidecar :as sidecar])
-  (:import  [java.nio ByteBuffer ByteOrder]
-            [java.util.concurrent.locks LockSupport]))
+  (:require [nous.kairos :as kairos])
+  (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
 ;; System state reference (injected by nous.core/start!)
@@ -56,177 +46,187 @@
   (reset! system-ref state-atom))
 
 ;; ---------------------------------------------------------------------------
-;; Transport-change hook registry (Phase 2)
-;;
-;; {hook-key fn} — fn called (fn [playing?]) on every transport state change.
-;; Hooks fire synchronously on the sidecar reader thread; keep them fast.
+;; Transport-change hook registry
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private transport-hook-registry (atom {}))
 
 ;; ---------------------------------------------------------------------------
-;; LinkState push handler — registered with sidecar at namespace load time
+;; BPM estimation from tick intervals
+;;
+;; At 24 PPQN, consecutive ticks are (60 / bpm / 24) seconds apart.
+;; We maintain a rolling window of (beat, epoch-ms) pairs and derive BPM
+;; from the slope across the window to smooth out jitter.
 ;; ---------------------------------------------------------------------------
 
-(defn- parse-link-state
-  "Parse the 37-byte 0x80 payload into a Clojure map.
+(def ^:private tick-window-size 8)
+(def ^:private tick-window      (atom (clojure.lang.PersistentQueue/EMPTY)))
 
-  Wire layout (LE):
-    [double bpm(8)][double anchor_beat(8)][int64 anchor_us(8)]
-    [uint32 peers(4)][uint8 playing(1)][uint8 reserved×3(3)]"
-  [^bytes payload]
-  (when (>= (alength payload) 37)
-    (let [buf (ByteBuffer/wrap payload)]
-      (.order buf ByteOrder/LITTLE_ENDIAN)
-      {:bpm         (.getDouble buf)
-       :anchor-beat (.getDouble buf)
-       :anchor-us   (.getLong buf)
-       :peers       (Integer/toUnsignedLong (.getInt buf))
-       :playing     (pos? (bit-and (.get buf) 0xFF))})))
+(defn- enqueue-tick-sample [beat epoch-ms]
+  (swap! tick-window
+         (fn [q]
+           (let [q' (conj q {:beat beat :epoch-ms epoch-ms})]
+             (if (> (count q') tick-window-size)
+               (pop q')
+               q')))))
 
-(defn- link-state->timeline
-  "Convert a parsed LinkState into a :timeline-shaped map for use by
-  nous.clock/beat->epoch-ms.
+(defn- estimate-bpm
+  "Estimate BPM from the oldest and newest sample in the window.
+  Returns nil when insufficient data."
+  []
+  (let [samples (seq @tick-window)]
+    (when (>= (count samples) 2)
+      (let [oldest (first samples)
+            newest (last  samples)
+            db     (- (:beat newest)     (:beat oldest))
+            dt-s   (/ (- (:epoch-ms newest) (:epoch-ms oldest)) 1000.0)]
+        (when (and (pos? db) (pos? dt-s))
+          (* 60.0 (/ db dt-s)))))))
 
-  Link's anchor-us is µs; the timeline expects epoch-ms."
-  [{:keys [bpm anchor-beat anchor-us]}]
-  {:bpm            bpm
-   :beat0-beat     anchor-beat
-   :beat0-epoch-ms (/ anchor-us 1000.0)})
+;; ---------------------------------------------------------------------------
+;; MSG-TICK subscription
+;; ---------------------------------------------------------------------------
 
-(defn- on-link-state-push
-  "Handle a 0x80 LinkState push from the sidecar.
-  Updates :link-state and :link-timeline in system-state, unparks
-  sleeping loop threads so they recompute their deadline (Q60),
-  and fires transport-change hooks when the playing state changes."
-  [^bytes payload]
-  (when-let [ls (parse-link-state payload)]
-    (when-let [s @system-ref]
-      (let [prev-playing (get-in @s [:link-state :playing])]
-        (swap! s (fn [state]
-                   (-> state
-                       (assoc :link-state    ls)
-                       (assoc :link-timeline (link-state->timeline ls)))))
-        ;; Unpark sleeping loop threads so they recompute their deadline.
-        (doseq [[_ entry] (:loops @s)]
-          (when-let [^Thread t (:thread entry)]
-            (LockSupport/unpark t)))
-        ;; Fire transport-change hooks when playing state transitions.
-        ;; Treat nil (no prior state) as false so the first push doesn't
-        ;; spuriously fire hooks when the session initialises as stopped.
-        (when (not= (boolean prev-playing) (boolean (:playing ls)))
-          (let [playing? (:playing ls)]
-            (doseq [[_ hook-fn] @transport-hook-registry]
-              (try
-                (hook-fn playing?)
-                (catch Exception e
-                  (binding [*out* *err*]
-                    (println "[link] transport hook error:" (.getMessage e))))))))))))
+(defn- fire-transport-hooks [playing?]
+  (doseq [[_ hook-fn] @transport-hook-registry]
+    (try (hook-fn playing?)
+         (catch Exception e
+           (binding [*out* *err*]
+             (println "[link] transport hook error:" (.getMessage e)))))))
 
-;; Register push handler at namespace load time. The handler survives
-;; stop!/start! cycles; sidecar/register-push-handler! just updates a map.
-(sidecar/register-push-handler! 0x80 on-link-state-push)
+(defn- on-tick
+  "Handler called on every 24 PPQN tick pushed by kairos/aion.
+  tick-ev — {:beat N :tick-n N} (plus :mods when modulators are running)."
+  [{:keys [beat]}]
+  (when beat
+    (let [now-ms  (System/currentTimeMillis)
+          _       (enqueue-tick-sample beat now-ms)
+          est-bpm (estimate-bpm)
+          timeline (when est-bpm
+                     {:bpm            est-bpm
+                      :beat0-beat     beat
+                      :beat0-epoch-ms now-ms})]
+      (when-let [s @system-ref]
+        (let [prev-bpm (get-in @s [:link-state :bpm])]
+          (swap! s (fn [state]
+                     (cond-> state
+                       est-bpm (assoc :link-timeline timeline)
+                       true    (assoc :link-state
+                                      (merge (or (:link-state state) {})
+                                             {:playing true
+                                              :last-tick-ms now-ms}
+                                             (when est-bpm {:bpm est-bpm}))))))
+          (doseq [[_ entry] (:loops @s)]
+            (when-let [^Thread t (:thread entry)]
+              (LockSupport/unpark t)))
+          (when (and (nil? prev-bpm) est-bpm)
+            (fire-transport-hooks true)))))))
+
+(def ^:private tick-key (kairos/on-tick! on-tick))
+
+;; ---------------------------------------------------------------------------
+;; Playing state — based on recency of last tick
+;; ---------------------------------------------------------------------------
+
+(def ^:private stale-tick-ms 500)
+
+(defn- ticks-arriving?
+  []
+  (when-let [s @system-ref]
+    (when-let [last-ms (get-in @s [:link-state :last-tick-ms])]
+      (< (- (System/currentTimeMillis) last-ms) stale-tick-ms))))
 
 ;; ---------------------------------------------------------------------------
 ;; Public API
 ;; ---------------------------------------------------------------------------
 
 (defn active?
-  "Return true if a Link session is currently active."
+  "Return true when kairos/aion is connected and ticks are arriving."
   []
-  (boolean (when-let [s @system-ref] (:link-timeline @s))))
+  (boolean (and (kairos/connected?) (ticks-arriving?))))
 
 (defn link-timeline
-  "Return the current Link timeline map (same shape as :timeline), or nil
-  when Link is inactive. Used by nous.loop/sleep! to compute beat→epoch-ms."
+  "Return the current beat timeline map, or nil when inactive.
+  Shape: {:bpm N :beat0-beat N :beat0-epoch-ms N}
+  Used by nous.loop/sleep! to compute beat→epoch-ms."
   []
-  (when-let [s @system-ref] (:link-timeline @s)))
+  (when (active?)
+    (when-let [s @system-ref] (:link-timeline @s))))
 
 (defn link-state
-  "Return the most recently received raw LinkState map, or nil."
+  "Return the most recently derived link state map, or nil."
   []
   (when-let [s @system-ref] (:link-state @s)))
 
 (defn bpm
-  "Return the current session BPM as reported by Link, or nil when inactive."
+  "Return the estimated session BPM, or nil when inactive."
   []
   (:bpm (link-state)))
 
 (defn peers
-  "Return the number of connected Link peers, or nil when inactive."
+  "Return the number of connected Link peers.
+  Currently always nil — kairos/aion do not yet push peer count."
   []
   (:peers (link-state)))
 
 (defn playing?
-  "Return the Link transport state (true = playing), or nil when inactive."
+  "Return true when ticks are actively arriving from kairos/aion."
   []
-  (:playing (link-state)))
+  (boolean (ticks-arriving?)))
+
+;; ---------------------------------------------------------------------------
+;; Vestigial imperative calls
+;;
+;; These previously sent IPC commands to the sidecar's Link engine.
+;; kairos/aion own the Link peer and it is always on. Preserved for
+;; call-site compatibility; pending explicit kairos MSG types.
+;; ---------------------------------------------------------------------------
 
 (defn enable!
-  "Join or create a Link session.
-
-  Options:
-    :quantum — phrase length in beats (default 4). All peers that share the
-               same quantum are guaranteed to be in phase with each other.
-
-  Triggers an immediate 0x80 LinkState push from the sidecar, which populates
-  :link-timeline and activates the Link timing path in sleep!."
-  [& {:keys [quantum] :or {quantum 4}}]
-  (when-not (sidecar/connected?)
-    (throw (ex-info "sidecar not connected; call (start!) first" {})))
-  (sidecar/send-link-enable! :quantum quantum))
+  "No-op. kairos/aion own the Link peer; it is always active.
+  Previously: joined or created a Link session via the sidecar."
+  [& _]
+  (println "[link] enable! is vestigial — kairos/aion own the Link peer"))
 
 (defn disable!
-  "Leave the Link session. :link-timeline is cleared from system-state
-  and sleep! reverts to the local BPM formula."
+  "Clears local :link-state and :link-timeline from system-state.
+  Does not stop kairos/aion — the peer continues running.
+  Previously: left the Link session via the sidecar."
   []
-  (when (sidecar/connected?)
-    (sidecar/send-link-disable!))
+  (println "[link] disable! is vestigial — clearing local link state only")
   (when-let [s @system-ref]
     (swap! s dissoc :link-state :link-timeline)))
 
 (defn set-bpm!
-  "Propose a tempo change to the Link session. All peers will converge on
-  the new BPM within one or two network round-trips."
-  [bpm]
-  (when (sidecar/connected?)
-    (sidecar/send-link-set-bpm! (double bpm))))
+  "No-op. BPM is owned by the Link session in kairos/aion.
+  Previously: proposed a tempo change to the sidecar Link engine.
+  Pending a kairos MSG type."
+  [_bpm]
+  (println "[link] set-bpm! is vestigial — kairos/aion own BPM; not yet wired"))
 
 (defn start-transport!
-  "Request transport start on the Link session.
-  Sends IPC 0x13 to the sidecar; the sidecar commits `isPlaying=true` to the
-  Link session state. All Link peers will transition to playing.
-  The 0x80 push will follow and fire any registered transport-change hooks.
-
-  Requires the sidecar to be connected and Link to be enabled."
+  "No-op. Transport is owned by the Link session in kairos/aion.
+  Previously: sent IPC 0x13 to request transport start.
+  Pending a kairos MSG type."
   []
-  (when (sidecar/connected?)
-    (sidecar/send-link-transport-start!)))
+  (println "[link] start-transport! is vestigial — pending kairos MSG type"))
 
 (defn stop-transport!
-  "Request transport stop on the Link session.
-  Sends IPC 0x14 to the sidecar; the sidecar commits `isPlaying=false` to the
-  Link session state. All Link peers will transition to stopped.
-  The 0x80 push will follow and fire any registered transport-change hooks.
-
-  Requires the sidecar to be connected and Link to be enabled."
+  "No-op. Transport is owned by the Link session in kairos/aion.
+  Previously: sent IPC 0x14 to request transport stop.
+  Pending a kairos MSG type."
   []
-  (when (sidecar/connected?)
-    (sidecar/send-link-transport-stop!)))
+  (println "[link] stop-transport! is vestigial — pending kairos MSG type"))
 
 ;; ---------------------------------------------------------------------------
-;; Transport-change hooks — Phase 2
+;; Transport-change hooks
 ;; ---------------------------------------------------------------------------
 
 (defn on-transport-change!
-  "Register a hook function called whenever the Link transport state changes.
+  "Register a hook called when the Link transport state changes.
 
-  `hook-key` — any value; used to identify and remove the hook.
-  `f`         — (fn [playing?]) where playing? is true when transport started,
-                false when stopped. Called synchronously on the sidecar reader
-                thread — keep it fast; throw exceptions are caught and logged.
-
-  Re-registering the same key replaces the previous hook.
+  hook-key — any value, used to remove the hook
+  f        — (fn [playing?]) called synchronously on the kairos reader thread
 
   Example:
     (link/on-transport-change! ::my-hook
@@ -237,8 +237,7 @@
   nil)
 
 (defn remove-transport-hook!
-  "Remove the transport-change hook identified by `hook-key`.
-  No-op if the key is not registered."
+  "Remove the transport-change hook identified by hook-key. No-op if absent."
   [hook-key]
   (swap! transport-hook-registry dissoc hook-key)
   nil)
@@ -249,14 +248,12 @@
   @transport-hook-registry)
 
 ;; ---------------------------------------------------------------------------
-;; Quantum alignment helpers (used by deflive-loop when Link is active)
+;; Quantum alignment helpers
 ;; ---------------------------------------------------------------------------
 
 (defn next-quantum-beat
-  "Return the beat number of the next quantum boundary strictly after `beat`.
-
-  Used by deflive-loop to delay loop start until the next bar boundary,
-  ensuring the loop joins the session in phase (§15.4)."
+  "Return the beat number of the next quantum boundary strictly after beat.
+  Used by deflive-loop to delay loop start until the next bar boundary."
   [beat quantum]
   (let [q (double quantum)
         b (double beat)]

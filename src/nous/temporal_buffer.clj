@@ -53,7 +53,7 @@
   Design: doc/design-temporal-buffer.md (§§2–5, §11, §16 Phase 1–2)"
   (:require [nous.clock   :as clock]
             [nous.loop    :as loop-ns]
-            [nous.sidecar :as sidecar])
+            [nous.kairos :as kairos])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
@@ -121,18 +121,16 @@
 (defn- emit-event!
   "Schedule note event `ev` to play at absolute beat `play-beat`.
 
-  Routes to sidecar if connected; falls back to stdout for Phase 0 / test use."
+  Routes to kairos if connected; falls back to stdout for Phase 0 / test use."
   [ev ^double play-beat]
   (let [midi     (int (or (:pitch/midi ev) 60))
         beats    (double (or (:dur/beats ev) 0.25))
         channel  (int (or (:midi/channel ev) 1))
         velocity (int (or (:mod/velocity ev) 64))]
-    (if (and (sidecar/connected?) (timeline))
-      (let [tl      (timeline)
-            on-ns   (clock/beat->epoch-ns play-beat tl)
-            off-ns  (clock/beat->epoch-ns (+ play-beat beats) tl)]
-        (sidecar/send-note-on!  on-ns  channel midi velocity)
-        (sidecar/send-note-off! off-ns channel midi))
+    (if (kairos/connected?)
+      (do
+        (kairos/send-note-on!  midi velocity :channel channel :beat play-beat)
+        (kairos/send-note-off! midi :channel channel :beat (+ play-beat beats)))
       (println (format "[temporal-buffer] beat=%.3f midi=%d dur=%.3f ch=%d vel=%d"
                        play-beat midi beats channel velocity)))))
 

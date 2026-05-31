@@ -1,38 +1,33 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.link-test
-  "Tests for nous.link Phase 2 — transport hooks, BPM propagation, beacon
-  integration. No live Link session or sidecar is required; the tests drive
-  the system via the private push handler and atom manipulation."
+  "Tests for nous.link — kairos/aion 24 PPQN tick-driven beat clock.
+
+  The sidecar 0x80 binary push is gone; drive the system by calling the private
+  on-tick handler directly, as kairos would."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [nous.core  :as core]
+            [nous.kairos :as kairos]
             [nous.link  :as link]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers — private atom access
 ;; ---------------------------------------------------------------------------
 
-(defn- system-ref  [] @#'link/system-ref)
-(defn- hooks-atom  [] @#'link/transport-hook-registry)
-;; Simulate a sidecar 0x80 push by calling the private handler directly.
-;; Builds the 37-byte payload matching the wire format in parse-link-state.
-(defn- make-link-payload
-  [& {:keys [bpm anchor-beat anchor-us peers playing]
-      :or   {bpm 120.0 anchor-beat 0.0 anchor-us 0
-             peers 0 playing false}}]
-  (let [buf (java.nio.ByteBuffer/allocate 37)]
-    (.order buf java.nio.ByteOrder/LITTLE_ENDIAN)
-    (.putDouble buf bpm)
-    (.putDouble buf anchor-beat)
-    (.putLong   buf anchor-us)
-    (.putInt    buf (int peers))
-    (.put       buf (byte (if playing 1 0)))
-    (.put       buf (byte 0))
-    (.put       buf (byte 0))
-    (.put       buf (byte 0))
-    (.array buf)))
+(defn- system-ref       [] @#'link/system-ref)
+(defn- hooks-atom       [] @#'link/transport-hook-registry)
+(defn- tick-window-atom [] @#'link/tick-window)
 
-(defn- simulate-push! [& opts]
-  (#'link/on-link-state-push (apply make-link-payload opts)))
+(defn- simulate-ticks!
+  "Push n ticks to the on-tick handler with ~16ms gaps so BPM estimation works.
+  start-beat — beat position of the first tick.
+  Returns after all ticks are processed."
+  [n start-beat]
+  (let [on-tick  #'link/on-tick
+        beat-inc (/ 1.0 24.0)]
+    (dotimes [i n]
+      (on-tick {:beat (+ (double start-beat) (* i beat-inc)) :tick-n i})
+      (when (< i (dec n))
+        (Thread/sleep 16)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures
@@ -41,70 +36,101 @@
 (use-fixtures :each
   (fn [t]
     (core/start! :bpm 120)
-    ;; Clear any stale link state from previous tests
     (when-let [s @(system-ref)]
       (swap! s dissoc :link-state :link-timeline))
+    (reset! (tick-window-atom) clojure.lang.PersistentQueue/EMPTY)
     (reset! (hooks-atom) {})
     (t)
     (reset! (hooks-atom) {})
+    (reset! (tick-window-atom) clojure.lang.PersistentQueue/EMPTY)
     (core/stop!)))
 
 ;; ---------------------------------------------------------------------------
-;; Link state parsing
+;; BPM estimation
 ;; ---------------------------------------------------------------------------
 
-(deftest parse-link-state-populates-system
-  (testing "0x80 push sets :link-state and :link-timeline in system state"
-    (simulate-push! :bpm 140.0 :anchor-beat 4.0 :anchor-us 1000000
-                    :peers 2 :playing true)
-    (is (= 140.0 (link/bpm)))
-    (is (= 2     (link/peers)))
-    (is (true?   (link/playing?)))
-    (is (link/active?))))
+(deftest bpm-nil-before-ticks
+  (testing "bpm returns nil when no ticks have arrived"
+    (is (nil? (link/bpm)))))
 
-(deftest link-active-false-before-push
-  (testing "active? returns false when no push has been received"
-    ;; fresh start — no link-timeline yet
-    (is (false? (link/active?)))))
+(deftest bpm-estimated-from-ticks
+  (testing "BPM is estimated (non-nil) after multiple ticks arrive"
+    (with-redefs [kairos/connected? (constantly true)]
+      (simulate-ticks! 10 0.0)
+      (is (some? (link/bpm)) "BPM should be non-nil after sufficient ticks"))))
 
 ;; ---------------------------------------------------------------------------
-;; Transport-change hooks
+;; playing? / active?
 ;; ---------------------------------------------------------------------------
 
-(deftest transport-hook-fires-on-playing-transition
-  (testing "on-transport-change! hook fires when playing changes false→true"
-    (let [received (atom nil)]
-      (link/on-transport-change! ::test-hook (fn [p] (reset! received p)))
-      ;; First push: not playing
-      (simulate-push! :playing false)
-      ;; Second push: playing changes to true
-      (simulate-push! :playing true)
-      (is (true? @received)))))
+(deftest playing-false-before-ticks
+  (testing "playing? returns false when no ticks have been received"
+    (is (false? (link/playing?)))))
 
-(deftest transport-hook-fires-on-stopped-transition
-  (testing "hook fires when playing changes true→false"
+(deftest playing-true-after-single-tick
+  (testing "playing? returns true immediately after a tick arrives"
+    (with-redefs [kairos/connected? (constantly true)]
+      (#'link/on-tick {:beat 0.0 :tick-n 0})
+      (is (true? (link/playing?))))))
+
+(deftest active-false-when-kairos-disconnected
+  (testing "active? is false when kairos is not connected even with recent ticks"
+    (with-redefs [kairos/connected? (constantly false)]
+      (#'link/on-tick {:beat 0.0 :tick-n 0})
+      (is (false? (link/active?))))))
+
+(deftest active-true-when-connected-and-ticking
+  (testing "active? is true when kairos is connected and ticks are recent"
+    (with-redefs [kairos/connected? (constantly true)]
+      (#'link/on-tick {:beat 0.0 :tick-n 0})
+      (is (true? (link/active?))))))
+
+;; ---------------------------------------------------------------------------
+;; link-timeline
+;; ---------------------------------------------------------------------------
+
+(deftest link-timeline-nil-before-ticks
+  (testing "link-timeline returns nil when inactive"
+    (is (nil? (link/link-timeline)))))
+
+(deftest link-timeline-populated-after-ticks
+  (testing "link-timeline has :bpm, :beat0-beat, :beat0-epoch-ms after ticks"
+    (with-redefs [kairos/connected? (constantly true)]
+      (simulate-ticks! 10 0.0)
+      (let [tl (link/link-timeline)]
+        (is (some? tl)                     "timeline should be non-nil")
+        (is (number? (:bpm tl))            ":bpm should be a number")
+        (is (number? (:beat0-beat tl))     ":beat0-beat should be a number")
+        (is (number? (:beat0-epoch-ms tl)) ":beat0-epoch-ms should be a number")))))
+
+;; ---------------------------------------------------------------------------
+;; Transport-change hooks — fire on first BPM-estimated tick sequence
+;; ---------------------------------------------------------------------------
+
+(deftest transport-hook-fires-on-start
+  (testing "on-transport-change! hook fires (playing?=true) when ticks first establish BPM"
     (let [received (atom :not-fired)]
-      (simulate-push! :playing true)  ; set initial state
       (link/on-transport-change! ::test-hook (fn [p] (reset! received p)))
-      (simulate-push! :playing false)
-      (is (false? @received)))))
+      (with-redefs [kairos/connected? (constantly true)]
+        (simulate-ticks! 10 0.0))
+      (is (true? @received) "hook fires with playing?=true"))))
 
-(deftest transport-hook-not-fired-when-state-unchanged
-  (testing "hook does NOT fire when playing state stays the same"
+(deftest transport-hook-does-not-fire-when-already-playing
+  (testing "hook does NOT fire on subsequent ticks once playing is established"
     (let [call-count (atom 0)]
-      (simulate-push! :playing false)
-      (link/on-transport-change! ::test-hook (fn [_] (swap! call-count inc)))
-      ;; Same state again
-      (simulate-push! :playing false)
-      (is (zero? @call-count)))))
+      (with-redefs [kairos/connected? (constantly true)]
+        (simulate-ticks! 10 0.0)
+        (link/on-transport-change! ::test-hook (fn [_] (swap! call-count inc)))
+        (simulate-ticks! 5 (/ 10.0 24.0)))
+      (is (zero? @call-count) "no extra hook fires after playing is established"))))
 
 (deftest multiple-hooks-all-fire
-  (testing "all registered hooks fire on a transport transition"
+  (testing "all registered hooks fire on transport start"
     (let [r1 (atom nil) r2 (atom nil)]
       (link/on-transport-change! ::hook-1 (fn [p] (reset! r1 p)))
       (link/on-transport-change! ::hook-2 (fn [p] (reset! r2 p)))
-      (simulate-push! :playing false)
-      (simulate-push! :playing true)
+      (with-redefs [kairos/connected? (constantly true)]
+        (simulate-ticks! 10 0.0))
       (is (true? @r1))
       (is (true? @r2)))))
 
@@ -113,21 +139,21 @@
     (let [r (atom :not-fired)]
       (link/on-transport-change! ::removable (fn [p] (reset! r p)))
       (link/remove-transport-hook! ::removable)
-      (simulate-push! :playing false)
-      (simulate-push! :playing true)
+      (with-redefs [kairos/connected? (constantly true)]
+        (simulate-ticks! 10 0.0))
       (is (= :not-fired @r)))))
 
-(deftest hook-exception-does-not-crash-push
-  (testing "a hook that throws does not prevent other hooks from firing"
+(deftest hook-exception-does-not-crash-tick
+  (testing "a throwing hook does not prevent other hooks from firing"
     (let [r (atom :not-fired)]
       (link/on-transport-change! ::bad-hook  (fn [_] (throw (ex-info "boom" {}))))
       (link/on-transport-change! ::good-hook (fn [p] (reset! r p)))
-      (simulate-push! :playing false)
-      (simulate-push! :playing true)
+      (with-redefs [kairos/connected? (constantly true)]
+        (simulate-ticks! 10 0.0))
       (is (true? @r)))))
 
 ;; ---------------------------------------------------------------------------
-;; on-transport-change! / remove-transport-hook! / transport-hooks
+;; Hook registry management
 ;; ---------------------------------------------------------------------------
 
 (deftest register-hook-adds-to-registry
@@ -143,17 +169,41 @@
   (let [v (atom 0)]
     (link/on-transport-change! ::shared (fn [_] (swap! v + 1)))
     (link/on-transport-change! ::shared (fn [_] (swap! v + 10)))
-    (simulate-push! :playing false)
-    (simulate-push! :playing true)
-    ;; only the second registration should fire
-    (is (= 10 @v))))
+    (with-redefs [kairos/connected? (constantly true)]
+      (simulate-ticks! 10 0.0))
+    (is (= 10 @v) "second registration replaces first — only +10 fires")))
 
 ;; ---------------------------------------------------------------------------
-;; BPM push — core/set-bpm! propagation (tested without live sidecar)
+;; Vestigial calls — must not throw
+;; ---------------------------------------------------------------------------
+
+(deftest vestigial-calls-do-not-throw
+  (testing "enable!, disable!, set-bpm!, start-transport!, stop-transport! are safe"
+    (with-out-str
+      (link/enable!)
+      (link/disable!)
+      (link/set-bpm! 130.0)
+      (link/start-transport!)
+      (link/stop-transport!))
+    (is true "no exception thrown")))
+
+;; ---------------------------------------------------------------------------
+;; core/set-bpm! is safe when link is inactive
 ;; ---------------------------------------------------------------------------
 
 (deftest set-bpm-does-not-crash-when-link-inactive
   (testing "core/set-bpm! is safe when Link is not active"
-    ;; No link-timeline set — link/active? returns false — no IPC call attempted
     (is (nil? (core/set-bpm! 130.0)))
     (is (= 130.0 (core/get-bpm)))))
+
+;; ---------------------------------------------------------------------------
+;; next-quantum-beat
+;; ---------------------------------------------------------------------------
+
+(deftest next-quantum-beat-test
+  (testing "next-quantum-beat returns the next multiple of quantum at or after beat"
+    (is (= 0.0 (link/next-quantum-beat 0.0 4))  "beat 0 at quantum 4 → 0")
+    (is (= 4.0 (link/next-quantum-beat 1.0 4))  "beat 1 at quantum 4 → 4")
+    (is (= 4.0 (link/next-quantum-beat 4.0 4))  "beat 4 at quantum 4 → 4 (exact)")
+    (is (= 8.0 (link/next-quantum-beat 5.5 4))  "beat 5.5 at quantum 4 → 8")
+    (is (= 3.0 (link/next-quantum-beat 2.0 3))  "beat 2 at quantum 3 → 3")))

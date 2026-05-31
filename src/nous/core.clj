@@ -27,7 +27,7 @@
             [nous.mod             :as mod]
             [nous.mpe             :as mpe]
             [nous.schema          :as schema]
-            [nous.sidecar         :as sidecar]
+            [nous.kairos          :as kairos]
             [nous.target          :as target]
             [nous.temporal-buffer :as tbuf]
             [nous.timeline        :as timeline]
@@ -230,22 +230,22 @@
     nil))
 
 (defn open-session!
-  "Open a durable session log in the sidecar.
+  "Open a durable session log in kairos/aion.
 
-  Sends a SessionOpen (0x31) IPC message to the sidecar, directing it to create
+  Sends a SessionOpen (0x31) IPC message, directing kairos to create
   (or reuse) a SQLite file at the path computed by `start!`.
 
-  Call this after `start-sidecar!`. If no session path was set (e.g. `:no-log true`
-  was passed to `start!`), this is a no-op.
+  Call this after `start-kairos!` / `start-aion!`. If no session path was set
+  (e.g. `:no-log true` was passed to `start!`), this is a no-op.
 
   Example:
     (start! :bpm 120 :session-id :berlin-study)
-    (start-sidecar! :midi-port 0)
+    (kairos/start-kairos! :binary \"/usr/local/bin/kairos\")
     (open-session!)   ; → writes to ~/.nous/sessions/2026-04-20T21-34-00-berlin-study.sqlite"
   []
   (when-let [path (:session-path @system-state)]
-    (when (sidecar/connected?)
-      (sidecar/open-session! path)
+    (when (kairos/connected?)
+      (kairos/send-session-open! path)
       (println (str "[session] logging to " path))))
   nil)
 
@@ -454,14 +454,8 @@
   ;; Stop the m21 server if it was ever loaded (dynamic to avoid circular dep)
   (when-let [stop-m21 (resolve 'nous.m21/stop-server!)]
     (stop-m21))
-  ;; Close the durable session log if the sidecar is connected
-  (when (sidecar/connected?)
-    (sidecar/close-session!))
-  ;; Close the kairos session log if kairos is connected (dynamic resolve avoids circular dep)
-  (when-let [kairos-connected? (resolve 'nous.kairos/connected?)]
-    (when (kairos-connected?)
-      (when-let [close! (resolve 'nous.kairos/send-session-close!)]
-        (close!))))
+  (when (kairos/connected?)
+    (kairos/send-session-close!))
   ;; Wait briefly for threads to notice the stop signal
   (Thread/sleep 50)
   (swap! system-state assoc :loops {})
@@ -536,8 +530,8 @@
 ;; ---------------------------------------------------------------------------
 
 (defn play!
-  "Play a note. Routes to the sidecar for MIDI output when connected;
-  falls back to stdout when running without a sidecar (Phase 0 mode).
+  "Play a note. Routes to kairos/aion for MIDI output when connected;
+  falls back to stdout when running standalone (Phase 0 mode).
 
   Accepts:
     (play! {:pitch/midi 60 :dur/beats 1/2})   ; step map (canonical form)
@@ -599,42 +593,34 @@
                         dur
                         1/4)
            now-beat (double loop-ns/*virtual-time*)]
-       (if (sidecar/connected?)
-         (let [tl       (:timeline @system-state)
-               timing   loop-ns/*timing-ctx*
-               t-off-ns (if timing
-                          (long (Math/round (* (clock/sample timing now-beat)
-                                               (clock/beats->ms 1.0 (double (:bpm tl)))
-                                               1000000.0)))
-                          0)
-               step     (if (map? note) note {:pitch/midi midi :dur/beats beats})]
-           ;; Route through MPE allocator when enabled and step has per-note expression keys
+       (if (kairos/connected?)
+         (let [tl             (:timeline @system-state)
+               timing         loop-ns/*timing-ctx*
+               t-beat-offset  (if timing
+                                (double (clock/sample timing now-beat))
+                                0.0)
+               step           (if (map? note) note {:pitch/midi midi :dur/beats beats})]
            (if (and (mpe/mpe-enabled?) (mpe/mpe-step? step))
              (mpe/play-mpe! step now-beat tl)
-             (let [channel   (or (and (map? note) (:midi/channel note)) 1)
-                   velocity  (or (and (map? note) (:mod/velocity note)) 64)
-                   wall-ns   (* (System/currentTimeMillis) 1000000)
-                   on-ns     (max wall-ns (clock/beat->epoch-ns now-beat tl))
-                   off-ns    (max (+ on-ns (* (long (clock/beats->ms beats (double (:bpm tl)))) 1000000))
-                                  (clock/beat->epoch-ns (+ now-beat (double beats)) tl))
-                   t-on-ns   (+ on-ns t-off-ns)]
-               ;; Dispatch ctrl-path step-mods at note-on time (§24.6 Phase 3)
+             (let [channel  (or (and (map? note) (:midi/channel note)) 1)
+                   velocity (or (and (map? note) (:mod/velocity note)) 64)
+                   on-beat  (+ now-beat t-beat-offset)
+                   off-beat (+ now-beat (double beats) t-beat-offset)]
                (doseq [[k mod] (or loop-ns/*step-mod-ctx* [])
                        :when (vector? k)]
                  (let [val (if (satisfies? clock/ITemporalValue mod)
                              (clock/sample mod now-beat)
                              mod)]
-                   (ctrl/send-at! t-on-ns k val)))
-               ;; Microtonal pitch bend — send before note-on, reset after note-off
+                   (ctrl/send-at! on-beat k val)))
                (let [bend-cents (when (map? note) (:pitch/bend-cents note))
                      bend-14bit (when (and bend-cents (not (zero? (double bend-cents))))
                                   (cents->bend14 bend-cents))]
                  (when bend-14bit
-                   (sidecar/send-pitch-bend! t-on-ns channel bend-14bit))
-                 (sidecar/send-note-on!  t-on-ns channel midi velocity)
-                 (sidecar/send-note-off! (+ off-ns t-off-ns) channel midi)
+                   (kairos/send-pitch-bend! channel bend-14bit))
+                 (kairos/send-note-on!  midi velocity :channel channel :beat on-beat)
+                 (kairos/send-note-off! midi :channel channel :beat off-beat)
                  (when bend-14bit
-                   (sidecar/send-pitch-bend! (+ off-ns t-off-ns) channel 8192))))))
+                   (kairos/send-pitch-bend! channel 8192))))))
          (let [ms (long (clock/beats->ms beats (get-bpm)))]
            (println (format "[play!] beat=%-8s midi=%-3d dur=%s beats (%dms)"
                             (str now-beat) midi (str beats) ms))))))))

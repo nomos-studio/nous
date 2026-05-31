@@ -60,7 +60,7 @@
 
   Key design decisions: Q4, Q8, Q9, Q10, Q47, Q48."
   (:refer-clojure :exclude [get])
-  (:require [nous.sidecar   :as sidecar]
+  (:require [nous.kairos    :as kairos]
             [nous.timeline  :as timeline]))
 
 ;; ---------------------------------------------------------------------------
@@ -123,13 +123,13 @@
 
 (def ^:dynamic *dispatch-warn-fn*
   "Called when a physical binding (MIDI CC, NRPN) cannot be dispatched because
-  the sidecar is not connected. Default: print to *err*.
+  kairos is not connected. Default: print to *err*.
   Override in tests: (binding [ctrl/*dispatch-warn-fn* (fn [& _])] ...)"
   (fn [path binding-type]
     (binding [*out* *err*]
       (println (str "[ctrl] send! — " (pr-str path)
-                    " has a " binding-type " binding but sidecar is not connected."
-                    " Start the sidecar with (sidecar/start-sidecar!) first.")))))
+                    " has a " binding-type " binding but kairos is not connected."
+                    " Start kairos with (kairos/start-kairos!) first.")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Watcher registry
@@ -281,17 +281,17 @@
                s'')))
     (let [[tx new-state] @result]
       (fire-watchers! tx new-state)
-      (when (sidecar/connected?)
-        (sidecar/send-tx! tx))))
+      (when (kairos/connected?)
+        (kairos/send-tx-log! tx))))
   nil)
 
 (defn send-at!
   "Drive `value` to `path` with explicit nanosecond timing.
 
-  Identical to send! but schedules the outgoing hardware messages at `time-ns`
-  (nanoseconds since epoch) rather than at the current wall-clock time. Use
-  this to align a CC or NRPN with a note-on that has already been placed in
-  the sidecar queue — for example, per-step mod routing in core/play!.
+  Identical to send! but accepts `time-ns` for call-site compatibility;
+  the value is ignored — kairos does not use wall-clock scheduling for CC.
+  Use send! when you do not need per-note alignment; the kairos event queue
+  preserves insertion order without ns-offset tricks.
 
   Like send!, this is for Clojure-originated values going to hardware. Use
   set! for values arriving from hardware or from external sources.
@@ -329,8 +329,8 @@
               raw     (double value)
               pct     (/ (- raw lo) (- hi lo))
               scaled  (long (Math/round (* pct 127.0)))]
-          (if (sidecar/connected?)
-            (sidecar/send-cc! time-ns ch cc-num (max 0 (min 127 scaled)))
+          (if (kairos/connected?)
+            (kairos/send-cc! ch cc-num (max 0 (min 127 scaled)))
             (*dispatch-warn-fn* path :midi-cc)))
 
         :midi-nrpn
@@ -347,23 +347,17 @@
                             (max 0 (min max-val (long (Math/round (* pct (double max-val))))))))
               param-msb (bit-and (bit-shift-right nrpn 7) 0x7F)
               param-lsb (bit-and nrpn 0x7F)
-              ;; Always use full 14-bit NRPN wire encoding: CC6=MSB, CC38=LSB.
-              ;; Wire value = CC6*128 + CC38 — this is what the Hydrasynth (and the
-              ;; MIDI NRPN standard) expects.  :bits only controls the user-facing
-              ;; value range (7 → [0,127], 14 → [0,16383]); it does NOT switch to a
-              ;; "CC6-only" encoding.  For a 7-bit param with value 5: CC6=0, CC38=5
-              ;; (wire value = 0*128+5 = 5 ✓), not CC6=5 (wire value = 5*128 = 640 ✗).
+              ;; Full 14-bit NRPN wire encoding: CC6=MSB, CC38=LSB.
+              ;; Wire value = CC6*128 + CC38; :bits only controls value clamping range.
               data-msb  (bit-and (bit-shift-right clamped 7) 0x7F)
               data-lsb  (bit-and clamped 0x7F)]
-          (if (sidecar/connected?)
-            ;; NRPN sequence must arrive in order: CC99 → CC98 → CC6 → CC38.
-            ;; The scheduler min-heap does not preserve insertion order for equal
-            ;; timestamps, so we add 1ns offsets to guarantee ordering.
+          (if (kairos/connected?)
+            ;; kairos IPC preserves insertion order; no ns-offset needed.
             (do
-              (sidecar/send-cc! time-ns       ch 99 param-msb)
-              (sidecar/send-cc! (+ time-ns 1) ch 98 param-lsb)
-              (sidecar/send-cc! (+ time-ns 2) ch  6 data-msb)
-              (sidecar/send-cc! (+ time-ns 3) ch 38 data-lsb))
+              (kairos/send-cc! ch 99 param-msb)
+              (kairos/send-cc! ch 98 param-lsb)
+              (kairos/send-cc! ch  6 data-msb)
+              (kairos/send-cc! ch 38 data-lsb))
             (*dispatch-warn-fn* path :midi-nrpn)))
 
         ;; Other binding types: log and skip
@@ -371,8 +365,8 @@
           (println (str "[ctrl] send! binding type " (:type binding)
                         " at " (pr-str path) " not yet dispatched")))))
       (fire-watchers! tx new-state)
-      (when (sidecar/connected?)
-        (sidecar/send-tx! tx))))
+      (when (kairos/connected?)
+        (kairos/send-tx-log! tx))))
   nil)
 
 (defn send!
@@ -404,7 +398,7 @@
   (send-at! (* (System/currentTimeMillis) 1000000) path value))
 
 (defn send-raw-nrpn!
-  "Fire a raw NRPN directly to the sidecar, bypassing the control tree.
+  "Fire a raw NRPN directly to kairos, bypassing the control tree.
 
   `channel`  — MIDI channel (1–16)
   `nrpn-num` — NRPN parameter number (0–16383); split into CC99/CC98
@@ -419,7 +413,7 @@
   ARP sub-params) where CC6 encodes a sub-parameter rather than data MSB.
   In that case pack the value as (bit-or (bit-shift-left sub-param 7) data).
 
-  Does nothing if the sidecar is not connected.
+  Does nothing if kairos is not connected.
 
   Examples:
     ;; Ribbon mode sub-param 0=off, NRPN group 0x41 (65):
@@ -430,22 +424,20 @@
   ([channel nrpn-num value]
    (send-raw-nrpn! channel nrpn-num value 14))
   ([channel nrpn-num value bits]
-   (when (sidecar/connected?)
-     (let [now-ns    (* (System/currentTimeMillis) 1000000)
-           ch        (int channel)
+   (when (kairos/connected?)
+     (let [ch        (int channel)
            nrpn      (int nrpn-num)
            bits      (int bits)
            max-val   (if (= 14 bits) 16383 127)
            clamped   (max 0 (min max-val (long value)))
            param-msb (bit-and (bit-shift-right nrpn 7) 0x7F)
            param-lsb (bit-and nrpn 0x7F)
-           ;; Always use full 14-bit encoding — see send-at! comment.
            data-msb  (bit-and (bit-shift-right clamped 7) 0x7F)
            data-lsb  (bit-and clamped 0x7F)]
-       (sidecar/send-cc! now-ns       ch 99 param-msb)
-       (sidecar/send-cc! (+ now-ns 1) ch 98 param-lsb)
-       (sidecar/send-cc! (+ now-ns 2) ch  6 data-msb)
-       (sidecar/send-cc! (+ now-ns 3) ch 38 data-lsb)))))
+       (kairos/send-cc! ch 99 param-msb)
+       (kairos/send-cc! ch 98 param-lsb)
+       (kairos/send-cc! ch  6 data-msb)
+       (kairos/send-cc! ch 38 data-lsb)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Node declaration (Q8)

@@ -37,7 +37,7 @@
       (sleep! 3))
 
   The :pitch/bend-cents value is always in [-50.0, +50.0] cents — the
-  deviation from the nearest MIDI semitone. The sidecar sends a pitch
+  deviation from the nearest MIDI semitone. kairos sends a pitch
   bend message before the note-on and resets it after note-off.
 
   ## Pitch bend range calibration
@@ -68,14 +68,14 @@
   ## MTS Bulk Dump (MIDI Tuning Standard)
 
   `scale->mts-bytes` generates a 408-byte MTS Bulk Dump SysEx message that
-  retunes all 128 MIDI keys simultaneously. Send it via `nous.sidecar/send-mts!`
+  retunes all 128 MIDI keys simultaneously. Send it via `nous.kairos/send-mts!`
   to retune any MTS-capable synth (including the Hydrasynth Explorer).
 
     (def ms  (scala/load-scl \"31edo.scl\"))
     (def kbm (scala/load-kbm \"whitekeys.kbm\"))
 
     ;; Retune the whole keyboard in one message:
-    (sidecar/send-mts! ms kbm)
+    (kairos/send-mts! ms kbm)
 
     ;; Or generate the raw bytes (e.g. for inspection or custom transport):
     (scala/scale->mts-bytes ms kbm)
@@ -484,15 +484,15 @@
   The checksum is the XOR of all bytes after F0 and before the checksum
   byte itself, masked to 7 bits.
 
-  The returned byte array can be passed directly to sidecar/send-sysex!
-  or sidecar/send-mts!.
+  The returned byte array can be passed directly to kairos/send-sysex!
+  or kairos/send-mts!.
 
   Example:
     (def ms (scala/load-scl \"31edo.scl\"))
-    (sidecar/send-mts! ms)
+    (kairos/send-mts! ms)
 
     (def kbm (scala/load-kbm \"whitekeys.kbm\"))
-    (sidecar/send-mts! ms kbm)"
+    (kairos/send-mts! ms kbm)"
   ([ms]    (scale->mts-bytes ms nil))
   ([ms kbm]
    (let [effective-kbm (or kbm mts-identity-kbm)

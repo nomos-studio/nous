@@ -31,8 +31,7 @@
     0x04 MSG-PITCH-BEND   — [int64 ns][ch][lsb][msb][0]
     0x05 MSG-CHAN-PRESSURE — [int64 ns][ch][0][pressure][0]
   C++ sidecar handling for 0x04/0x05 is tracked in doc/handoff-sprint23-cpp.md."
-  (:require [nous.clock   :as clock]
-            [nous.sidecar :as sidecar]))
+  (:require [nous.kairos :as kairos]))
 
 ;; ---------------------------------------------------------------------------
 ;; Configuration
@@ -144,9 +143,9 @@
   now-beat — current virtual beat position (double)
   tl       — timeline map {:bpm n :beat0-epoch-ms t :beat0-beat b}
 
-  No-op (returns nil) if the sidecar is not connected."
-  [step now-beat tl]
-  (when (sidecar/connected?)
+  No-op (returns nil) if kairos is not connected."
+  [step now-beat _tl]
+  (when (kairos/connected?)
     (let [midi     (long (:pitch/midi step))
           beats    (double (:dur/beats step 1/4))
           velocity (long (:mod/velocity step 64))
@@ -154,21 +153,15 @@
           pressure (:midi/pressure step)
           slide    (:mod/slide step)
           ch       (next-channel!)
-          on-ns    (clock/beat->epoch-ns (double now-beat) tl)
-          off-ns   (clock/beat->epoch-ns (+ (double now-beat) beats) tl)]
-      ;; Pre-note pitch bend on the allocated note channel
+          on-beat  (double now-beat)
+          off-beat (+ on-beat beats)]
       (when bend
-        (sidecar/send-pitch-bend! on-ns ch (semitones->bend14 bend)))
-      ;; Per-note channel pressure
+        (kairos/send-pitch-bend! ch (semitones->bend14 bend)))
       (when pressure
-        (sidecar/send-channel-pressure! on-ns ch (long pressure)))
-      ;; Note-on
-      (sidecar/send-note-on! on-ns ch midi velocity)
-      ;; CC74 slide / timbre
+        (kairos/send-channel-pressure! ch (long pressure)))
+      (kairos/send-note-on! midi velocity :channel ch :beat on-beat)
       (when slide
-        (sidecar/send-cc! on-ns ch 74 (long slide)))
-      ;; Note-off
-      (sidecar/send-note-off! off-ns ch midi)
-      ;; Reset pitch bend to center after note ends (clean-up for next note on this channel)
-      (sidecar/send-pitch-bend! off-ns ch 8192)
+        (kairos/send-cc! ch 74 (long slide)))
+      (kairos/send-note-off! midi :channel ch :beat off-beat)
+      (kairos/send-pitch-bend! ch 8192)
       ch)))

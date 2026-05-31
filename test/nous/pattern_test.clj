@@ -78,9 +78,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:midi 60 64 67])
                         (pat/rhythm  [100 80 70])
@@ -97,9 +97,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:pitch :C4 :E4 :G4])
                         (pat/rhythm  [100 90 80])
@@ -118,9 +118,9 @@
       (let [played (atom [])
             ;; C major, root C4 (MIDI 60): degrees 1,2,3 = C4,D4,E4 = 60,62,64
             c-major (scale-ns/scale :C 4 :major)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*harmony-ctx*  c-major]
             (pat/motif! (pat/pattern [:scale 1 2 3])
@@ -137,9 +137,9 @@
             ;; C major 7 degrees; index 8 = degree 7 (idx 6 in 0-based = 7th degree B4 = 71) + octave? No.
             ;; pitch-at uses floorDiv: degree 7 (0-based) in 7-note scale → octave 1, idx 0 → C5 = 72
             c-major (scale-ns/scale :C 4 :major)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*harmony-ctx*  c-major]
             ;; index 8 (1-based) → 0-based degree 7 → pitch-at wraps: C5 = 72
@@ -160,9 +160,9 @@
       (let [played (atom [])
             ;; C major triad: C4=60, E4=64, G4=67
             c-major-chord (chord-ns/chord :C 4 :major)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*chord-ctx*    c-major-chord]
             (pat/motif! (pat/pattern [:chord 1 2 3])
@@ -178,9 +178,9 @@
       (let [played (atom [])
             ;; C major triad: [60 64 67]. Index 4 → 0-based 3 → floorDiv(3,3)=1 octave, idx=0 → 60+12=72
             c-major-chord (chord-ns/chord :C 4 :major)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*chord-ctx*    c-major-chord]
             (pat/motif! (pat/pattern [:chord 4])
@@ -198,9 +198,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             ;; Pattern 3 notes, rhythm: play, rest, play
             (pat/motif! (pat/pattern [:midi 60 64 67])
@@ -214,9 +214,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:midi 60 64])
                         (pat/rhythm  [100 :tie])
@@ -233,9 +233,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:midi 60 64 67])
                         (pat/rhythm  [100 80])
@@ -254,9 +254,9 @@
     (core/start! :bpm 60000)
     (try
       (let [played (atom [])]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             (pat/motif! (pat/pattern [:midi 60 64 67])
                         (pat/rhythm  [100 90 80])
@@ -281,9 +281,9 @@
     (try
       (let [c        (chord-ns/chord :F 4 :min7)
             observed (promise)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [& _] nil)
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [& _] nil)
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (core/deflive-loop :chord-opt-test {:chord c}
             (deliver observed loop-ns/*chord-ctx*)
             (core/stop-loop! :chord-opt-test))
@@ -302,9 +302,9 @@
       (let [played  (atom [])
             ;; C major root = C4 = MIDI 60
             c-major (scale-ns/scale :C 4 :major)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*harmony-ctx*  c-major]
             ;; offsets 0,4,7 from C4(60) = C4,E4,G4 = 60,64,67
@@ -320,9 +320,9 @@
     (try
       (let [played  (atom [])
             c-major (scale-ns/scale :C 4 :major)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*harmony-ctx*  c-major]
             ;; offset -2 from C4(60) = Bb3 = 58
@@ -501,9 +501,9 @@
     (try
       (let [played        (atom [])
             c-major-chord (chord-ns/chord :C 4 :major)]   ; [60 64 67]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*chord-ctx*    c-major-chord]
             (pat/motif! (pat/named-pattern :up)
@@ -519,9 +519,9 @@
     (try
       (let [played        (atom [])
             c-major-chord (chord-ns/chord :C 4 :major)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*chord-ctx*    c-major-chord]
             (pat/motif! (pat/reverse-pattern (pat/named-pattern :up))
@@ -537,9 +537,9 @@
     (try
       (let [played (atom [])
             rhy    (pat/rhythm-from-euclid 5 8)]  ; 5 onsets in 8 steps
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [_ _ p _] (swap! played conj p))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [p & _] (swap! played conj p))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.0]
             ;; 1-note pattern × 8-step rhythm = lcm(1,8)=8 steps, 5 onsets
             (pat/motif! (pat/pattern [:midi 60])

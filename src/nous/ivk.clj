@@ -52,7 +52,7 @@
             [nous.loop    :as loop-ns]
             [nous.pitch   :as pitch]
             [nous.scale   :as scale]
-            [nous.sidecar :as sidecar])
+            [nous.kairos :as kairos])
   (:import  [java.nio ByteBuffer ByteOrder]))
 
 ;; ---------------------------------------------------------------------------
@@ -309,9 +309,8 @@
                   (-> (+ slot delta)                ; key-driven: increment and clamp
                       (max 0)
                       (min 127)))
-        ch      (:channel state 1)
-        time-ns (* (System/currentTimeMillis) 1000000)]
-    (sidecar/send-cc! time-ns ch cc (int value))
+        ch      (:channel state 1)]
+    (kairos/send-cc! ch cc (int value))
     (if (fn? slot)
       state  ; don't update phasor slot
       (assoc-in state [:modulation k] value))))
@@ -337,9 +336,8 @@
         value (if (fn? slot)
                 (resolve-mod-value slot)
                 (-> (+ slot delta) (max 0) (min 16383)))
-        ch    (:channel state 1)
-        time-ns (* (System/currentTimeMillis) 1000000)]
-    (sidecar/send-pitch-bend! time-ns ch (int value))
+        ch    (:channel state 1)]
+    (kairos/send-pitch-bend! ch (int value))
     (if (fn? slot)
       state
       (assoc-in state [:modulation :bend] value))))
@@ -517,14 +515,14 @@
   []
   (when-let [s (harmony-ctx->scale loop-ns/*harmony-ctx*)]
     (swap! ivk-state assoc :scale s))
-  (sidecar/register-push-handler! 0x21 on-kbd-event)
+  (kairos/register-push-handler! 0x21 on-kbd-event)
   (println "[ivk] keyboard input active, layout:" (:layout @ivk-state)))
 
 (defn stop-kbd!
   "Deregister the keyboard push handler and stop any active arp."
   []
   (stop-arp!)
-  (sidecar/register-push-handler! 0x21 nil)
+  (kairos/register-push-handler! 0x21 nil)
   (println "[ivk] keyboard input stopped"))
 
 ;; ---------------------------------------------------------------------------

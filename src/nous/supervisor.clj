@@ -49,7 +49,7 @@
             [nous.kairos  :as kairos]
             [nous.runtime :as runtime]
             [nous.sc      :as sc]
-            [nous.sidecar :as sidecar]))
+))
 
 ;; ---------------------------------------------------------------------------
 ;; Event bus
@@ -221,16 +221,6 @@
             (try-restart! :sc rfn))
           nil)))))
 
-(defn register-sidecar!
-  "Register the sidecar process as a supervised service.
-  Health check: sidecar/connected?
-  Restart: calls sidecar/restart-sidecar! using the opts from the last start.
-  Restore: no-op — sidecar is stateless from the JVM's perspective."
-  []
-  (register! :sidecar
-             :check-fn    sidecar/connected?
-             :restart-fn  sidecar/restart-sidecar!))
-
 (defn register-kairos!
   "Register the kairos audio engine as a supervised service.
 
@@ -273,6 +263,11 @@
             (transition-down! :kairos now-ms)
             (try-restart! :kairos rfn))
           nil)))))
+
+(defn register-sidecar!
+  "Deprecated. Delegates to register-kairos! — the sidecar is retired."
+  []
+  (register-kairos!))
 
 (defn- check-service! [service-name]
   (when-let [{:keys [check-fn restart-fn restore-fn]} (get @services service-name)]

@@ -89,35 +89,32 @@
           "minimum of swing(0.5) and humanize(1.0)"))))
 
 ;; ---------------------------------------------------------------------------
-;; Integration — play! applies timing offset to sidecar timestamps
+;; Integration — play! applies timing offset to kairos beat positions
 ;; ---------------------------------------------------------------------------
 
-(deftest play-swing-shifts-upbeat-ns-test
-  (testing "play! with swing context shifts off-beat note-on timestamp"
+(deftest play-swing-shifts-upbeat-beat-test
+  (testing "play! with swing context shifts off-beat note-on beat position"
     (core/start! :bpm 120)
     (try
       (let [captured (atom [])]
-        (with-redefs [nous.sidecar/connected?   (constantly true)
-                      nous.sidecar/send-note-on! (fn [t _ _ _]
-                                                     (swap! captured conj t))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on! (fn [_n _v & {:keys [beat]}]
+                                                   (swap! captured conj beat))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           ;; Downbeat note — no swing
           (binding [loop-ns/*virtual-time* 0.0
                     loop-ns/*timing-ctx*   nil]
             (core/play! :C4 1/4))
-          ;; Upbeat note — should be shifted
+          ;; Upbeat note — should be shifted by swing amount
           (binding [loop-ns/*virtual-time* 0.5
                     loop-ns/*timing-ctx*   (timing/swing :amount 0.6)]
             (core/play! :E4 1/4)))
-        (let [tl          (:timeline @core/system-state)
-              [t-down t-up] @captured
-              ;; Expected upbeat without swing
-              base-up-ns  (clock/beat->epoch-ns 0.5 tl)
-              ;; Expected offset: (0.6 - 0.5) × beats->ms(1, 120) × 1e6
-              ;;                = 0.1 × 500ms × 1e6 = 50,000,000 ns
-              offset-ns   (long (* 0.1 (clock/beats->ms 1.0 120) 1000000.0))]
-          (is (= (+ base-up-ns offset-ns) t-up)
-              "upbeat timestamp shifted by swing offset")))
+        (let [sw                  (timing/swing :amount 0.6)
+              [beat-down beat-up] @captured
+              expected-down       0.0
+              expected-up         (+ 0.5 (clock/sample sw 0.5))]
+          (is (= expected-down beat-down) "downbeat beat unchanged")
+          (is (= expected-up beat-up)     "upbeat beat shifted by swing offset")))
       (finally (core/stop!)))))
 
 (deftest play-downbeat-unaffected-by-swing-test
@@ -125,37 +122,29 @@
     (core/start! :bpm 120)
     (try
       (let [captured (atom nil)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [t _ _ _] (reset! captured t))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
-          ;; Use beat 100.0 (a downbeat — even 8th-note index) so that
-          ;; beat->epoch-ns is safely in the future and the max(wall,beat)
-          ;; clamp in play! picks the beat value, not wall-clock.
-          ;; At 120 BPM, beat 100 = 50 seconds from anchor → always future.
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on! (fn [_n _v & {:keys [beat]}]
+                                                   (reset! captured beat))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 100.0
                     loop-ns/*timing-ctx*   (timing/swing :amount 0.6)]
             (core/play! :C4 1/4)))
-        (let [tl       (:timeline @core/system-state)
-              expected (clock/beat->epoch-ns 100.0 tl)]
-          (is (= expected @captured)
-              "downbeat timestamp unmodified by swing")))
+        (is (= 100.0 @captured) "downbeat beat unmodified by swing"))
       (finally (core/stop!)))))
 
 (deftest play-no-timing-ctx-unaffected-test
-  (testing "play! with nil *timing-ctx* produces unmodified timestamps"
+  (testing "play! with nil *timing-ctx* produces unmodified beat position"
     (core/start! :bpm 120)
     (try
       (let [captured (atom nil)]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [t _ _ _] (reset! captured t))
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on! (fn [_n _v & {:keys [beat]}]
+                                                   (reset! captured beat))
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (binding [loop-ns/*virtual-time* 0.5
                     loop-ns/*timing-ctx*   nil]
             (core/play! :E4 1/4)))
-        (let [tl       (:timeline @core/system-state)
-              expected (clock/beat->epoch-ns 0.5 tl)]
-          (is (= expected @captured)
-              "no offset applied with nil context")))
+        (is (= 0.5 @captured) "no offset applied with nil context"))
       (finally (core/stop!)))))
 
 ;; ---------------------------------------------------------------------------
@@ -189,9 +178,9 @@
             observed (promise)]
         ;; Capture *timing-ctx* directly from inside the loop body —
         ;; with-redefs on a protocol fn doesn't reliably intercept daemon threads.
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [& _] nil)
-                      nous.sidecar/send-note-off! (fn [& _] nil)]
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on!  (fn [& _] nil)
+                      nous.kairos/send-note-off! (fn [& _] nil)]
           (core/deflive-loop :timing-test {:timing sw}
             (deliver observed loop-ns/*timing-ctx*)
             (core/stop-loop! :timing-test))

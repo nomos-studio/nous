@@ -70,7 +70,13 @@
 (def ^:private MSG-MODULATOR-START   (unchecked-byte 0x46))
 (def ^:private MSG-MODULATOR-STOP    (unchecked-byte 0x47))
 (def ^:private MSG-MODULATOR-UPDATE  (unchecked-byte 0x48))
+(def ^:private MSG-CC                (unchecked-byte 0x49))
+(def ^:private MSG-PITCH-BEND        (unchecked-byte 0x4A))
+(def ^:private MSG-CHAN-PRESSURE     (unchecked-byte 0x4B))
+(def ^:private MSG-SYSEX             (unchecked-byte 0x4C))
+(def ^:private MSG-MTS               (unchecked-byte 0x4D))
 (def ^:private MSG-TICK              (unchecked-byte 0x50))
+(def ^:private MSG-MIDI-EVENT        (unchecked-byte 0x51))
 
 ;; ---------------------------------------------------------------------------
 ;; Frame serialization
@@ -155,6 +161,48 @@
   [k]
   (swap! tick-handlers dissoc k)
   nil)
+
+;; ---------------------------------------------------------------------------
+;; Inbound MIDI event push (MSG-MIDI-EVENT 0x51 — kairos/aion → nous)
+;; ---------------------------------------------------------------------------
+
+(def midi-in-messages
+  "Ring-buffer (vector) of recent MIDI messages received by kairos/aion.
+  Each entry: {:port N :channel N :data [status b1 b2]}.
+  Capped at 256 entries. Use await-midi-message for blocking waits."
+  (atom []))
+
+(def ^:private midi-in-max-buffer 256)
+
+(def ^:private _midi-event-handler-registered
+  (register-push-handler!
+   0x51
+   (fn [^bytes payload]
+     (let [msg (edn/read-string (String. payload "UTF-8"))]
+       (swap! midi-in-messages
+              (fn [buf]
+                (let [buf' (conj buf msg)]
+                  (if (> (count buf') midi-in-max-buffer)
+                    (subvec buf' (- (count buf') midi-in-max-buffer))
+                    buf'))))))))
+
+(defn await-midi-message
+  "Block until a MIDI input message matching pred arrives from kairos/aion.
+  Returns the matching message map or nil after timeout-ms.
+
+  pred       — (fn [msg]) → truthy; msg is {:port N :channel N :data [status b1 b2]}
+  timeout-ms — give up after this many ms (default 5000)
+
+  Example:
+    (kairos/await-midi-message #(= 0x90 (first (:data %))) :timeout-ms 2000)"
+  [pred & {:keys [timeout-ms] :or {timeout-ms 5000}}]
+  (let [deadline (+ (System/currentTimeMillis) (long timeout-ms))]
+    (loop []
+      (let [hit (first (filter pred @midi-in-messages))]
+        (cond
+          hit hit
+          (> (System/currentTimeMillis) deadline) nil
+          :else (do (Thread/sleep 10) (recur)))))))
 
 (defn- read-fully!
   "Read exactly n bytes from in into buf starting at offset. Returns false on EOF."
@@ -454,6 +502,94 @@
               :velocity 0.0 :note-id note-id}]
     (send-frame! (make-frame MSG-NOTE-OFF
                              (edn-bytes (cond-> base beat (assoc :beat (double beat))))))))
+
+(defn send-cc!
+  "Send a Control Change message via kairos/aion MIDI output.
+
+  channel    — MIDI channel 0–15
+  controller — CC number 0–127
+  value      — CC value 0–127
+
+  Options:
+    :port — MIDI port index (default 0)
+
+  Example:
+    (kairos/send-cc! 0 74 64)            ; filter cutoff, mid
+    (kairos/send-cc! 0 11 100 :port 1)  ; expression on port 1"
+  [channel controller value & {:keys [port] :or {port 0}}]
+  (send-frame! (make-frame MSG-CC
+                           (edn-bytes {:port port :channel channel
+                                       :controller controller :value value}))))
+
+(defn send-pitch-bend!
+  "Send a Pitch Bend message via kairos/aion MIDI output.
+
+  channel — MIDI channel 0–15
+  bend    — 14-bit signed value −8192 to +8191 (0 = no bend)
+
+  Options:
+    :port — MIDI port index (default 0)
+
+  Example:
+    (kairos/send-pitch-bend! 0 4096)    ; half-step up
+    (kairos/send-pitch-bend! 0 0)       ; centre"
+  [channel bend & {:keys [port] :or {port 0}}]
+  (send-frame! (make-frame MSG-PITCH-BEND
+                           (edn-bytes {:port port :channel channel
+                                       :bend (long bend)}))))
+
+(defn send-channel-pressure!
+  "Send a Channel Pressure (aftertouch) message via kairos/aion MIDI output.
+
+  channel  — MIDI channel 0–15
+  pressure — pressure value 0–127
+
+  Options:
+    :port — MIDI port index (default 0)
+
+  Example:
+    (kairos/send-channel-pressure! 0 80)"
+  [channel pressure & {:keys [port] :or {port 0}}]
+  (send-frame! (make-frame MSG-CHAN-PRESSURE
+                           (edn-bytes {:port port :channel channel
+                                       :pressure pressure}))))
+
+(defn send-sysex!
+  "Send a raw SysEx message via kairos/aion MIDI output.
+
+  data — byte sequence including 0xF0 start and 0xF7 end bytes
+
+  Options:
+    :port — MIDI port index (default 0)
+
+  Example:
+    (kairos/send-sysex! [0xF0 0x41 0x10 0x42 0x12 0x40 0x00 0x7F 0x00 0x41 0xF7])"
+  [data & {:keys [port] :or {port 0}}]
+  (send-frame! (make-frame MSG-SYSEX
+                           (edn-bytes {:port port :data (vec data)}))))
+
+(defn send-mts!
+  "Send a MIDI Tuning Standard (MTS) bulk tuning dump via kairos/aion MIDI output.
+
+  tuning — map of MIDI note number → frequency in Hz for every note to retune.
+            Unspecified notes are left at 12-TET defaults.
+
+  Options:
+    :port         — MIDI port index (default 0)
+    :tuning-prog  — MTS tuning programme number 0–127 (default 0)
+    :device-id    — SysEx device ID 0–127 or :all (default :all = 0x7F)
+
+  The frame payload is EDN; kairos assembles the SysEx bytes before output.
+
+  Example:
+    (kairos/send-mts! {60 261.63 61 277.18} :tuning-prog 1)"
+  [tuning & {:keys [port tuning-prog device-id]
+             :or   {port 0 tuning-prog 0 device-id :all}}]
+  (send-frame! (make-frame MSG-MTS
+                           (edn-bytes {:port       port
+                                       :tuning     tuning
+                                       :tuning-prog (long tuning-prog)
+                                       :device-id  device-id}))))
 
 (defn schedule-bundle!
   "Schedule a bundle of beat-accurate events for delivery by kairos.

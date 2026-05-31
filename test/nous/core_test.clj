@@ -180,25 +180,18 @@
       (ctrl/defnode! [:step-mod/cutoff] :type :int :node-meta {:range [0 127]})
       (ctrl/bind! [:step-mod/cutoff]
                   {:type :midi-cc :channel 1 :cc-num 74 :range [0 127]})
-      (let [send-at-calls (atom [])
-            note-on-calls (atom [])]
-        (with-redefs [nous.sidecar/connected?   (constantly true)
-                      nous.sidecar/send-note-on!  (fn [t ch n v]
-                                                      (swap! note-on-calls conj {:t t :ch ch :n n :v v}))
-                      nous.sidecar/send-note-off! (fn [& _])
-                      nous.sidecar/send-cc!        (fn [t ch cc val]
-                                                       (swap! send-at-calls conj {:t t :ch ch :cc cc :val val}))]
+      (let [send-at-calls (atom [])]
+        (with-redefs [nous.kairos/connected?   (constantly true)
+                      nous.kairos/send-note-on!  (fn [& _])
+                      nous.kairos/send-note-off! (fn [& _])
+                      nous.kairos/send-cc!       (fn [ch cc val & _]
+                                                    (swap! send-at-calls conj {:ch ch :cc cc :val val}))]
           (binding [loop-ns/*virtual-time*   0.0
                     loop-ns/*step-mod-ctx*   {[:step-mod/cutoff] 80}]
             (core/play! {:pitch/midi 60 :dur/beats 1/4})))
         ;; The CC for cutoff should have been dispatched
         (let [cc-calls (filter #(= 74 (:cc %)) @send-at-calls)]
-          (is (= 1 (count cc-calls)) "one CC74 dispatched for step-mod")
-          ;; CC and note-on should share the same timestamp
-          (when (and (seq cc-calls) (seq @note-on-calls))
-            (is (= (:t (first cc-calls))
-                   (:t (first @note-on-calls)))
-                "step-mod CC and note-on share the same scheduled timestamp"))))
+          (is (= 1 (count cc-calls)) "one CC74 dispatched for step-mod")))
       (finally (core/stop!)))))
 
 (deftest ctrl-path-step-mod-keyword-not-dispatched-test
@@ -209,12 +202,12 @@
       (ctrl/bind! [:step-mod/vel]
                   {:type :midi-cc :channel 1 :cc-num 11 :range [0 127]})
       (let [cc11-calls (atom [])]
-        (with-redefs [nous.sidecar/connected?    (constantly true)
-                      nous.sidecar/send-note-on!  (fn [& _])
-                      nous.sidecar/send-note-off! (fn [& _])
-                      nous.sidecar/send-cc!        (fn [_t _ch cc _val]
-                                                       (when (= 11 cc)
-                                                         (swap! cc11-calls conj cc)))]
+        (with-redefs [nous.kairos/connected?   (constantly true)
+                      nous.kairos/send-note-on!  (fn [& _])
+                      nous.kairos/send-note-off! (fn [& _])
+                      nous.kairos/send-cc!       (fn [_ch cc _val & _]
+                                                    (when (= 11 cc)
+                                                      (swap! cc11-calls conj cc)))]
           (binding [loop-ns/*virtual-time*   0.0
                     ;; :mod/velocity is a keyword key — goes into step map, not ctrl dispatch
                     loop-ns/*step-mod-ctx*   {:mod/velocity 80}]

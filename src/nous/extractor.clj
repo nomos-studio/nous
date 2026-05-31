@@ -44,7 +44,7 @@
   See doc/design-threshold-extractor.md for full design rationale."
   (:require [nous.loop    :as loop-ns]
             [nous.clock   :as clock]
-            [nous.sidecar :as sidecar])
+            [nous.kairos :as kairos])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
@@ -183,12 +183,10 @@
           note     (int (or (:pitch cfg) 60))
           velocity (int (max 0 (min 127 (or (:velocity cfg) 80))))
           dur      (double (or (:duration cfg) 0.1))]
-      (if (and (sidecar/connected?) (timeline))
-        (let [tl     (timeline)
-              on-ns  (clock/beat->epoch-ns beat tl)
-              off-ns (clock/beat->epoch-ns (+ beat dur) tl)]
-          (sidecar/send-note-on!  on-ns  midi-ch note velocity)
-          (sidecar/send-note-off! off-ns midi-ch note))
+      (if (kairos/connected?)
+        (do
+          (kairos/send-note-on!  note velocity :channel midi-ch :beat beat)
+          (kairos/send-note-off! note :channel midi-ch :beat (+ beat dur)))
         (println (format "[extractor] cross ch=%d→%d %s beat=%.3f note=%d vel=%d"
                          prev-ch ch (name dir) beat note velocity))))
 
@@ -196,10 +194,8 @@
     (let [midi-ch (int (or (:midi-channel cfg) 1))
           cc-num  (int (or (:cc cfg) 48))
           value   (int (max 0 (min 127 (or (:value cfg) 127))))]
-      (if (and (sidecar/connected?) (timeline))
-        (let [tl     (timeline)
-              now-ns (clock/beat->epoch-ns beat tl)]
-          (sidecar/send-cc! now-ns midi-ch cc-num value))
+      (if (kairos/connected?)
+        (kairos/send-cc! midi-ch cc-num value)
         (println (format "[extractor] cross ch=%d→%d %s beat=%.3f cc=%d val=%d"
                          prev-ch ch (name dir) beat cc-num value))))
 

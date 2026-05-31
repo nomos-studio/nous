@@ -184,43 +184,20 @@
 ;; resolve-output-port / resolve-input-port (mocked)
 ;; ---------------------------------------------------------------------------
 
-(deftest resolve-output-port-uses-port-pattern
-  (testing "resolve-output-port calls find-midi-port with :port-pattern"
+(deftest resolve-output-port-returns-pattern
+  (testing "resolve-output-port returns the port-pattern string"
     (topology/load-topology! (write-temp-edn test-topology-edn))
-    (let [calls (atom [])]
-      (with-redefs [nous.sidecar/find-midi-port
-                    (fn [pat & {:keys [direction]}]
-                      (swap! calls conj {:pat pat :dir direction})
-                      42)]
-        (let [result (topology/resolve-output-port :synth-a)]
-          (is (= 42 result))
-          (is (= 1 (count @calls)))
-          (is (= "Synth A" (:pat (first @calls))))
-          (is (= :output (:dir (first @calls)))))))))
+    (is (= "Synth A" (topology/resolve-output-port :synth-a)))))
 
 (deftest resolve-input-port-uses-in-pattern
-  (testing "resolve-input-port uses :in-pattern when present"
+  (testing "resolve-input-port returns :in-pattern when present"
     (topology/load-topology! (write-temp-edn test-topology-edn))
-    (let [calls (atom [])]
-      (with-redefs [nous.sidecar/find-midi-port
-                    (fn [pat & {:keys [direction]}]
-                      (swap! calls conj {:pat pat :dir direction})
-                      7)]
-        (let [result (topology/resolve-input-port :synth-b)]
-          (is (= 7 result))
-          (is (= "Synth B In" (:pat (first @calls))))
-          (is (= :input (:dir (first @calls)))))))))
+    (is (= "Synth B In" (topology/resolve-input-port :synth-b)))))
 
 (deftest resolve-input-port-falls-back-to-port-pattern
   (testing "resolve-input-port falls back to :port-pattern when :in-pattern absent"
     (topology/load-topology! (write-temp-edn test-topology-edn))
-    (let [calls (atom [])]
-      (with-redefs [nous.sidecar/find-midi-port
-                    (fn [pat & {:keys [direction]}]
-                      (swap! calls conj {:pat pat :dir direction})
-                      3)]
-        (topology/resolve-input-port :synth-a)   ; synth-a has no :in-pattern
-        (is (= "Synth A" (:pat (first @calls))))))))
+    (is (= "Synth A" (topology/resolve-input-port :synth-a)))))
 
 (deftest resolve-output-port-unknown-throws
   (testing "resolve-output-port throws for unknown alias"
@@ -235,34 +212,40 @@
                           (topology/resolve-input-port :no-such)))))
 
 ;; ---------------------------------------------------------------------------
-;; start-sidecar!
+;; start-kairos!
 ;; ---------------------------------------------------------------------------
 
-(deftest start-sidecar-output-only
-  (testing "start-sidecar! resolves alias and passes port index to sidecar"
+(deftest start-kairos-output-only
+  (testing "start-kairos! passes --midi-port pattern to kairos"
     (topology/load-topology! (write-temp-edn test-topology-edn))
-    (let [sidecar-calls (atom nil)]
-      (with-redefs [nous.sidecar/find-midi-port (fn [_ & _] 2)
-                    nous.sidecar/start-sidecar!  (fn [& args]
-                                                     (reset! sidecar-calls args))]
-        (topology/start-sidecar! :synth-a)
-        (let [args @sidecar-calls]
+    (let [kairos-calls (atom nil)]
+      (with-redefs [nous.kairos/start-kairos! (fn [& args] (reset! kairos-calls args) nil)]
+        (topology/start-kairos! :synth-a :binary "/fake/kairos")
+        (let [args @kairos-calls
+              arg-map (apply hash-map args)]
           (is (some? args))
-          (is (= 2 (second (drop-while #(not= :midi-port %) args)))))))))
+          (is (= ["--midi-port" "Synth A"] (:args arg-map))))))))
 
-(deftest start-sidecar-with-input
-  (testing "start-sidecar! with :input resolves both output and input ports"
+(deftest start-kairos-with-input
+  (testing "start-kairos! with :input adds --midi-in-port arg"
     (topology/load-topology! (write-temp-edn test-topology-edn))
-    (let [sidecar-calls (atom nil)]
-      (with-redefs [nous.sidecar/find-midi-port (fn [_ & _] 5)
-                    nous.sidecar/start-sidecar!  (fn [& args]
-                                                     (reset! sidecar-calls args))]
-        (topology/start-sidecar! :synth-a :input :ctrl-1)
-        (let [args @sidecar-calls]
-          (is (some (fn [[k v]] (and (= k :midi-in-port) (= v 5)))
-                    (partition 2 args))))))))
+    (let [kairos-calls (atom nil)]
+      (with-redefs [nous.kairos/start-kairos! (fn [& args] (reset! kairos-calls args) nil)]
+        (topology/start-kairos! :synth-a :input :ctrl-1 :binary "/fake/kairos")
+        (let [args @kairos-calls
+              arg-map (apply hash-map args)
+              cli-args (:args arg-map)]
+          (is (= "Controller One" (second (drop-while #(not= "--midi-in-port" %) cli-args)))))))))
 
-(deftest start-sidecar-without-loaded-topology-throws
-  (testing "start-sidecar! throws when no topology is loaded"
+(deftest start-kairos-without-loaded-topology-throws
+  (testing "start-kairos! throws when no topology is loaded"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No topology loaded"
-                          (topology/start-sidecar! :synth-a)))))
+                          (topology/start-kairos! :synth-a)))))
+
+(deftest start-sidecar-delegates-to-start-kairos
+  (testing "start-sidecar! (deprecated) delegates to start-kairos!"
+    (topology/load-topology! (write-temp-edn test-topology-edn))
+    (let [kairos-calls (atom nil)]
+      (with-redefs [nous.kairos/start-kairos! (fn [& args] (reset! kairos-calls args) nil)]
+        (topology/start-sidecar! :synth-a :binary "/fake/kairos")
+        (is (some? @kairos-calls))))))

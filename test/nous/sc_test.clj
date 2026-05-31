@@ -299,7 +299,7 @@
     (try
       (let [sc-calls (atom 0)]
         (with-redefs [sc/sc-play! (fn [_] (swap! sc-calls inc))
-                      nous.sidecar/connected? (constantly false)]
+                      nous.kairos/connected? (constantly false)]
           (binding [nous.loop/*virtual-time* 0.0]
             (core/play! {:pitch/midi 60 :dur/beats 1/4})))
         (is (zero? @sc-calls) "sc-play! must not be called for plain MIDI steps"))

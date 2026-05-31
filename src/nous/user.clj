@@ -14,7 +14,7 @@
   Typical live session:
 
     (session!)
-    (start-sidecar! :midi-port 0)   ; connect MIDI output
+    (start-kairos! :binary \"/usr/local/bin/kairos\")  ; connect MIDI output
 
     ;; Simple loop
     (deflive-loop :kick {}
@@ -46,7 +46,6 @@
             [nous.pattern    :as pat]
             [nous.scala      :as scala]
             [nous.scale      :as scale]
-            [nous.sidecar    :as sidecar]
             [nous.ensemble-improv :as ei]
             [nous.peer            :as peer]
             [nous.server          :as server]
@@ -100,7 +99,7 @@
   [& {:keys [bpm] :or {bpm 120}}]
   (core/start! :bpm bpm)
   (println (str "Session ready — BPM " bpm
-                "\n  (start-sidecar! :midi-port 0) to connect MIDI output"
+                "\n  (start-kairos! :binary \"/usr/local/bin/kairos\") to connect MIDI output"
                 "\n  (end-session!) to stop"))
   nil)
 
@@ -511,58 +510,30 @@
 (def ctrl-path->osc-address  osc/ctrl-path->osc-address)
 
 ;; ---------------------------------------------------------------------------
-;; Sidecar shorthand
+;; MIDI send shorthand (kairos)
 ;; ---------------------------------------------------------------------------
 
-(def diag-on!            sidecar/diag-on!)
-(def diag-off!           sidecar/diag-off!)
-(def set-diag!           sidecar/set-diag!)
-(def sidecar-verbose!    sidecar/sidecar-verbose!)
-(def sidecar-quiet!      sidecar/sidecar-quiet!)
-
-(def list-midi-ports         sidecar/list-midi-ports)
-(def find-midi-port          sidecar/find-midi-port)
-(def send-cc!                sidecar/send-cc!)
-(def send-pitch-bend!        sidecar/send-pitch-bend!)
-(def send-channel-pressure!  sidecar/send-channel-pressure!)
-(def await-midi-message      sidecar/await-midi-message)
+(def send-cc!                kairos/send-cc!)
+(def send-pitch-bend!        kairos/send-pitch-bend!)
+(def send-channel-pressure!  kairos/send-channel-pressure!)
+(def send-sysex!             kairos/send-sysex!)
+(def send-mts!               kairos/send-mts!)
+(def await-midi-message      kairos/await-midi-message)
+(def midi-in-messages        kairos/midi-in-messages)
 
 (defn start-sidecar!
-  "Connect the MIDI sidecar.
-
-  Options:
-    :midi-port    — MIDI output port: integer index or name substring (default 0)
-    :midi-in-port — MIDI input port: integer index or name substring (default nil)
-    :kbd?         — when true, pass --kbd to the sidecar binary to enable
-                    global keyboard capture (CGEventTap, macOS; requires
-                    Accessibility permission).  After start-sidecar! returns,
-                    call start-kbd! to register the 0x21 KbdEvent handler.
-    :binary       — explicit path to the sidecar binary (default: searches build/).
-                    Needed when running from a git worktree that has no build/ dir.
-
-  Use (list-midi-ports) to discover available ports.
-
-  Example:
-    (start-sidecar!)
-    (start-sidecar! :midi-port 1)
-    (start-sidecar! :midi-port \"IAC\")
-    (start-sidecar! :midi-port \"Hydra\" :midi-in-port \"Hydra\")
-    (start-sidecar! :kbd? true)   ; keyboard rig — no MIDI hardware needed
-    (start-sidecar! :binary \"/path/to/nous-sidecar\")  ; worktree use"
-  [& {:keys [binary midi-port midi-in-port kbd?] :or {midi-port 0}}]
-  (sidecar/start-sidecar! :binary binary :midi-port midi-port
-                           :midi-in-port midi-in-port :kbd? kbd?)
-  (println (str "Sidecar started on MIDI port " midi-port))
+  "Deprecated. Delegates to start-kairos! — the sidecar is retired.
+  Use (start-kairos! :binary path) directly."
+  [& {:keys [binary] :as opts}]
+  (println "[user] start-sidecar! is deprecated; delegating to start-kairos!")
+  (kairos/start-kairos! :binary (or binary "/usr/local/bin/kairos"))
   nil)
 
 (defn stop-sidecar!
-  "Disconnect the MIDI sidecar."
+  "Deprecated. Delegates to stop-kairos! — the sidecar is retired."
   []
-  (sidecar/stop-sidecar!)
+  (kairos/stop-kairos!)
   nil)
-
-(def send-sysex! sidecar/send-sysex!)
-(def send-mts!   sidecar/send-mts!)
 
 ;; ---------------------------------------------------------------------------
 ;; kairos (nous.kairos)
@@ -603,6 +574,27 @@
 (def kairos-session-close!   kairos/send-session-close!)
 (def kairos-register-source! kairos/send-register-source!)
 (def kairos-tx-log!          kairos/send-tx-log!)
+
+;; Register :kairos as a MIDI target.  Allows
+;;   (play! {:target :kairos :pitch/midi 60 :dur/beats 1/4})
+;; as an explicit alternative to the default kairos/connected? dispatch path.
+(target/register! :kairos
+  (target/fn-target :kairos
+    :live?-fn   kairos/connected?
+    :param-root [:kairos]
+    :trigger-fn (fn [event]
+                  (let [note    (or (:pitch/midi event) 60)
+                        vel     (or (:mod/velocity event) 64)
+                        channel (or (:midi/channel event) 1)
+                        beat    (double (or loop-ns/*virtual-time* 0.0))
+                        dur     (double (or (:dur/beats event) 1/4))]
+                    (kairos/send-note-on!  note vel :channel channel :beat beat)
+                    (kairos/send-note-off! note     :channel channel :beat (+ beat dur))
+                    {:note note :channel channel}))
+    :release-fn (fn [handle]
+                  (when handle
+                    (kairos/send-note-off! (:note handle)
+                                           :channel (:channel handle))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Keyboard layout (nous.ivk)

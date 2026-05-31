@@ -62,7 +62,7 @@
             [clojure.pprint   :as pprint]
             [clojure.string   :as str]
             [nous.dirs      :as dirs]
-            [nous.sidecar   :as sidecar])
+            [nous.kairos    :as kairos])
   (:import  [java.util.concurrent LinkedBlockingQueue TimeUnit]))
 
 ;; ---------------------------------------------------------------------------
@@ -117,7 +117,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- install-sidecar-watcher! []
-  (add-watch sidecar/midi-in-messages ::learn-capture
+  (add-watch kairos/midi-in-messages ::learn-capture
              (fn [_ _ old new]
                (when (> (count new) (count old))
                  (let [new-msgs (subvec new (count old))]
@@ -125,7 +125,7 @@
                      (.offer msg-queue msg)))))))
 
 (defn- remove-sidecar-watcher! []
-  (remove-watch sidecar/midi-in-messages ::learn-capture))
+  (remove-watch kairos/midi-in-messages ::learn-capture))
 
 ;; ---------------------------------------------------------------------------
 ;; Capture runner helpers

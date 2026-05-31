@@ -45,7 +45,7 @@
             [nous.loop            :as loop-ns]
             [nous.random          :as random]
             [nous.scala           :as scala]
-            [nous.sidecar         :as sidecar]
+            [nous.kairos          :as kairos]
             [nous.temporal-buffer :as tbuf]
             [nous.trajectory      :as traj]))
 
@@ -361,14 +361,13 @@
     (berlin/set-portamento! 1 120)   ; ~120 ms glide on channel 1
     (berlin/set-portamento! 1 0)     ; portamento off"
   [channel time-ms]
-  (let [now-ns (* (System/currentTimeMillis) 1000000)
-        on?    (> time-ms 0)
+  (let [on?    (> time-ms 0)
         scaled (if on?
                  (min 127 (long (Math/round (* (/ (double time-ms) 5000.0) 127.0))))
                  0)]
-    (sidecar/send-cc! now-ns channel cc-portamento-switch (if on? 127 0))
+    (kairos/send-cc! channel cc-portamento-switch (if on? 127 0))
     (when on?
-      (sidecar/send-cc! (+ now-ns 1) channel cc-portamento-time scaled))))
+      (kairos/send-cc! channel cc-portamento-time scaled))))
 
 (defmacro with-portamento
   "Enable portamento on `channel` for the duration of `body`, then disable it.
@@ -495,7 +494,7 @@
                                      (+ from-cents (* frac (- to-cents from-cents)))))
                                  (range n-degrees))
             blended-ms     (assoc from-ms :degrees blended-ratios)]
-        (sidecar/send-mts! blended-ms kbm)
+        (kairos/send-mts! blended-ms kbm)
         (swap! bar-atom inc)
         (when (>= @bar-atom bars)
           (loop-ns/stop-loop! loop-name))

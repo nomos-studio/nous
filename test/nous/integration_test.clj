@@ -21,6 +21,7 @@
             [clojure.string  :as str]
             [nous.core    :as core]
             [nous.loop    :as loop-ns]
+            [nous.kairos  :as kairos]
             [nous.sidecar :as sidecar]))
 
 ;; ---------------------------------------------------------------------------
@@ -108,7 +109,7 @@
     (Thread/sleep 100)
     (f)
     (finally
-      (try (sidecar/stop-sidecar!) (catch Exception _))
+      (try (kairos/stop-kairos!) (catch Exception _))
       (try (core/stop!)            (catch Exception _)))))
 
 ;; ---------------------------------------------------------------------------
@@ -162,6 +163,6 @@
   (testing "stop-sidecar! sends Shutdown and process exits cleanly"
     (with-session
       (fn []
-        (sidecar/stop-sidecar!)
+        (kairos/stop-kairos!)
         (Thread/sleep 300)
-        (is (not (sidecar/connected?)) "sidecar should be disconnected after stop")))))
+        (is (not (kairos/connected?)) "sidecar should be disconnected after stop")))))

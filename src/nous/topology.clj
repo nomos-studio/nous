@@ -5,14 +5,14 @@
   Provides stable logical device aliases that survive MIDI port index changes
   across reboots, USB reconnects, and MioXM re-patching. Device aliases are
   declared in an EDN topology file (default: resources/studio-topology.edn)
-  and resolved to OS MIDI port indices at sidecar startup time.
+  and resolved to OS MIDI port indices at kairos startup time.
 
   ## Quick start
 
     (topology/load-topology!)               ; load default topology file
-    (topology/start-sidecar! :hydrasynth)   ; output to Hydrasynth
-    (topology/start-sidecar! :hydrasynth    ; output + MIDI input
-                             :input :linnstrument)
+    (topology/start-kairos! :hydrasynth)    ; output to Hydrasynth
+    (topology/start-kairos! :hydrasynth     ; output + MIDI input
+                            :input :linnstrument)
 
   ## Topology EDN format
 
@@ -35,7 +35,7 @@
   (:require [clojure.edn     :as edn]
             [clojure.java.io :as io]
             [nous.dirs     :as dirs]
-            [nous.sidecar  :as sidecar]))
+            [nous.kairos   :as kairos]))
 
 ;; ---------------------------------------------------------------------------
 ;; State
@@ -137,61 +137,66 @@
         (:port-pattern entry)))))
 
 (defn resolve-output-port
-  "Resolve device alias `alias` to a MIDI output port index.
+  "Resolve device alias `alias` to a MIDI port name pattern.
 
-  Calls sidecar/find-midi-port with the device's :port-pattern.
-  Returns the integer port index, or throws ex-info if the alias is unknown
-  or no matching port is found."
+  NOTE: kairos/aion MIDI port resolution by index is pending implementation
+  of the port-listing protocol (MSG-PLUGIN-LIST / session-open push).
+  Returns the port-pattern string for use as a CLI arg to kairos/aion."
   [alias]
   (let [pat (pattern-for alias :output)]
     (when-not pat
       (throw (ex-info (str "Unknown topology device: " alias)
                       {:alias alias :known (device-ids)})))
-    (sidecar/find-midi-port pat :direction :output)))
+    pat))
 
 (defn resolve-input-port
-  "Resolve device alias `alias` to a MIDI input port index.
+  "Resolve device alias `alias` to a MIDI input port name pattern.
 
   Uses :in-pattern if defined, otherwise falls back to :port-pattern.
-  Returns the integer port index, or throws ex-info if no match is found."
+  Returns the pattern string for use as a CLI arg to kairos/aion."
   [alias]
   (let [pat (pattern-for alias :input)]
     (when-not pat
       (throw (ex-info (str "Unknown topology device: " alias)
                       {:alias alias :known (device-ids)})))
-    (sidecar/find-midi-port pat :direction :input)))
+    pat))
 
 ;; ---------------------------------------------------------------------------
-;; Sidecar convenience
+;; Kairos convenience
 ;; ---------------------------------------------------------------------------
 
-(defn start-sidecar!
-  "Start the nous sidecar with MIDI output routed to `output-alias`.
+(defn start-kairos!
+  "Start kairos with MIDI output routed to `output-alias`.
 
-  Resolves the device alias to a port index via :port-pattern matching,
-  then calls sidecar/start-sidecar!.
+  Resolves the device alias to a port-pattern string via the topology and
+  passes it as a --midi-port CLI arg to the kairos binary.
 
   Options:
-    :input    -- alias keyword for MIDI input monitoring (optional)
-    :binary   -- path to sidecar binary (passed through to sidecar/start-sidecar!)
-    :port     -- TCP port for IPC (passed through)
+    :input       -- alias keyword for MIDI input monitoring (optional)
+    :binary      -- path to kairos binary (required; default: /usr/local/bin/kairos)
+    :socket-path -- IPC socket path (default: /tmp/kairos.sock)
 
   Requires a topology to be loaded first (see load-topology!).
 
   Examples:
-    (topology/start-sidecar! :hydrasynth)
-    (topology/start-sidecar! :hydrasynth :input :linnstrument)
-    (topology/start-sidecar! :iac)"
-  [output-alias & {:keys [input binary port]}]
+    (topology/start-kairos! :hydrasynth)
+    (topology/start-kairos! :hydrasynth :input :linnstrument)
+    (topology/start-kairos! :iac)"
+  [output-alias & {:keys [input binary socket-path]
+                   :or   {binary "/usr/local/bin/kairos"
+                          socket-path "/tmp/kairos.sock"}}]
   (when-not (loaded?)
     (throw (ex-info "No topology loaded -- call (topology/load-topology!) first" {})))
-  (let [out-port (resolve-output-port output-alias)
-        in-port  (when input (resolve-input-port input))]
-    (apply sidecar/start-sidecar!
-           (cond-> [:midi-port out-port]
-             in-port (conj :midi-in-port in-port)
-             binary  (conj :binary binary)
-             port    (conj :port port)))))
+  (let [out-pat  (resolve-output-port output-alias)
+        in-pat   (when input (resolve-input-port input))
+        args     (cond-> ["--midi-port" out-pat]
+                   in-pat (conj "--midi-in-port" in-pat))]
+    (kairos/start-kairos! :binary binary :socket-path socket-path :args args)))
+
+(defn start-sidecar!
+  "Deprecated. Delegates to start-kairos! — the sidecar is retired."
+  [output-alias & opts]
+  (apply start-kairos! output-alias opts))
 
 ;; ---------------------------------------------------------------------------
 ;; Topology summary

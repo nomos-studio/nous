@@ -43,7 +43,8 @@
             [nous.pitch     :as pitch]
             [nous.m21       :as m21]
             [nous.loop      :as loop-ns]
-            [nous.sidecar   :as sidecar]
+            [nous.kairos    :as kairos]
+            [nous.timeline  :as timeline]
             [clojure.edn      :as edn]
             [clojure.string   :as str]))
 
@@ -642,16 +643,14 @@
                        (get-in score [:resolution :voices voice-kw] []))
            all-notes (into (vec notes) (or res-notes []))]
        (when (seq all-notes)
-         (let [bpm     (get-in score [:meta :tempo] 120.0)
-               beat-ns (long (/ (* 60.0 1e9) bpm))
-               base-ns (* (System/currentTimeMillis) 1000000)]
+         (let [base-beat (timeline/current-beat)]
            (doseq [n all-notes]
-             (let [midi    (:pitch/midi n (first (:chord n)))
-                   vel     (:velocity n 64)
-                   start   (long (* (:start/beats n 0) beat-ns))
-                   dur     (long (* (:dur/beats n 0.25) beat-ns))]
-               (sidecar/send-note-on!  (+ base-ns start) ch midi vel)
-               (sidecar/send-note-off! (+ base-ns start dur) ch midi)))))))))
+             (let [midi      (:pitch/midi n (first (:chord n)))
+                   vel       (:velocity n 64)
+                   start     (double (:start/beats n 0.0))
+                   dur       (double (:dur/beats n 0.25))]
+               (kairos/send-note-on!  midi vel :channel ch :beat (+ base-beat start))
+               (kairos/send-note-off! midi :channel ch :beat (+ base-beat start dur))))))))))
 
 (defn save-score
   "Serialise a score map to an EDN string. Load back with load-score."
