@@ -8,6 +8,33 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+#### nomos-topology → kairos translation (nous.session)
+
+- **`nous.session`** — new namespace bridging nomos-topology Session maps to the
+  live kairos graph. `session->graph` translates nodes (`:kairos-grid` and CLAP
+  plugin strings), routes (integer port refs → `:out-N`/`:in-N`, keyword
+  endpoints → `[:host kw]`), and modulations. `load-session!` sends the
+  translated graph to kairos and wires the `:control-tree` into `nous.ctrl`.
+  `reload-session!` re-sends the active graph after a kairos restart.
+  `clear-session!` resets state and sends `graph-reset!`.
+- **`*kairos-grid-plugin-id*`** — dynamic var controlling the CLAP plugin ID for
+  `:kairos-grid` nodes; default `"org.nomos.kairos-grid"`, overridable per-binding.
+- **`nous.user` re-exports** — `session->graph`, `load-session!`, `active-session`,
+  `reload-session!`, `clear-session!` available at the REPL without namespace prefix.
+
+#### Sidecar retirement / kairos first tier
+
+- **`nous.link`** rewritten to consume 24 PPQN `MSG-TICK` pushes from kairos/aion
+  via `nous.kairos/on-tick!`. BPM estimated from 8-sample rolling window; staleness
+  gate at 500 ms. Transport hooks fire on first BPM estimate (nil → non-nil
+  transition).
+- **`:kairos` target** registered in `nous.user` via `nous.target/register!`.
+  Enables `(play! {:target :kairos ...})` for explicit kairos dispatch.
+- **`nous.sidecar`** preserved as a deprecated stub; all active call sites
+  migrated to `nous.kairos`.
+
 ---
 
 ## [0.16.0] — 2026-04-21

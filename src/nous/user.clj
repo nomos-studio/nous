@@ -79,6 +79,7 @@
             [nous.journal         :as journal]
             [nous.runtime         :as runtime]
             [nous.kairos          :as kairos]
+            [nous.session         :as session]
             [nous.terrain         :as terr]))
 
 ;; ---------------------------------------------------------------------------
@@ -595,6 +596,17 @@
                   (when handle
                     (kairos/send-note-off! (:note handle)
                                            :channel (:channel handle))))))
+
+;; ---------------------------------------------------------------------------
+;; Session topology (nous.session)
+;; ---------------------------------------------------------------------------
+
+(def session->graph        session/session->graph)
+(def load-session!         session/load-session!)
+(def active-session        session/active-session)
+(def reload-session!       session/reload-session!)
+(def clear-session!        session/clear-session!)
+(def kairos-grid-plugin-id session/*kairos-grid-plugin-id*)
 
 ;; ---------------------------------------------------------------------------
 ;; Keyboard layout (nous.ivk)
