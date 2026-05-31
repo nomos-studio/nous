@@ -199,6 +199,18 @@
   [bwv-id mode]
   (io/file *cache-dir* (str "bwv" bwv-id "-" (name mode) ".edn")))
 
+(defn- path-hash
+  "Return a 16-hex-char digest of corpus-path for use in cache filenames."
+  [path]
+  (let [md  (java.security.MessageDigest/getInstance "SHA-256")
+        raw (.digest md (.getBytes ^String path "UTF-8"))]
+    (apply str (take 16 (mapcat #(format "%02x" (bit-and % 0xff)) raw)))))
+
+(defn- work-cache-file
+  "Return the on-disk cache java.io.File for a general corpus path and mode."
+  [path mode]
+  (io/file *cache-dir* (str "work-" (path-hash path) "-" (name mode) ".edn")))
+
 (defn- parse-edn
   "Strip comment lines (starting with ;) from s and parse as EDN."
   [s]
@@ -207,34 +219,51 @@
        (str/join "\n")
        edn/read-string))
 
-(defn- write-disk-cache!
-  "Write raw EDN string to the on-disk cache, prefixed with a script-mtime header."
-  [bwv-id mode raw-edn]
+(defn- write-disk-cache*!
+  "Write raw EDN string to the given cache File, prefixed with a script-mtime header."
+  [^java.io.File f raw-edn]
   (try
-    (let [f (cache-file bwv-id mode)]
-      (io/make-parents f)
-      (spit f (str "; nous-m21-cache script-mtime=" (script-mtime) "\n" raw-edn)))
+    (io/make-parents f)
+    (spit f (str "; nous-m21-cache script-mtime=" (script-mtime) "\n" raw-edn))
     (catch Exception e
       (binding [*out* *err*]
         (println "[nous.m21] disk cache write failed:" (.getMessage e))))))
+
+(defn- write-disk-cache!
+  "Write raw EDN string to the on-disk cache, prefixed with a script-mtime header."
+  [bwv-id mode raw-edn]
+  (write-disk-cache*! (cache-file bwv-id mode) raw-edn))
+
+(defn- write-work-disk-cache!
+  "Write raw EDN string to the on-disk work cache for a corpus path."
+  [path mode raw-edn]
+  (write-disk-cache*! (work-cache-file path mode) raw-edn))
+
+(defn- read-disk-cache*
+  "Return cache file content if it exists and script-mtime still matches; nil otherwise."
+  [^java.io.File f]
+  (try
+    (when (.exists f)
+      (let [content    (slurp f)
+            first-line (first (str/split-lines content))
+            cached-mtime (when (str/starts-with? first-line "; nous-m21-cache")
+                           (some-> (re-find #"script-mtime=(\d+)" first-line)
+                                   second
+                                   Long/parseLong))]
+        (when (= cached-mtime (script-mtime))
+          content)))
+    (catch Exception _ nil)))
 
 (defn- read-disk-cache
   "Return on-disk cache content for bwv-id/mode if it exists and script mtime
   still matches; return nil if missing or stale."
   [bwv-id mode]
-  (try
-    (let [f (cache-file bwv-id mode)]
-      (when (.exists f)
-        (let [content    (slurp f)
-              first-line (first (str/split-lines content))
-              cached-mtime (when (str/starts-with? first-line "; nous-m21-cache")
-                             (some-> (re-find #"script-mtime=(\d+)" first-line)
-                                     second
-                                     Long/parseLong))]
-          (when (= cached-mtime (script-mtime))
-            content))))
-    (catch Exception _
-      nil)))
+  (read-disk-cache* (cache-file bwv-id mode)))
+
+(defn- read-work-disk-cache
+  "Return on-disk cache content for a corpus path/mode if valid; nil otherwise."
+  [path mode]
+  (read-disk-cache* (work-cache-file path mode)))
 
 (defn- cached-load
   "Load bwv-id in mode (:chords or :parts) through the three-level cache.
@@ -260,6 +289,32 @@
             (let [raw  (get resp "edn")
                   data (parse-edn raw)]
               (write-disk-cache! bwv-id mode raw)
+              (swap! mem-cache assoc k data)
+              data))))))
+
+(defn- cached-load-work
+  "Load a corpus work by path and mode through the three-level cache.
+
+  Lookup order:
+    1. Clojure in-memory atom  — instant
+    2. On-disk EDN file        — fast file read; validates script mtime
+    3. Python m21 server       — music21 extraction; ~100ms–2s on first call"
+  [path mode]
+  (let [k [path mode]]
+    (or (get @mem-cache k)
+        (when-let [raw (read-work-disk-cache path mode)]
+          (let [data (parse-edn raw)]
+            (swap! mem-cache assoc k data)
+            data))
+        (do
+          (ensure-server!)
+          (let [resp (m21-request! {"op" "load-work" "path" path "mode" (name mode)})]
+            (when (= "error" (get resp "status"))
+              (throw (ex-info "m21 server error"
+                              {:path path :mode mode :message (get resp "message")})))
+            (let [raw  (get resp "edn")
+                  data (parse-edn raw)]
+              (write-work-disk-cache! path mode raw)
               (swap! mem-cache assoc k data)
               data))))))
 
@@ -300,6 +355,53 @@
     (when (= "error" (get resp "status"))
       (throw (ex-info "m21 server error" {:message (get resp "message")})))
     (vec (get resp "data"))))
+
+(defn search-corpus
+  "Search the music21 corpus.
+
+  Options map (all optional):
+    :composer        — composer name string (e.g. \"palestrina\", \"josquin\")
+    :file-extension  — file extension string (e.g. \"abc\", \"mxl\", \"xml\")
+    :title           — title substring
+    :limit           — max results (default 100)
+
+  Returns a vector of maps:
+    {:path \"palestrina/kyrie.mxl\" :title \"Kyrie\" :composer \"Palestrina\"}
+
+  Examples:
+    (m21/search-corpus {:composer \"palestrina\"})
+    (m21/search-corpus {:file-extension \"abc\" :limit 20})"
+  [{:keys [composer file-extension title limit]
+    :or   {limit 100}}]
+  (ensure-server!)
+  (let [req  (cond-> {"op" "search" "limit" limit}
+               composer        (assoc "composer" composer)
+               file-extension  (assoc "fileExtension" file-extension)
+               title           (assoc "title" title))
+        resp (m21-request! req)]
+    (when (= "error" (get resp "status"))
+      (throw (ex-info "m21 server error" {:message (get resp "message")})))
+    (mapv #(into {} (map (fn [[k v]] [(keyword k) v]) %))
+          (get resp "data"))))
+
+(defn load-work
+  "Load any music21 corpus work by path.
+
+  `path` — corpus path, e.g. \"palestrina/kyrie.mxl\"
+  `mode` — :parts (default), :chords, or :intervals
+
+  Returns:
+    :parts     — {:soprano [...] :alto [...] ...}   per-voice event maps
+    :chords    — vector of chord maps (same format as load-chorale)
+    :intervals — {:soprano [{:from 60 :to 62 :semitones 2 :dur/beats 1.0} ...] ...}
+
+  Use search-corpus to discover available paths.
+
+  Examples:
+    (m21/load-work \"palestrina/kyrie.mxl\" :parts)
+    (m21/load-work \"josquin/mass...\" :intervals)"
+  ([path]       (load-work path :parts))
+  ([path mode]  (cached-load-work path mode)))
 
 (defn load-chorale
   "Load a Bach chorale from the music21 corpus by BWV number.

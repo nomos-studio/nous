@@ -16,16 +16,27 @@
 #   Requests:  one JSON object per line on stdin
 #   Responses: one JSON object per line on stdout
 #
-# Ops and responses:
-#   {"op":"load","bwv":"371","mode":"chords"} → {"status":"ok","session":"bwv371-chords","edn":"[...]"}
-#   {"op":"load","bwv":"371","mode":"parts"}  → {"status":"ok","session":"bwv371-parts","edn":"{...}"}
+# Bach-specific ops (backward-compatible):
+#   {"op":"load","bwv":"371","mode":"chords"} → {"status":"ok","session":"...","edn":"[...]"}
+#   {"op":"load","bwv":"371","mode":"parts"}  → {"status":"ok","session":"...","edn":"{...}"}
 #   {"op":"list"}                             → {"status":"ok","data":[248,253,...]}
+#
+# General corpus ops:
+#   {"op":"search","composer":"palestrina"}   → {"status":"ok","data":[{"path":"...","title":"...","composer":"..."},...]}
+#   {"op":"search","fileExtension":"abc"}     → same shape
+#   {"op":"load-work","path":"palestrina/kyrie.mxl","mode":"parts"}
+#                                             → {"status":"ok","session":"...","edn":"{...}"}
+#   {"op":"load-work","path":"...","mode":"chords"}    → vector of chord maps
+#   {"op":"load-work","path":"...","mode":"intervals"} → per-voice {from to semitones dur/beats}
+#
+# Utility ops:
 #   {"op":"ping"}                             → {"status":"ok"}
 #   {"op":"shutdown"}                         → {"status":"ok"}  then exit(0)
+#   {"op":"parse-midi","path":"/abs/path"}    → {"status":"ok","notes":"[...]","tempo":120.0,...}
 #   Any error:                                → {"status":"error","message":"..."}
 #
 # Session cache:
-#   First load of bwv+mode extracts via music21 (~100-500ms per chorale).
+#   First load of a path+mode extracts via music21 (~100-500ms per work).
 #   Subsequent requests for the same session return instantly from the in-memory
 #   _sessions dict. The Clojure side maintains its own two-level (mem+disk) cache
 #   on top of this, so Python sessions are only populated once per server lifetime.
@@ -72,24 +83,30 @@ def _voice_key(part, index):
 # EDN rendering
 # ---------------------------------------------------------------------------
 
+def _edn_val(v):
+    """Render a Python value as an EDN value string."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    elif isinstance(v, (int, float)):
+        return str(v)
+    elif isinstance(v, list):
+        return "[" + " ".join(_edn_val(x) for x in v) + "]"
+    elif isinstance(v, str):
+        # Already-rendered EDN (keyword, vector, map, tagged literal, quoted string)
+        if v and v[0] in (":", "[", "{", "#", '"'):
+            return v
+        # Plain Python string — escape and quote as EDN string literal
+        return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return str(v)
+
+
 def _edn_map(pairs):
     """Render a list of (key, value) pairs as an EDN map string."""
-    parts = []
-    for k, v in pairs:
-        if isinstance(v, bool):
-            parts.append(f"{k} {'true' if v else 'false'}")
-        elif isinstance(v, (int, float)):
-            parts.append(f"{k} {v}")
-        elif isinstance(v, list):
-            inner = " ".join(str(x) for x in v)
-            parts.append(f"{k} [{inner}]")
-        else:
-            parts.append(f"{k} {v}")
-    return "{" + " ".join(parts) + "}"
+    return "{" + " ".join(f"{k} {_edn_val(v)}" for k, v in pairs) + "}"
 
 
 # ---------------------------------------------------------------------------
-# Corpus helpers
+# Bach corpus helpers
 # ---------------------------------------------------------------------------
 
 def _find_score(bwv_id):
@@ -117,12 +134,11 @@ def _find_score(bwv_id):
         raise RuntimeError(f"bwv{bwv_id}: parse failed — {e}")
 
 
-def _extract_chords(bwv_id):
-    """Return EDN string for the chordified Bach chorale (Phase 1 format)."""
-    score = _find_score(bwv_id)
+def _extract_chords_from_score(score, label):
+    """Return EDN string for a chordified score (Phase 1 / chords mode)."""
     chordified = score.chordify()
     buf = io.StringIO()
-    buf.write(f"; BWV {bwv_id}\n[\n")
+    buf.write(f"; {label}\n[\n")
     for el in chordified.flatten().notesAndRests:
         dur = float(el.duration.quarterLength)
         if dur <= 0:
@@ -136,12 +152,16 @@ def _extract_chords(bwv_id):
     return buf.getvalue()
 
 
-def _extract_parts(bwv_id):
-    """Return EDN string for per-voice SATB (Phase 2 format)."""
-    score = _find_score(bwv_id)
+def _extract_chords(bwv_id):
+    """Return EDN string for the chordified Bach chorale (backward-compat wrapper)."""
+    return _extract_chords_from_score(_find_score(bwv_id), f"BWV {bwv_id}")
+
+
+def _extract_parts_from_score(score, label):
+    """Return EDN string for per-voice event sequences (Phase 2 / parts mode)."""
     parts = list(score.parts)
     buf = io.StringIO()
-    buf.write(f"; BWV {bwv_id} parts\n{{\n")
+    buf.write(f"; {label} parts\n{{\n")
     for i, part in enumerate(parts):
         key = _voice_key(part, i)
         buf.write(f" {key}\n [\n")
@@ -161,6 +181,11 @@ def _extract_parts(bwv_id):
     return buf.getvalue()
 
 
+def _extract_parts(bwv_id):
+    """Return EDN string for per-voice SATB (backward-compat wrapper)."""
+    return _extract_parts_from_score(_find_score(bwv_id), f"BWV {bwv_id}")
+
+
 def _list_chorales():
     """Return sorted list of available BWV integers."""
     import pathlib, re
@@ -174,6 +199,77 @@ def _list_chorales():
         if m:
             nums.add(int(m.group(1)))
     return sorted(nums)
+
+
+# ---------------------------------------------------------------------------
+# General corpus helpers
+# ---------------------------------------------------------------------------
+
+def _find_work(path):
+    """Return parsed music21 Score for any corpus path, or raise RuntimeError."""
+    try:
+        return corpus.parse(path)
+    except Exception as e:
+        raise RuntimeError(f"{path!r} not found or parse failed: {e}")
+
+
+def _extract_intervals_from_score(score, label):
+    """Return EDN string for per-voice interval sequences.
+
+    Each event: {:from midi :to midi :semitones N :dur/beats Q}
+    Rests are skipped; only note→note transitions are recorded.
+    """
+    parts = list(score.parts)
+    buf = io.StringIO()
+    buf.write(f"; {label} intervals\n{{\n")
+    for i, part in enumerate(parts):
+        key = _voice_key(part, i)
+        buf.write(f" {key}\n [\n")
+        pitched = [el for el in part.flatten().notesAndRests
+                   if isinstance(el, (note.Note, chord.Chord))]
+        for j in range(len(pitched) - 1):
+            a, b = pitched[j], pitched[j + 1]
+            a_midi = (sorted(p.midi for p in a.pitches)[-1]
+                      if isinstance(a, chord.Chord) else a.pitch.midi)
+            b_midi = (sorted(p.midi for p in b.pitches)[-1]
+                      if isinstance(b, chord.Chord) else b.pitch.midi)
+            semitones = b_midi - a_midi
+            dur = float(a.duration.quarterLength)
+            buf.write(
+                f"  {_edn_map([(chr(58)+'from', a_midi), (chr(58)+'to', b_midi), (chr(58)+'semitones', semitones), (chr(58)+'dur/beats', round(dur, 6))])}\n"
+            )
+        buf.write(" ]\n")
+    buf.write("}\n")
+    return buf.getvalue()
+
+
+def _search_corpus(composer=None, file_ext=None, title=None, limit=100):
+    """Search the corpus and return a list of {'path','title','composer'} dicts."""
+    kwargs = {}
+    if composer:
+        kwargs["composer"] = composer
+    if file_ext:
+        kwargs["fileExtensions"] = [file_ext]
+    if title:
+        kwargs["title"] = title
+    try:
+        results = corpus.search(**kwargs)
+    except Exception as e:
+        raise RuntimeError(f"corpus.search failed: {e}")
+    out = []
+    for r in list(results)[:limit]:
+        try:
+            md = r.metadata
+            title_str    = str(md.title    or "") if md else ""
+            composer_str = str(md.composer or "") if md else ""
+        except Exception:
+            title_str = composer_str = ""
+        out.append({
+            "path":     str(r.sourcePath),
+            "title":    title_str,
+            "composer": composer_str,
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +298,43 @@ def _handle_list(_req):
         return {"status": "ok", "data": _list_chorales()}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+def _handle_search(req):
+    try:
+        results = _search_corpus(
+            composer=req.get("composer"),
+            file_ext=req.get("fileExtension"),
+            title=req.get("title"),
+            limit=int(req.get("limit", 100)),
+        )
+        return {"status": "ok", "data": results}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def _handle_load_work(req):
+    path = req.get("path")
+    if not path:
+        return {"status": "error", "message": "path required"}
+    mode = req.get("mode", "parts")
+    session_key = f"work:{path}:{mode}"
+    if session_key in _sessions:
+        return {"status": "ok", "session": session_key, "edn": _sessions[session_key]}
+    try:
+        score = _find_work(path)
+        if mode == "parts":
+            edn = _extract_parts_from_score(score, path)
+        elif mode == "chords":
+            edn = _extract_chords_from_score(score, path)
+        elif mode == "intervals":
+            edn = _extract_intervals_from_score(score, path)
+        else:
+            return {"status": "error", "message": f"unknown mode: {mode!r}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    _sessions[session_key] = edn
+    return {"status": "ok", "session": session_key, "edn": edn}
 
 
 def _handle_ping(_req):
@@ -289,6 +422,8 @@ def _handle_parse_midi(req):
 _HANDLERS = {
     "load":        _handle_load,
     "list":        _handle_list,
+    "search":      _handle_search,
+    "load-work":   _handle_load_work,
     "ping":        _handle_ping,
     "shutdown":    _handle_shutdown,
     "parse-midi":  _handle_parse_midi,
