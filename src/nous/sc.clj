@@ -1069,3 +1069,11 @@
   "Return a map of current SC connection state."
   []
   (dissoc @sc-state :next-node))
+
+;; ---------------------------------------------------------------------------
+;; place-synth! dispatch — SC backend
+;; ---------------------------------------------------------------------------
+
+(defmethod synth/place-synth! :sc
+  [_node-id synth-name & {:keys [params]}]
+  (sc-synth! synth-name params))

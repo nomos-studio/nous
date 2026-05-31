@@ -449,6 +449,8 @@
 (def transpose-synth synth/transpose-synth)
 (def scale-amp      synth/scale-amp)
 (def replace-arg    synth/replace-arg)
+(def synth-backend  synth/synth-backend)
+(def place-synth!   synth/place-synth!)
 
 ;; FM synthesis vocabulary
 (def def-fm!       fm/def-fm!)
@@ -611,6 +613,7 @@
 (def reload-session!       session/reload-session!)
 (def clear-session!        session/clear-session!)
 (def kairos-grid-plugin-id session/*kairos-grid-plugin-id*)
+(def clear-placed-nodes!   session/clear-placed-nodes!)
 
 ;; ---------------------------------------------------------------------------
 ;; Book of Sounds sequencer (nous.book)

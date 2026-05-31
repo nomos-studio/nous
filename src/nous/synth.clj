@@ -67,28 +67,41 @@
 (defn defsynth!
   "Register a named synth definition.
 
-  `synth-map` must contain:
+  SC-backed synths require:
     :args   — map of {arg-kw default-value}
     :graph  — hiccup UGen graph; top-level node must be [:out ...]
 
-  Optional:
+  CLAP-backed synths require:
+    :clap/plugin-id — CLAP plugin ID string (e.g. \"com.surge-synth-team.surge-xt\")
+    :args           — optional map of default param values (defaults to {})
+
+  Optional for both:
     :synth/tags — seq of keyword tags
     :synth/doc  — docstring
 
   Idempotent: re-registering replaces the previous definition.
 
-  Example:
+  Examples:
+    ;; SC-backed
     (defsynth! :pad
       {:args  {:freq 440 :amp 0.5}
-       :graph [:out 0 [:sin-osc :freq]]})"
+       :graph [:out 0 [:sin-osc :freq]]})
+
+    ;; CLAP-backed
+    (defsynth! :surge-xt
+      {:clap/plugin-id \"com.surge-synth-team.surge-xt\"
+       :args           {:freq 440 :amp 1.0}})"
   [synth-name synth-map]
   (when-not (keyword? synth-name)
     (throw (ex-info "defsynth!: synth name must be a keyword" {:name synth-name})))
-  (when-not (map? (:args synth-map))
+  (when (and (contains? synth-map :args) (not (map? (:args synth-map))))
     (throw (ex-info "defsynth!: :args must be a map" {:synth synth-name})))
-  (when-not (vector? (:graph synth-map))
-    (throw (ex-info "defsynth!: :graph must be a vector" {:synth synth-name})))
-  (swap! synth-registry assoc synth-name synth-map)
+  (when (and (not (:clap/plugin-id synth-map))
+             (not (vector? (:graph synth-map))))
+    (throw (ex-info "defsynth!: :graph must be a vector (or supply :clap/plugin-id)"
+                    {:synth synth-name})))
+  (swap! synth-registry assoc synth-name
+         (cond-> synth-map (not (contains? synth-map :args)) (assoc :args {})))
   synth-name)
 
 (defn register-precompiled!
@@ -182,6 +195,55 @@
 (defmethod compile-synth :default [backend synth-name]
   (throw (ex-info "compile-synth: unknown backend"
                   {:backend backend :synth synth-name})))
+
+;; ---------------------------------------------------------------------------
+;; Backend identification
+;; ---------------------------------------------------------------------------
+
+(defn synth-backend
+  "Return the synthesis backend for a named synth.
+  :clap — CLAP plugin via kairos (:clap/plugin-id present in the definition)
+  :sc   — SuperCollider UGen graph (default for all other registered synths)
+  nil   — synth not registered"
+  [synth-name]
+  (when-let [s (get-synth synth-name)]
+    (if (:clap/plugin-id s) :clap :sc)))
+
+;; ---------------------------------------------------------------------------
+;; Backend dispatch — place-synth!
+;; ---------------------------------------------------------------------------
+
+(defmulti place-synth!
+  "Instantiate a named synth in the appropriate backend.
+
+  node-id    — keyword identifying this instance.
+               For kairos/CLAP: used as the graph node key (addressable via
+               send-param-set!, etc.).
+               For SC: passed for symmetry; SC generates its own integer node ID.
+  synth-name — keyword registered via defsynth!
+
+  Options:
+    :params — map of parameter values to apply on top of the synth's :args defaults
+
+  Returns:
+    :clap backend → node-id keyword
+    :sc   backend → SC node integer
+
+  Backend is resolved automatically from the synth definition (synth-backend).
+  Methods are registered by nous.session (:clap) and nous.sc (:sc).
+
+  Examples:
+    ;; CLAP synth placed in kairos
+    (defsynth! :surge-xt {:clap/plugin-id \"com.surge-synth-team.surge-xt\" :args {}})
+    (place-synth! :lead :surge-xt)
+    (place-synth! :lead :surge-xt {:params {:freq 880}})
+
+    ;; SC synth instantiated in scsynth
+    (place-synth! :my-pad :pad)"
+  (fn [_node-id synth-name & _] (synth-backend synth-name)))
+
+(defmethod place-synth! nil [_node-id synth-name & _]
+  (throw (ex-info "place-synth!: synth not found" {:name synth-name})))
 
 ;; ---------------------------------------------------------------------------
 ;; EDN loader — resources/synths/

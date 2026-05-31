@@ -122,6 +122,63 @@
       (is (= 0.5 (get-in s' [:args :amp]))))))
 
 ;; ---------------------------------------------------------------------------
+;; CLAP-backed synth registration
+;; ---------------------------------------------------------------------------
+
+(deftest defsynth-clap-no-graph-required-test
+  (testing "defsynth! accepts :clap/plugin-id without :graph"
+    (synth/defsynth! ::clap-test-synth
+      {:clap/plugin-id "com.test.Plugin"
+       :args           {:freq 440}})
+    (let [s (synth/get-synth ::clap-test-synth)]
+      (is (= "com.test.Plugin" (:clap/plugin-id s)))
+      (is (= {:freq 440} (:args s)))
+      (is (nil? (:graph s))))))
+
+(deftest defsynth-clap-args-defaults-to-empty-test
+  (testing "defsynth! defaults :args to {} when omitted for CLAP synths"
+    (synth/defsynth! ::clap-no-args {:clap/plugin-id "com.test.NoArgs"})
+    (is (= {} (:args (synth/get-synth ::clap-no-args))))))
+
+(deftest defsynth-validates-args-still-test
+  (testing "defsynth! still rejects :args that is not a map"
+    (is (thrown? Exception
+          (synth/defsynth! ::clap-bad-args
+            {:clap/plugin-id "com.test.X" :args "not-a-map"})))))
+
+(deftest defsynth-sc-still-requires-graph-test
+  (testing "defsynth! without :clap/plugin-id still requires :graph"
+    (is (thrown? Exception
+          (synth/defsynth! ::sc-no-graph {:args {} :graph "not-a-vector"})))))
+
+;; ---------------------------------------------------------------------------
+;; synth-backend dispatch
+;; ---------------------------------------------------------------------------
+
+(deftest synth-backend-clap-test
+  (testing "synth-backend returns :clap for synths with :clap/plugin-id"
+    (synth/defsynth! ::be-clap {:clap/plugin-id "com.test.BE" :args {}})
+    (is (= :clap (synth/synth-backend ::be-clap)))))
+
+(deftest synth-backend-sc-test
+  (testing "synth-backend returns :sc for UGen-graph synths"
+    (synth/defsynth! ::be-sc {:args {:freq 440} :graph [:out 0 [:sin-osc :freq]]})
+    (is (= :sc (synth/synth-backend ::be-sc)))))
+
+(deftest synth-backend-nil-for-unknown-test
+  (testing "synth-backend returns nil for unregistered synths"
+    (is (nil? (synth/synth-backend :this-does-not-exist-ever)))))
+
+;; ---------------------------------------------------------------------------
+;; place-synth! — nil dispatch (unknown synth)
+;; ---------------------------------------------------------------------------
+
+(deftest place-synth-unknown-synth-throws-test
+  (testing "place-synth! throws when synth is not registered"
+    (is (thrown? Exception
+          (synth/place-synth! :node :this-does-not-exist-ever)))))
+
+;; ---------------------------------------------------------------------------
 ;; compile-synth dispatch
 ;; ---------------------------------------------------------------------------
 

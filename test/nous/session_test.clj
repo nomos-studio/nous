@@ -5,7 +5,8 @@
             [nous.core    :as core]
             [nous.ctrl    :as ctrl]
             [nous.kairos  :as kairos]
-            [nous.session :as session]))
+            [nous.session :as session]
+            [nous.synth   :as synth]))
 
 ;; ---------------------------------------------------------------------------
 ;; Test data
@@ -45,14 +46,17 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- active-session-atom [] @#'session/active-session-atom)
+(defn- placed-nodes-atom   [] @#'session/placed-nodes)
 
 (defn- with-system [f]
   (core/start! :bpm 120)
   (try
     (reset! (active-session-atom) nil)
+    (reset! (placed-nodes-atom)   {})
     (f)
     (finally
       (reset! (active-session-atom) nil)
+      (reset! (placed-nodes-atom)   {})
       (core/stop!))))
 
 (use-fixtures :each with-system)
@@ -235,3 +239,67 @@
       (let [g (session/session->graph simple-session)
             n (first (:graph/nodes g))]
         (is (= "org.custom.grid" (:plugin n)))))))
+
+;; ---------------------------------------------------------------------------
+;; place-synth! — CLAP backend
+;; ---------------------------------------------------------------------------
+
+(def ^:private test-clap-id "com.test.session.Plugin")
+
+(deftest place-synth-clap-sends-graph-load-test
+  (testing "place-synth! :clap sends graph-load with the CLAP plugin node"
+    (synth/defsynth! ::sess-clap {:clap/plugin-id test-clap-id :args {}})
+    (let [sent (atom nil)]
+      (with-redefs [kairos/send-graph-load! (fn [g] (reset! sent g) nil)]
+        (synth/place-synth! :lead ::sess-clap))
+      (is (some? @sent))
+      (let [nodes (:graph/nodes @sent)]
+        (is (= 1 (count nodes)))
+        (is (= :lead (:id (first nodes))))
+        (is (= test-clap-id (:plugin (first nodes))))))))
+
+(deftest place-synth-clap-returns-node-id-test
+  (testing "place-synth! :clap returns the node-id keyword"
+    (synth/defsynth! ::sess-clap2 {:clap/plugin-id test-clap-id :args {}})
+    (with-redefs [kairos/send-graph-load! (fn [_] nil)]
+      (is (= :bass (synth/place-synth! :bass ::sess-clap2))))))
+
+(deftest place-synth-clap-merges-default-params-test
+  (testing "place-synth! merges synth :args defaults with caller :params"
+    (synth/defsynth! ::sess-clap3 {:clap/plugin-id test-clap-id :args {:freq 440 :amp 1.0}})
+    (let [sent (atom nil)]
+      (with-redefs [kairos/send-graph-load! (fn [g] (reset! sent g) nil)]
+        (synth/place-synth! :voice ::sess-clap3 {:params {:freq 880}}))
+      (let [n (first (:graph/nodes @sent))]
+        (is (= 880 (get-in n [:params :freq])) "caller :params overrides default")
+        (is (= 1.0 (get-in n [:params :amp]))  "synth default preserved")))))
+
+(deftest place-synth-clap-accumulates-nodes-test
+  (testing "successive place-synth! calls accumulate nodes in one graph"
+    (synth/defsynth! ::sess-clap4 {:clap/plugin-id test-clap-id :args {}})
+    (let [sent (atom nil)]
+      (with-redefs [kairos/send-graph-load! (fn [g] (reset! sent g) nil)]
+        (synth/place-synth! :voice ::sess-clap4)
+        (synth/place-synth! :reverb ::sess-clap4))
+      (is (= 2 (count (:graph/nodes @sent)))
+          "second call sends both nodes"))))
+
+(deftest place-synth-clap-updates-existing-node-test
+  (testing "re-placing the same node-id replaces rather than duplicates it"
+    (synth/defsynth! ::sess-clap5 {:clap/plugin-id test-clap-id :args {:freq 440}})
+    (let [sent (atom nil)]
+      (with-redefs [kairos/send-graph-load! (fn [g] (reset! sent g) nil)]
+        (synth/place-synth! :lead ::sess-clap5)
+        (synth/place-synth! :lead ::sess-clap5 {:params {:freq 880}}))
+      (is (= 1 (count (:graph/nodes @sent))) "no duplicate nodes")
+      (is (= 880 (get-in @sent [:graph/nodes 0 :params :freq]))))))
+
+(deftest clear-session-also-clears-placed-nodes-test
+  (testing "clear-session! resets the placed-nodes registry"
+    (synth/defsynth! ::sess-clap6 {:clap/plugin-id test-clap-id :args {}})
+    (with-redefs [kairos/send-graph-load!  (fn [_] nil)
+                  kairos/send-graph-reset! (fn [] nil)]
+      (synth/place-synth! :voice ::sess-clap6)
+      (is (= 1 (count @(placed-nodes-atom))))
+      (session/clear-session!)
+      (is (= {} @(placed-nodes-atom))))))

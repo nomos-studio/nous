@@ -61,7 +61,8 @@
   kairos. Its internal module graph is delivered inline via the :patch key.
   The CLAP plugin ID is [[kairos-grid-plugin-id]] (configurable)."
   (:require [nous.kairos :as kairos]
-            [nous.ctrl   :as ctrl]))
+            [nous.ctrl   :as ctrl]
+            [nous.synth  :as synth-ns]))
 
 ;; ---------------------------------------------------------------------------
 ;; kairos-grid plugin ID
@@ -77,6 +78,10 @@
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private active-session-atom (atom nil))
+
+;; Nodes placed individually via place-synth! — keyed by node-id keyword.
+;; Independent of active-session-atom; cleared by clear-session!.
+(defonce ^:private placed-nodes (atom {}))
 
 ;; ---------------------------------------------------------------------------
 ;; Translation helpers
@@ -243,8 +248,35 @@
     graph))
 
 (defn clear-session!
-  "Unload the active session and send graph-reset! to kairos."
+  "Unload the active session and send graph-reset! to kairos.
+  Also clears any nodes placed via place-synth!."
   []
   (reset! active-session-atom nil)
+  (reset! placed-nodes {})
   (kairos/send-graph-reset!)
   nil)
+
+;; ---------------------------------------------------------------------------
+;; place-synth! dispatch — CLAP backend
+;; ---------------------------------------------------------------------------
+
+(defn clear-placed-nodes!
+  "Remove all nodes placed via place-synth! and send graph-reset! to kairos.
+  Does not affect the active load-session! graph."
+  []
+  (reset! placed-nodes {})
+  (kairos/send-graph-reset!)
+  nil)
+
+(defmethod synth-ns/place-synth! :clap
+  [node-id synth-name & {:keys [params]}]
+  (let [s         (synth-ns/get-synth synth-name)
+        plugin-id (:clap/plugin-id s)
+        merged    (merge (:args s) params)]
+    (swap! placed-nodes assoc node-id {:plugin plugin-id :params merged})
+    (let [nodes (mapv (fn [[id {:keys [plugin params]}]]
+                        (cond-> {:id id :plugin plugin}
+                          (seq params) (assoc :params params)))
+                      @placed-nodes)]
+      (kairos/send-graph-load! {:graph/nodes nodes :graph/edges []}))
+    node-id))
