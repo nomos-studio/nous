@@ -554,6 +554,9 @@
 ;; Graph management
 (def send-graph-load!        kairos/send-graph-load!)
 (def send-graph-reset!       kairos/send-graph-reset!)
+;; Plugin discovery
+(def list-plugins!           kairos/list-plugins!)
+(def plugin-registry         kairos/plugin-registry)
 ;; Parameter control
 (def send-param-set!         kairos/send-param-set!)
 ;; WASM hot-swap

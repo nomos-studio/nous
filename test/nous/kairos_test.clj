@@ -6,7 +6,7 @@
   (:import [java.net UnixDomainSocketAddress StandardProtocolFamily]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.channels ServerSocketChannel SocketChannel Channels]
-           [java.io File]))
+           [java.io File OutputStream]))
 
 ;; ---------------------------------------------------------------------------
 ;; Private access
@@ -583,5 +583,100 @@
           (is (not= :timeout frame))
           (is (= "segment_0_primary" (get-in frame [:payload :key])))
           (is (= 0.3 (get-in frame [:payload :value]))))
+        (finally
+          (kairos/disconnect!))))))
+
+;; ---------------------------------------------------------------------------
+;; Plugin listing
+;; ---------------------------------------------------------------------------
+
+(defn- write-push-frame!
+  "Write a push frame to out — mirrors the kairos push_frame wire format."
+  [^OutputStream out msg-type ^bytes payload]
+  (let [plen (alength payload)
+        buf  (ByteBuffer/allocate (+ 8 plen))]
+    (.order buf ByteOrder/BIG_ENDIAN)
+    (.putInt buf plen)
+    (.put buf ^byte (unchecked-byte msg-type))
+    (.put buf (byte 0))
+    (.put buf (byte 0))
+    (.put buf (byte 0))
+    (.put buf payload)
+    (.write out (.array buf))
+    (.flush out)))
+
+(defn- with-mock-server-reply
+  "Mock server that reads one frame from the client then sends a reply frame.
+  Returns a promise delivering {:request frame :reply-sent? true} when done."
+  [path reply-type ^bytes reply-payload]
+  (let [srv    (doto (ServerSocketChannel/open StandardProtocolFamily/UNIX)
+                 (.bind (UnixDomainSocketAddress/of path)))
+        result (promise)]
+    (doto (Thread.
+            (fn []
+              (try
+                (with-open [conn (.accept srv)]
+                  (let [req (read-frame! (Channels/newInputStream conn))]
+                    (write-push-frame! (Channels/newOutputStream conn)
+                                       reply-type reply-payload)
+                    (deliver result {:request req :reply-sent? true})))
+                (catch Exception e
+                  (deliver result e))
+                (finally (.close srv)))))
+      (.setDaemon true)
+      .start)
+    result))
+
+(deftest list-plugins-sends-req-frame-test
+  (testing "list-plugins! sends type 0x36 with empty payload when no extra-paths"
+    (let [path     (temp-socket-path)
+          plugins  [{:id "org.foo.Synth" :name "Foo" :vendor "FooInc"
+                     :version "1.0" :path "/tmp/foo.clap"}]
+          payload  (.getBytes ^String (pr-str plugins) "UTF-8")
+          server   (with-mock-server-reply path 0x37 payload)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (let [result (kairos/list-plugins! :timeout-ms 2000)]
+          (let [srv-data (deref server 2000 :timeout)]
+            (is (not= :timeout srv-data))
+            (is (= 0x36 (get-in srv-data [:request :type])))
+            (is (nil?   (get-in srv-data [:request :payload])) "no extra-paths → empty payload"))
+          (is (= 1 (count result)))
+          (is (= "org.foo.Synth" (:id (first result))))
+          (is (= "Foo"           (:name (first result)))))
+        (finally
+          (kairos/disconnect!))))))
+
+(deftest list-plugins-sends-extra-paths-test
+  (testing "list-plugins! includes :extra-paths in request payload"
+    (let [path     (temp-socket-path)
+          plugins  []
+          payload  (.getBytes ^String (pr-str plugins) "UTF-8")
+          server   (with-mock-server-reply path 0x37 payload)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/list-plugins! :extra-paths ["/opt/clap"] :timeout-ms 2000)
+        (let [srv-data (deref server 2000 :timeout)]
+          (is (not= :timeout srv-data))
+          (is (= 0x36 (get-in srv-data [:request :type])))
+          (is (= ["/opt/clap"]
+                 (get-in srv-data [:request :payload :extra-paths]))))
+        (finally
+          (kairos/disconnect!))))))
+
+(deftest plugin-registry-updated-by-push-test
+  (testing "plugin-registry atom is populated after list-plugins! response"
+    (let [path    (temp-socket-path)
+          plugins [{:id "org.test.Plugin" :name "Test" :vendor "T"
+                    :version "0.1" :path "/tmp/test.clap"}]
+          payload (.getBytes ^String (pr-str plugins) "UTF-8")
+          server  (with-mock-server-reply path 0x37 payload)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/list-plugins! :timeout-ms 2000)
+        (is (= "org.test.Plugin" (:id (first (kairos/plugin-registry)))))
         (finally
           (kairos/disconnect!))))))

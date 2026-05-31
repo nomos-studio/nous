@@ -59,9 +59,11 @@
 (def ^:private MSG-SESSION-OPEN    (unchecked-byte 0x31))
 (def ^:private MSG-SESSION-CLOSE   (unchecked-byte 0x32))
 (def ^:private MSG-REGISTER-SOURCE (unchecked-byte 0x33))
-(def ^:private MSG-GRAPH-LOAD      (unchecked-byte 0x34))
-(def ^:private MSG-GRAPH-RESET     (unchecked-byte 0x35))
-(def ^:private MSG-PARAM-SET       (unchecked-byte 0x40))
+(def ^:private MSG-GRAPH-LOAD       (unchecked-byte 0x34))
+(def ^:private MSG-GRAPH-RESET      (unchecked-byte 0x35))
+(def ^:private MSG-PLUGIN-LIST-REQ  (unchecked-byte 0x36))
+(def ^:private MSG-PLUGIN-LIST-RESP (unchecked-byte 0x37))
+(def ^:private MSG-PARAM-SET        (unchecked-byte 0x40))
 (def ^:private MSG-NOTE-ON         (unchecked-byte 0x41))
 (def ^:private MSG-NOTE-OFF        (unchecked-byte 0x42))
 (def ^:private MSG-MIDI-IN         (unchecked-byte 0x43))
@@ -436,6 +438,61 @@
   "Tear down the current plugin graph."
   []
   (send-frame! (make-frame MSG-GRAPH-RESET (byte-array 0))))
+
+;; ---------------------------------------------------------------------------
+;; Plugin listing
+;; ---------------------------------------------------------------------------
+
+(defonce ^:private plugin-registry-state
+  (atom {:version 0 :plugins nil}))
+
+(def ^:private _plugin-list-resp-handler
+  (register-push-handler!
+   0x37
+   (fn [^bytes payload]
+     (let [plugins (edn/read-string (String. payload "UTF-8"))]
+       (swap! plugin-registry-state
+              (fn [s] {:version (inc (:version s)) :plugins plugins}))))))
+
+(defn plugin-registry
+  "Return the most recently received plugin registry snapshot, or nil.
+  Each entry: {:id \"plugin.id\" :name \"...\" :vendor \"...\" :version \"...\" :path \"...\"}
+  Call list-plugins! first to populate."
+  []
+  (:plugins @plugin-registry-state))
+
+(defn list-plugins!
+  "Request the list of installed CLAP plugins from kairos and block until the
+  response arrives.
+
+  Returns a vector of plugin info maps, or nil on timeout:
+    [{:id     \"org.foo.Synth\"
+      :name   \"Foo Synth\"
+      :vendor \"FooPlugins\"
+      :version \"1.0.0\"
+      :path   \"/Library/Audio/Plug-Ins/CLAP/Foo.clap/...\"}
+     ...]
+
+  Options:
+    :extra-paths — extra directories to scan beyond platform defaults
+    :timeout-ms  — give up after this many ms (default 5000)
+
+  Example:
+    (kairos/list-plugins!)
+    (kairos/list-plugins! :extra-paths [\"/opt/clap\"] :timeout-ms 10000)"
+  [& {:keys [extra-paths timeout-ms] :or {extra-paths [] timeout-ms 5000}}]
+  (let [v0       (:version @plugin-registry-state)
+        payload  (if (seq extra-paths)
+                   (edn-bytes {:extra-paths (vec extra-paths)})
+                   (byte-array 0))
+        deadline (+ (System/currentTimeMillis) (long timeout-ms))]
+    (send-frame! (make-frame MSG-PLUGIN-LIST-REQ payload))
+    (loop []
+      (let [{:keys [version plugins]} @plugin-registry-state]
+        (cond
+          (> version v0)                          plugins
+          (> (System/currentTimeMillis) deadline) nil
+          :else                                   (do (Thread/sleep 10) (recur)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Parameter control
