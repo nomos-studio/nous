@@ -236,7 +236,7 @@ def _extract_intervals_from_score(score, label):
             semitones = b_midi - a_midi
             dur = float(a.duration.quarterLength)
             buf.write(
-                f"  {_edn_map([(chr(58)+'from', a_midi), (chr(58)+'to', b_midi), (chr(58)+'semitones', semitones), (chr(58)+'dur/beats', round(dur, 6))])}\n"
+                f"  {_edn_map([(':from', a_midi), (':to', b_midi), (':semitones', semitones), (':dur/beats', round(dur, 6))])}\n"
             )
         buf.write(" ]\n")
     buf.write("}\n")
