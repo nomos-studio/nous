@@ -680,3 +680,66 @@
         (is (= "org.test.Plugin" (:id (first (kairos/plugin-registry)))))
         (finally
           (kairos/disconnect!))))))
+
+;; ---------------------------------------------------------------------------
+;; Link control wire tests
+;; ---------------------------------------------------------------------------
+
+(deftest send-link-set-tempo-wire-test
+  (testing "send-link-set-tempo! sends type 0x38 with :bpm in EDN payload"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-link-set-tempo! 140.0)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x38  (:type frame)))
+          (is (= 140.0 (get-in frame [:payload :bpm]))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "send-link-set-tempo! coerces integer bpm to double"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-link-set-tempo! 120)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x38 (:type frame)))
+          (is (instance? Double (get-in frame [:payload :bpm]))))
+        (finally
+          (kairos/disconnect!))))))
+
+(deftest send-link-start-transport-wire-test
+  (testing "send-link-start-transport! sends type 0x39 with empty payload"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-link-start-transport!)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x39 (:type frame)))
+          (is (nil?   (:payload frame))))
+        (finally
+          (kairos/disconnect!))))))
+
+(deftest send-link-stop-transport-wire-test
+  (testing "send-link-stop-transport! sends type 0x3A with empty payload"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-link-stop-transport!)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x3A (:type frame)))
+          (is (nil?   (:payload frame))))
+        (finally
+          (kairos/disconnect!))))))

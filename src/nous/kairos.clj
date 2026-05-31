@@ -63,6 +63,9 @@
 (def ^:private MSG-GRAPH-RESET      (unchecked-byte 0x35))
 (def ^:private MSG-PLUGIN-LIST-REQ  (unchecked-byte 0x36))
 (def ^:private MSG-PLUGIN-LIST-RESP (unchecked-byte 0x37))
+(def ^:private MSG-LINK-SET-TEMPO       (unchecked-byte 0x38))
+(def ^:private MSG-LINK-START-TRANSPORT (unchecked-byte 0x39))
+(def ^:private MSG-LINK-STOP-TRANSPORT  (unchecked-byte 0x3A))
 (def ^:private MSG-PARAM-SET        (unchecked-byte 0x40))
 (def ^:private MSG-NOTE-ON         (unchecked-byte 0x41))
 (def ^:private MSG-NOTE-OFF        (unchecked-byte 0x42))
@@ -493,6 +496,40 @@
           (> version v0)                          plugins
           (> (System/currentTimeMillis) deadline) nil
           :else                                   (do (Thread/sleep 10) (recur)))))))
+
+;; ---------------------------------------------------------------------------
+;; Ableton Link control
+;; ---------------------------------------------------------------------------
+
+(defn send-link-set-tempo!
+  "Propose a new tempo to the Ableton Link session in kairos.
+
+  bpm — target tempo in beats per minute (positive double)
+
+  The change is subject to Link consensus — other peers may adjust it further.
+
+  Example:
+    (kairos/send-link-set-tempo! 140.0)"
+  [bpm]
+  (send-frame! (make-frame MSG-LINK-SET-TEMPO (edn-bytes {:bpm (double bpm)}))))
+
+(defn send-link-start-transport!
+  "Request transport start via the Ableton Link session in kairos.
+
+  Requires start/stop sync to be enabled (on by default in kairos).
+
+  Example:
+    (kairos/send-link-start-transport!)"
+  []
+  (send-frame! (make-frame MSG-LINK-START-TRANSPORT (byte-array 0))))
+
+(defn send-link-stop-transport!
+  "Request transport stop via the Ableton Link session in kairos.
+
+  Example:
+    (kairos/send-link-stop-transport!)"
+  []
+  (send-frame! (make-frame MSG-LINK-STOP-TRANSPORT (byte-array 0))))
 
 ;; ---------------------------------------------------------------------------
 ;; Parameter control

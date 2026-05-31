@@ -23,11 +23,11 @@
   nous.loop/sleep! checks (link/active?) and, when true, uses :link-timeline
   to compute its wall-clock deadline — same contract as before, different source.
 
-  ## Vestigial imperative calls
-  enable!, disable!, set-bpm!, start-transport!, stop-transport! previously
-  sent IPC commands to the sidecar's Link engine. kairos/aion own the Link
-  peer and it is always on; those calls are preserved as no-ops with
-  deprecation notices until explicit kairos MSG types are defined.
+  ## Imperative transport calls
+  set-bpm!, start-transport!, stop-transport! send MSG-LINK-SET-TEMPO (0x38),
+  MSG-LINK-START-TRANSPORT (0x39), and MSG-LINK-STOP-TRANSPORT (0x3A) to kairos
+  respectively. enable! and disable! are no-ops — kairos/aion own the Link
+  peer and it is always active.
 
   Key design decisions: Q7 (Link integration), §15 of R&R doc."
   (:require [nous.kairos :as kairos])
@@ -198,25 +198,21 @@
     (swap! s dissoc :link-state :link-timeline)))
 
 (defn set-bpm!
-  "No-op. BPM is owned by the Link session in kairos/aion.
-  Previously: proposed a tempo change to the sidecar Link engine.
-  Pending a kairos MSG type."
-  [_bpm]
-  (println "[link] set-bpm! is vestigial — kairos/aion own BPM; not yet wired"))
+  "Propose a new tempo to the Ableton Link session via kairos.
+
+  bpm — target BPM (positive number); subject to Link consensus."
+  [bpm]
+  (kairos/send-link-set-tempo! bpm))
 
 (defn start-transport!
-  "No-op. Transport is owned by the Link session in kairos/aion.
-  Previously: sent IPC 0x13 to request transport start.
-  Pending a kairos MSG type."
+  "Request transport start via the Ableton Link session in kairos."
   []
-  (println "[link] start-transport! is vestigial — pending kairos MSG type"))
+  (kairos/send-link-start-transport!))
 
 (defn stop-transport!
-  "No-op. Transport is owned by the Link session in kairos/aion.
-  Previously: sent IPC 0x14 to request transport stop.
-  Pending a kairos MSG type."
+  "Request transport stop via the Ableton Link session in kairos."
   []
-  (println "[link] stop-transport! is vestigial — pending kairos MSG type"))
+  (kairos/send-link-stop-transport!))
 
 ;; ---------------------------------------------------------------------------
 ;; Transport-change hooks
