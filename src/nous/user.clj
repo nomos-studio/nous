@@ -80,7 +80,11 @@
             [nous.runtime         :as runtime]
             [nous.kairos          :as kairos]
             [nous.session         :as session]
+            [nous.alembic         :as nalembic]
             [nous.book            :as book]
+            [nous.excursion       :as excursion]
+            [nous.defensemble     :as defensemble]
+            [nous.lattice         :as lattice]
             [nous.terrain         :as terr]))
 
 ;; ---------------------------------------------------------------------------
@@ -616,6 +620,16 @@
 (def clear-placed-nodes!   session/clear-placed-nodes!)
 
 ;; ---------------------------------------------------------------------------
+;; Alembic Faust→WASM pipeline (nous.alembic)
+;; ---------------------------------------------------------------------------
+
+(def alembic-compile!      nalembic/compile!)
+(def alembic-patch-desc    nalembic/patch-descriptor)
+(def alembic-load-desc!    nalembic/load-descriptor)
+(def alembic-load-patch!   nalembic/load-patch!)
+(def alembic-hot-swap!     nalembic/hot-swap!)
+
+;; ---------------------------------------------------------------------------
 ;; Book of Sounds sequencer (nous.book)
 ;; ---------------------------------------------------------------------------
 
@@ -628,6 +642,49 @@
 (def book-names          book/book-names)
 (def current-page        book/current-page)
 (def current-harmonic    book/current-harmonic)
+
+;; ---------------------------------------------------------------------------
+;; Harmonic lattice sequencer (nous.lattice)
+;; ---------------------------------------------------------------------------
+
+(defmacro deflattice [& args] `(lattice/deflattice ~@args))
+(def lattice-next-step!     lattice/next-step!)
+(def lattice-set-attractor! lattice/set-attractor!)
+(def lattice-set-nav-mode!  lattice/set-nav-mode!)
+(def lattice-jump!          lattice/jump!)
+(def make-lattice-seq       lattice/make-lattice-seq)
+(def make-lattice-context   lattice/make-lattice-context)
+(def lattice-names          lattice/lattice-names)
+(def current-position       lattice/current-position)
+(def current-attractor      lattice/current-attractor)
+
+;; ---------------------------------------------------------------------------
+;; Excursion arc (nous.excursion)
+;; ---------------------------------------------------------------------------
+
+(defmacro defexcursion [& args] `(excursion/defexcursion ~@args))
+(def excursion-next-step!    excursion/next-step!)
+(def skip-to-phase!          excursion/skip-to-phase!)
+(def restart-excursion!      excursion/restart!)
+(def make-excursion-seq      excursion/make-excursion-seq)
+(def make-excursion-context  excursion/make-excursion-context)
+(def excursion-names         excursion/excursion-names)
+(def current-phase           excursion/current-phase)
+(def phase-progress          excursion/phase-progress)
+
+;; ---------------------------------------------------------------------------
+;; Ensemble tension monitor (nous.defensemble)
+;; ---------------------------------------------------------------------------
+
+(defmacro defensemble [& args] `(defensemble/defensemble ~@args))
+(def ensemble-run-update!          defensemble/run-update!)
+(def ensemble-start-monitor!       defensemble/start-monitor!)
+(def ensemble-stop-monitor!        defensemble/stop-monitor!)
+(def ensemble-names                defensemble/ensemble-names)
+(def ensemble-tension              defensemble/ensemble-tension)
+(def ensemble-consonance           defensemble/ensemble-consonance)
+(def ensemble-parallel-pairs       defensemble/ensemble-parallel-pairs)
+(def make-ensemble-context         defensemble/make-ensemble-context)
 
 ;; ---------------------------------------------------------------------------
 ;; Keyboard layout (nous.ivk)

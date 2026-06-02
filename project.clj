@@ -5,8 +5,9 @@
   :license {:name "EPL-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.12.2"]
-                 [nomos-maths "0.2.0"]
+                 [nomos-maths "0.2.1"]
                  [nomos-topology "0.1.0"]
+                 [alembic "0.1.0"]
                  [org.clojure/data.json "2.5.1"]
                  [http-kit "2.8.0"]
                  [org.xerial/sqlite-jdbc "3.47.1.0"]]
@@ -22,7 +23,11 @@
   :aliases {"mcp" ["run" "-m" "nous.mcp"]}
   :plugins [[lein-codox "0.10.8"]]
   :codox {:output-path "target/codox"
-          :namespaces [nous.clock
+          :namespaces [nous.book
+                       nous.clock
+                       nous.excursion
+                       nous.defensemble
+                       nous.lattice
                        nous.ctrl
                        nous.device
                        nous.dsl
