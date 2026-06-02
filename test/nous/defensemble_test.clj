@@ -127,33 +127,63 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest parallel-motion-at-unison-flagged
-  (testing "both voices at unison, same direction → flagged"
-    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :duo
+  (testing "successive parallel motion through fusion zone is flagged"
+    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :duo-par
                          :fusion-threshold 3.5})]
-      ;; Unison: H = 0 < 3.5, both moving up
-      (set-voice! :bass    60 1)
-      (set-voice! :soprano 60 1)
+      ;; Call 1: establish from-H at unison (H=0 < 3.5)
+      (set-voice! :bass    60 0)
+      (set-voice! :soprano 60 0)
+      (de/run-update! ctx)
+      ;; Call 2: both move to a new unison, same direction
+      (set-voice! :bass    62 1)
+      (set-voice! :soprano 62 1)
       (de/run-update! ctx)
       (let [pars (de/ensemble-parallel-pairs ctx)]
         (is (set? pars))
-        (is (contains? pars [:bass :soprano]) "unison with parallel motion should be flagged")))))
+        (is (contains? pars [:bass :soprano])
+            "unison→unison with parallel motion should be flagged")))))
 
 (deftest contrary-motion-at-unison-not-flagged
-  (testing "voices at unison but contrary motion → not flagged"
-    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :duo
+  (testing "contrary motion through fusion zone is not flagged"
+    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :duo-con
                          :fusion-threshold 3.5})]
-      ;; Unison: H = 0 < 3.5, but contrary motion (bass up, soprano down)
-      (set-voice! :bass    60  1)
-      (set-voice! :soprano 60 -1)
+      ;; Call 1: establish from-H at unison
+      (set-voice! :bass    60 0)
+      (set-voice! :soprano 60 0)
+      (de/run-update! ctx)
+      ;; Call 2: contrary motion — voices diverge
+      (set-voice! :bass    62  1)
+      (set-voice! :soprano 58 -1)
       (de/run-update! ctx)
       (let [pars (de/ensemble-parallel-pairs ctx)]
         (is (not (contains? pars [:bass :soprano]))
-            "contrary motion should not be flagged even at unison")))))
+            "contrary motion should not be flagged")))))
+
+(deftest no-flag-without-fusion-zone-origin
+  (testing "parallel motion NOT flagged when starting outside fusion zone"
+    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :duo-nofuse
+                         :fusion-threshold 3.5})]
+      ;; Call 1: from-H at major third (H≈4.32 — NOT in fusion zone)
+      (set-voice! :bass    60 0)
+      (set-voice! :soprano 64 0)
+      (de/run-update! ctx)
+      ;; Call 2: both move up to unison — arrives in fusion zone, but didn't start there
+      (set-voice! :bass    62 1)
+      (set-voice! :soprano 62 1)
+      (de/run-update! ctx)
+      (let [pars (de/ensemble-parallel-pairs ctx)]
+        (is (not (contains? pars [:bass :soprano]))
+            "parallel arrival in fusion zone from outside should not be flagged")))))
 
 (deftest stationary-motion-at-unison-not-flagged
-  (testing "voices at unison but stationary → not flagged"
-    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :duo
+  (testing "stationary voices are not flagged regardless of interval"
+    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :duo-stat
                          :fusion-threshold 3.5})]
+      ;; Establish from-H at unison
+      (set-voice! :bass    60 0)
+      (set-voice! :soprano 60 0)
+      (de/run-update! ctx)
+      ;; Stationary (dir=0)
       (set-voice! :bass    60 0)
       (set-voice! :soprano 60 0)
       (de/run-update! ctx)
@@ -161,23 +191,23 @@
         (is (not (contains? pars [:bass :soprano]))
             "stationary motion (dir=0) is not parallel motion")))))
 
-(deftest parallel-motion-penalty-increases-tension
-  (testing "parallel motion to fusion zone raises tension"
-    (let [ctx-no-par  (make-ctx {:voices [:bass :soprano] :ens-name :no-par})
-          ctx-par     (make-ctx {:voices [:bass :soprano] :ens-name :par
-                                 :fusion-threshold 3.5})]
-      ;; Same pitches but contrary vs parallel motion
-      (set-voice! :bass    60  1)
-      (set-voice! :soprano 60 -1)  ; contrary
-      (de/run-update! ctx-no-par)
-
-      (set-voice! :bass    60 1)
-      (set-voice! :soprano 60 1)   ; parallel
-      (de/run-update! ctx-par)
-
-      (is (<= (de/ensemble-tension ctx-no-par)
-              (de/ensemble-tension ctx-par))
-          "parallel motion should not decrease tension vs contrary motion"))))
+(deftest parallel-motion-penalty-adds-to-tension
+  (testing "each detected parallel pair adds 0.15 to tension"
+    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :par-penalty
+                         :fusion-threshold 3.5
+                         :consonance-horizon 6.5})]
+      ;; Call 1: establish from-H at unison (H=0 < 3.5)
+      (set-voice! :bass    60 0)
+      (set-voice! :soprano 60 0)
+      (de/run-update! ctx)
+      ;; Call 2: both move to a new unison via same direction
+      (set-voice! :bass    62 1)
+      (set-voice! :soprano 62 1)
+      (de/run-update! ctx)
+      ;; Base tension = 0/6.5 = 0.0; penalty = 0.15 × 1 pair
+      (is (= 1 (count (de/ensemble-parallel-pairs ctx))) "one parallel pair flagged")
+      (is (= 0.15 (de/ensemble-tension ctx))
+          "tension = 0.0 (unison) + 0.15 (parallel penalty)"))))
 
 ;; ---------------------------------------------------------------------------
 ;; defensemble macro

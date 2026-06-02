@@ -79,6 +79,26 @@ def _voice_key(part, index):
     return _VOICE_BY_NAME.get(name, _VOICE_BY_INDEX[min(index, 3)])
 
 
+def _unique_voice_keys(parts):
+    """Return a list of unique EDN keyword strings for each part.
+
+    When two parts share the same base key (e.g. two tenors both map to
+    :tenor), the second gets :tenor-2, the third :tenor-3, and so on.
+    This prevents duplicate-key errors in the EDN map output.
+    """
+    seen = {}
+    keys = []
+    for i, part in enumerate(parts):
+        base = _voice_key(part, i)
+        if base not in seen:
+            seen[base] = 1
+            keys.append(base)
+        else:
+            seen[base] += 1
+            keys.append(f"{base}-{seen[base]}")
+    return keys
+
+
 # ---------------------------------------------------------------------------
 # EDN rendering
 # ---------------------------------------------------------------------------
@@ -160,10 +180,11 @@ def _extract_chords(bwv_id):
 def _extract_parts_from_score(score, label):
     """Return EDN string for per-voice event sequences (Phase 2 / parts mode)."""
     parts = list(score.parts)
+    keys = _unique_voice_keys(parts)
     buf = io.StringIO()
     buf.write(f"; {label} parts\n{{\n")
     for i, part in enumerate(parts):
-        key = _voice_key(part, i)
+        key = keys[i]
         buf.write(f" {key}\n [\n")
         for el in part.flatten().notesAndRests:
             dur = float(el.duration.quarterLength)
@@ -220,10 +241,11 @@ def _extract_intervals_from_score(score, label):
     Rests are skipped; only note→note transitions are recorded.
     """
     parts = list(score.parts)
+    keys = _unique_voice_keys(parts)
     buf = io.StringIO()
     buf.write(f"; {label} intervals\n{{\n")
     for i, part in enumerate(parts):
-        key = _voice_key(part, i)
+        key = keys[i]
         buf.write(f" {key}\n [\n")
         pitched = [el for el in part.flatten().notesAndRests
                    if isinstance(el, (note.Note, chord.Chord))]

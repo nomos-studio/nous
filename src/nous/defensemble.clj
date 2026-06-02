@@ -81,18 +81,26 @@
       (min 1.0 (/ mean horizon)))))
 
 (defn- detect-parallel-pairs
-  "Return set of [v1 v2] pairs in same-direction motion that arrived below
-  `fusion-threshold`. Same-direction means d1 = d2 ≠ 0."
-  [consonance-map motions ^double fusion-threshold]
+  "Return set of [v1 v2] pairs that moved in parallel motion from one perfect
+  consonance to another — i.e. both the previous interval AND the current
+  interval are below `fusion-threshold`, and both voices moved in the same
+  non-zero direction.
+
+  Requires `prev-consonance` (the consonance map from the preceding step) so
+  the 'from' interval can be checked. If the pair was not already in the
+  fusion zone before the move, it is not flagged even if it arrives there."
+  [prev-consonance curr-consonance motions ^double fusion-threshold]
   (into #{}
         (filter (fn [[v1 v2]]
-                  (let [h  (double (get consonance-map [v1 v2] 99.0))
-                        d1 (long (get motions v1 0))
-                        d2 (long (get motions v2 0))]
-                    (and (< h fusion-threshold)
+                  (let [from-h (double (get prev-consonance [v1 v2] 99.0))
+                        to-h   (double (get curr-consonance [v1 v2] 99.0))
+                        d1     (long (get motions v1 0))
+                        d2     (long (get motions v2 0))]
+                    (and (< from-h fusion-threshold)
+                         (< to-h fusion-threshold)
                          (= d1 d2)
                          (not (zero? d1))))))
-        (keys consonance-map)))
+        (keys curr-consonance)))
 
 ;; ---------------------------------------------------------------------------
 ;; Update
@@ -104,14 +112,15 @@
 
   Called automatically via ctrl/watch! on each voice-pitch path."
   [ctx-atom]
-  (let [{:keys [voices consonance-horizon fusion-threshold]} @ctx-atom
-        pitches  (into {} (map (fn [v] [v (or (ctrl/get [:harmony :voice-pitch v]) 60)]) voices))
-        motions  (into {} (map (fn [v] [v (or (ctrl/get [:harmony :voice-motion v]) 0)]) voices))
-        cons-map (compute-consonance voices pitches)
-        tension  (compute-tension cons-map (double consonance-horizon))
-        par-prs  (detect-parallel-pairs cons-map motions (double fusion-threshold))
-        ;; Parallel motion to the fusion zone adds a dissonance penalty
-        tension+ (min 1.0 (+ tension (* 0.15 (count par-prs))))]
+  (let [{:keys [voices consonance-horizon fusion-threshold last-consonance]} @ctx-atom
+        prev-cons (or last-consonance {})
+        pitches   (into {} (map (fn [v] [v (or (ctrl/get [:harmony :voice-pitch v]) 60)]) voices))
+        motions   (into {} (map (fn [v] [v (or (ctrl/get [:harmony :voice-motion v]) 0)]) voices))
+        cons-map  (compute-consonance voices pitches)
+        tension   (compute-tension cons-map (double consonance-horizon))
+        par-prs   (detect-parallel-pairs prev-cons cons-map motions (double fusion-threshold))
+        ;; Successive parallel perfect consonances add a dissonance penalty
+        tension+  (min 1.0 (+ tension (* 0.15 (count par-prs))))]
     (swap! ctx-atom assoc
            :last-tension        tension+
            :last-consonance     cons-map

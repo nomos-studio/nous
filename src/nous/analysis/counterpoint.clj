@@ -168,6 +168,7 @@
            (map (fn [[band steps]]
                   (let [total    (count steps)
                         parallel (count (filter #(and (:parallel? %)
+                                                      (< (double (:from-H %)) fusion-threshold)
                                                       (< (double (:to-H %)) fusion-threshold))
                                                 steps))]
                     [band {:total    total
