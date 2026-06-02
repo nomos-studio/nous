@@ -27,6 +27,7 @@
                        nous.clock
                        nous.excursion
                        nous.defensemble
+                       nous.analysis.counterpoint
                        nous.lattice
                        nous.ctrl
                        nous.device

@@ -83,8 +83,9 @@
             [nous.alembic         :as nalembic]
             [nous.book            :as book]
             [nous.excursion       :as excursion]
-            [nous.defensemble     :as defensemble]
-            [nous.lattice         :as lattice]
+            [nous.defensemble           :as defensemble]
+            [nous.analysis.counterpoint :as cpt]
+            [nous.lattice               :as lattice]
             [nous.terrain         :as terr]))
 
 ;; ---------------------------------------------------------------------------
@@ -671,6 +672,24 @@
 (def excursion-names         excursion/excursion-names)
 (def current-phase           excursion/current-phase)
 (def phase-progress          excursion/phase-progress)
+
+;; ---------------------------------------------------------------------------
+;; Counterpoint corpus analysis (nous.analysis.counterpoint)
+;; ---------------------------------------------------------------------------
+
+(def analyze-pair         cpt/analyze-pair)
+(def analyze-corpus       cpt/analyze-corpus)
+(def aggregate-analyses   cpt/aggregate-analyses)
+(def pair-voices          cpt/pair-voices)
+(def interval-histogram   cpt/interval-histogram)
+(def parallel-motion-rate cpt/parallel-motion-rate)
+(def transition-summary   cpt/transition-summary)
+(def resolution-profile   cpt/resolution-profile)
+(def print-summary        cpt/print-summary)
+(def counterpoint-h       cpt/interval-h)
+(def fusion-risk?         cpt/fusion-risk?)
+(def imperfect-consonance? cpt/imperfect-consonance?)
+(def active-dissonance?   cpt/active-dissonance?)
 
 ;; ---------------------------------------------------------------------------
 ;; Ensemble tension monitor (nous.defensemble)
