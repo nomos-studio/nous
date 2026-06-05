@@ -295,3 +295,59 @@
         valid        (cp/analyze-pair work :soprano :alto)
         agg          (cp/aggregate-analyses [empty-result valid empty-result])]
     (is (= 1 (:n-works agg)) "empty results excluded")))
+
+;; ---------------------------------------------------------------------------
+;; pair-voices — beat-position alignment
+;; ---------------------------------------------------------------------------
+
+(defn- step-dur
+  "Build a step map with explicit duration."
+  [from to dur]
+  {:from from :to to :semitones (- to from) :dur/beats (double dur)})
+
+(deftest pair-voices-equal-durations-matches-by-index
+  (testing "equal-duration voices: beat alignment == index alignment"
+    (let [sa  [(step 60 62) (step 62 64)]
+          sb  [(step 67 65) (step 65 64)]
+          idx (cp/pair-voices-by-index sa sb)
+          bt  (cp/pair-voices sa sb)]
+      (is (= (count idx) (count bt)))
+      (is (= (map :from-H idx) (map :from-H bt)))
+      (is (= (map :to-H idx)   (map :to-H bt))))))
+
+(deftest pair-voices-unequal-durations-more-events
+  (testing "voice-b has twice as many short notes: beat alignment emits more events"
+    ;; Voice A: one whole note C→D (dur 2)
+    ;; Voice B: two half-note steps G→A→B (dur 1 each)
+    ;; Index alignment: 1 pair (truncates to min length)
+    ;; Beat alignment: 2 pairs (G onset at 0.0, A onset at 1.0, both < end-of-A at 2.0)
+    (let [sa [(step-dur 60 62 2.0)]
+          sb [(step-dur 67 69 1.0) (step-dur 69 71 1.0)]
+          bt (cp/pair-voices sa sb)]
+      (is (= 2 (count bt))
+          "beat-aligned pairing emits one event per onset within shared range"))))
+
+(deftest pair-voices-onset-zero-captured
+  (testing "event at beat 0 is always captured"
+    (let [sa [(step 60 62)]
+          sb [(step 67 65)]
+          bt (cp/pair-voices sa sb)]
+      (is (pos? (count bt)))
+      (is (= (cp/interval-h 60 67) (:from-H (first bt)))))))
+
+(deftest pair-voices-direction-correctly-assigned
+  (testing "motion directions reflect each voice's semitone movement"
+    ;; Voice A moves up (+4), Voice B moves down (-2)
+    (let [sa [(step 60 64)]   ; +4 semitones
+          sb [(step 67 65)]   ; -2 semitones
+          bt (cp/pair-voices sa sb)
+          r  (first bt)]
+      (is (= 1  (:v1-dir r)) "voice A moves up")
+      (is (= -1 (:v2-dir r)) "voice B moves down")
+      (is (false? (:parallel? r)) "contrary motion is not parallel"))))
+
+(deftest pair-voices-empty-inputs-returns-empty
+  (testing "empty inputs produce no pairs"
+    (is (empty? (cp/pair-voices [] [])))
+    (is (empty? (cp/pair-voices [(step 60 62)] [])))
+    (is (empty? (cp/pair-voices [] [(step 60 62)])))))

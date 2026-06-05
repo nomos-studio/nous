@@ -97,44 +97,118 @@
   (h/midi->tenney-h (Math/abs (- (long midi-a) (long midi-b)))))
 
 ;; ---------------------------------------------------------------------------
-;; Voice pairing — index-based alignment
+;; Voice pairing — beat-position alignment
 ;; ---------------------------------------------------------------------------
 
+(defn- annotate-beats
+  "Attach cumulative beat positions to each step.
+  Returns a vec of maps with :beat-start, :beat-end added."
+  [steps]
+  (loop [t     0.0
+         in    (seq steps)
+         acc   (transient [])]
+    (if-not in
+      (persistent! acc)
+      (let [{:keys [dur/beats] :as s} (first in)
+            dur (double (or beats 1.0))]
+        (recur (+ t dur)
+               (next in)
+               (conj! acc (assoc s :beat-start t :beat-end (+ t dur))))))))
+
+(defn- step-at
+  "Return the step in `annotated` that is sounding at beat position `t`.
+  Returns nil if `t` is past the end of the last step."
+  [annotated ^double t]
+  (some (fn [s]
+          (when (and (>= t (double (:beat-start s)))
+                     (< t (double (:beat-end s))))
+            s))
+        annotated))
+
+(defn- pair-step-record
+  "Build a paired-step map from two simultaneously sounding notes."
+  [step-a step-b]
+  (let [from-a (long (:from step-a 60))
+        to-a   (long (:to   step-a 60))
+        from-b (long (:from step-b 60))
+        to-b   (long (:to   step-b 60))
+        semi-a (long (:semitones step-a 0))
+        semi-b (long (:semitones step-b 0))
+        from-h (interval-h from-a from-b)
+        to-h   (interval-h to-a   to-b)
+        dir-a  (cond (pos? semi-a) 1 (neg? semi-a) -1 :else 0)
+        dir-b  (cond (pos? semi-b) 1 (neg? semi-b) -1 :else 0)
+        par?   (and (= dir-a dir-b) (not (zero? dir-a)))]
+    {:from-H    from-h
+     :to-H      to-h
+     :v1-dir    dir-a
+     :v2-dir    dir-b
+     :parallel? par?
+     :from-band (h-band from-h)
+     :to-band   (h-band to-h)}))
+
 (defn pair-voices
-  "Align two per-voice intervals sequences by step index and compute
-  inter-voice Tenney H at each paired transition.
+  "Align two per-voice interval sequences by beat position and compute
+  inter-voice Tenney H at each note-change event.
+
+  Emits one paired-step map per event boundary (i.e. whenever either voice
+  moves to a new note). At each such boundary both voices are sampled at the
+  moment just before and just after the transition, so `:from-H` and `:to-H`
+  reflect the true harmonic change rather than coincidental index alignment.
 
   `seq-a`, `seq-b` — sequences of `{:from M :to N :semitones S :dur/beats D}`
   as returned by m21/load-work in :intervals mode.
 
-  Returns a seq of paired-step maps:
-    :from-H    — inter-voice Tenney H at the start of the step
-    :to-H      — inter-voice Tenney H at the end of the step
-    :v1-dir    — voice-1 motion direction: -1 down, 0 static, +1 up
-    :v2-dir    — voice-2 motion direction: -1 down, 0 static, +1 up
+  Returns a vec of paired-step maps:
+    :from-H    — inter-voice Tenney H at the start of the transition window
+    :to-H      — inter-voice Tenney H at the end of the transition window
+    :v1-dir    — voice-1 motion direction at this boundary: -1 / 0 / +1
+    :v2-dir    — voice-2 motion direction at this boundary: -1 / 0 / +1
     :parallel? — true if both voices moved in the same direction (and not 0)
     :from-band — H-band of :from-H (nearest 0.5 below)
     :to-band   — H-band of :to-H"
   [seq-a seq-b]
-  (map (fn [{from-a :from to-a :to semi-a :semitones}
-            {from-b :from to-b :to semi-b :semitones}]
-         (let [from-h  (interval-h from-a from-b)
-               to-h    (interval-h to-a to-b)
-               dir-a   (cond (pos? (long semi-a)) 1
-                             (neg? (long semi-a)) -1
-                             :else 0)
-               dir-b   (cond (pos? (long semi-b)) 1
-                             (neg? (long semi-b)) -1
-                             :else 0)
-               par?    (and (= dir-a dir-b) (not (zero? dir-a)))]
-           {:from-H    from-h
-            :to-H      to-h
-            :v1-dir    dir-a
-            :v2-dir    dir-b
-            :parallel? par?
-            :from-band (h-band from-h)
-            :to-band   (h-band to-h)}))
-       seq-a seq-b))
+  (let [ann-a (annotate-beats seq-a)
+        ann-b (annotate-beats seq-b)
+        end-a (double (if (seq ann-a) (:beat-end (last ann-a)) 0.0))
+        end-b (double (if (seq ann-b) (:beat-end (last ann-b)) 0.0))
+        ;; Collect all unique note-onset times within the shared range
+        onsets (sort (distinct
+                      (concat (map :beat-start ann-a)
+                              (map :beat-start ann-b))))]
+    (vec
+     (keep (fn [^double t]
+             (let [sa (step-at ann-a t)
+                   sb (step-at ann-b t)]
+               (when (and sa sb
+                          (< t end-a)
+                          (< t end-b))
+                 (pair-step-record sa sb))))
+           onsets))))
+
+(defn pair-voices-by-index
+  "Align two per-voice interval sequences by step index (legacy mode).
+
+  This is the original pair-voices implementation. Use it when both voices
+  have the same number of steps and you know they are index-aligned (e.g.
+  first-species counterpoint with equal note values). For florid styles prefer
+  `pair-voices`, which aligns by beat position."
+  [seq-a seq-b]
+  (mapv (fn [{from-a :from to-a :to semi-a :semitones}
+             {from-b :from to-b :to semi-b :semitones}]
+          (let [from-h (interval-h from-a from-b)
+                to-h   (interval-h to-a   to-b)
+                dir-a  (cond (pos? (long semi-a)) 1 (neg? (long semi-a)) -1 :else 0)
+                dir-b  (cond (pos? (long semi-b)) 1 (neg? (long semi-b)) -1 :else 0)
+                par?   (and (= dir-a dir-b) (not (zero? dir-a)))]
+            {:from-H    from-h
+             :to-H      to-h
+             :v1-dir    dir-a
+             :v2-dir    dir-b
+             :parallel? par?
+             :from-band (h-band from-h)
+             :to-band   (h-band to-h)}))
+        seq-a seq-b))
 
 ;; ---------------------------------------------------------------------------
 ;; Analysis: interval histogram

@@ -681,6 +681,7 @@
 (def analyze-corpus       cpt/analyze-corpus)
 (def aggregate-analyses   cpt/aggregate-analyses)
 (def pair-voices          cpt/pair-voices)
+(def pair-voices-by-index cpt/pair-voices-by-index)
 (def interval-histogram   cpt/interval-histogram)
 (def parallel-motion-rate cpt/parallel-motion-rate)
 (def transition-summary   cpt/transition-summary)
