@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.defensemble
-  "defensemble — inter-voice tension monitor.
+  "defensemble — inter-voice tension monitor with optional imitative entry.
 
   defensemble is a pure supervisor: it reads voice pitches and motion
   directions from the ctrl tree and publishes aggregate tension metrics.
   It does not control voices directly.
 
-  ## Quick start
+  ## Quick start — tension monitoring
 
     ;; Each voice generator must be configured with :voice-name
     (deflattice bass-voice  :fundamental :C2 :voice-name :bass  ...)
@@ -20,6 +20,23 @@
     ;; Inspect tension at any time
     (ensemble-tension string-quartet)  ;=> 0.0–1.0
 
+  ## Josquin-style imitative entry
+
+    ;; Leader voice runs its own loop
+    (deflattice leader :fundamental :C4 :voice-name :voice-1 ...)
+
+    ;; Ensemble with imitation config
+    (defensemble josquin-duo
+      :voices [:voice-1 :voice-2]
+      :imitation {:voice-2 {:follows     :voice-1
+                             :interval    7    ; semitones up (perfect fifth)
+                             :delay-steps 8}}) ; wait 8 leader steps before entering
+
+    ;; Follower loop uses make-imitation-seq — start it whenever you like;
+    ;; it rests automatically until delay-steps leader notes have buffered
+    (deflive-loop :follower-loop {}
+      (run-step! (make-imitation-seq josquin-duo :voice-2)))
+
   ## Published ctrl paths
 
     [:harmony :tension]              — aggregate [0,1] tension
@@ -32,7 +49,8 @@
     3.5–5.5   — imperfect consonance (target zone for counterpoint)
     H > 5.5   — active dissonance"
   (:require [nomos.maths.harmonic :as h]
-            [nous.ctrl            :as ctrl]))
+            [nous.ctrl            :as ctrl]
+            [nous.seq             :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry
@@ -130,30 +148,73 @@
     (try (ctrl/set! [:harmony :parallel-pairs] par-prs)   (catch Exception _ nil))))
 
 ;; ---------------------------------------------------------------------------
+;; Imitation buffer
+;; ---------------------------------------------------------------------------
+
+(defn- pop-buffer-entry!
+  "Atomically pop and return the first entry from the imitation buffer for
+  `follower-voice`, or nil if the buffer is empty."
+  [ctx-atom follower-voice]
+  (let [result (volatile! nil)]
+    (swap! ctx-atom
+           (fn [state]
+             (let [buf (get-in state [:imitation-buffers follower-voice])]
+               (if (seq buf)
+                 (do (vreset! result (peek buf))
+                     (update-in state [:imitation-buffers follower-voice] pop))
+                 state))))
+    @result))
+
+(defn- leader->followers-map
+  "Build {leader-voice [follower1 follower2 ...]} from the imitation config."
+  [imitation]
+  (reduce (fn [m [follower {:keys [follows]}]]
+            (update m follows (fnil conj []) follower))
+          {}
+          imitation))
+
+;; ---------------------------------------------------------------------------
 ;; Monitor lifecycle
 ;; ---------------------------------------------------------------------------
 
 (defn start-monitor!
-  "Attach ctrl/watch! on [:harmony :voice-pitch v] for each voice in the ensemble.
-  Each watch triggers run-update! when any voice pitch changes."
+  "Attach ctrl/watch! on [:harmony :voice-pitch v] for each voice in the
+  ensemble (tension monitoring) and on each leader voice (imitation buffering)."
   [ctx-atom]
-  (let [{:keys [voices ens-name]} @ctx-atom]
+  (let [{:keys [voices ens-name imitation]} @ctx-atom]
+    ;; Tension watches
     (doseq [v voices]
       (try
         (ctrl/watch! [:harmony :voice-pitch v]
                      [::ensemble ens-name v]
                      (fn [_k _ref _old _new] (run-update! ctx-atom)))
         (catch Exception _ nil)))
+    ;; Imitation buffering watches — one per unique leader voice
+    (when imitation
+      (doseq [[leader followers] (leader->followers-map imitation)]
+        (try
+          (ctrl/watch! [:harmony :voice-pitch leader]
+                       [::imitation ens-name leader]
+                       (fn [_k _ref _old new-midi]
+                         (when new-midi
+                           (let [dur (double (or (ctrl/get [:harmony :voice-duration leader]) 1.0))]
+                             (doseq [f followers]
+                               (swap! ctx-atom update-in [:imitation-buffers f]
+                                      conj {:midi (long new-midi) :dur/beats dur}))))))
+          (catch Exception _ nil))))
     (swap! ctx-atom assoc :monitoring? true)))
 
 (defn stop-monitor!
   "Remove all ctrl/watch! registrations for this ensemble."
   [ctx-atom]
-  (let [{:keys [voices ens-name]} @ctx-atom]
+  (let [{:keys [voices ens-name imitation]} @ctx-atom]
     (doseq [v voices]
-      (try
-        (ctrl/unwatch! [:harmony :voice-pitch v] [::ensemble ens-name v])
-        (catch Exception _ nil)))
+      (try (ctrl/unwatch! [:harmony :voice-pitch v] [::ensemble ens-name v])
+           (catch Exception _ nil)))
+    (when imitation
+      (doseq [leader (keys (leader->followers-map imitation))]
+        (try (ctrl/unwatch! [:harmony :voice-pitch leader] [::imitation ens-name leader])
+             (catch Exception _ nil))))
     (swap! ctx-atom assoc :monitoring? false)))
 
 ;; ---------------------------------------------------------------------------
@@ -163,15 +224,22 @@
 (defn make-ensemble-context
   "Build an ensemble context map from keyword options. Used by defensemble."
   [opts]
-  (let [{:keys [voices consonance-horizon fusion-threshold dissonance-threshold ens-name]
+  (let [{:keys [voices consonance-horizon fusion-threshold dissonance-threshold
+                ens-name imitation]
          :or   {consonance-horizon   6.5
                 fusion-threshold     3.5
-                dissonance-threshold 5.5}} opts]
+                dissonance-threshold 5.5}} opts
+        init-buffers (when imitation
+                       (into {} (map (fn [[follower _]]
+                                       [follower clojure.lang.PersistentQueue/EMPTY])
+                                     imitation)))]
     {:ens-name             ens-name
      :voices               (vec voices)
      :consonance-horizon   (double consonance-horizon)
      :fusion-threshold     (double fusion-threshold)
      :dissonance-threshold (double dissonance-threshold)
+     :imitation            imitation
+     :imitation-buffers    (or init-buffers {})
      :monitoring?          false
      :last-tension         0.0
      :last-consonance      {}
@@ -182,12 +250,13 @@
 ;; ---------------------------------------------------------------------------
 
 (defmacro defensemble
-  "Define an inter-voice tension monitor.
+  "Define an inter-voice tension monitor with optional imitative entry.
 
   Creates a var bound to an atom holding the ensemble context, registered at
   [:defensemble <name>]. Automatically attaches ctrl/watch! on each voice's
   [:harmony :voice-pitch] path so tension metrics update whenever any voice
-  steps.
+  steps. If :imitation is configured, also buffers leader voice history for
+  follower sequencers.
 
   Parameters:
     :voices               — seq of voice name keywords matching :voice-name in
@@ -196,14 +265,25 @@
     :fusion-threshold     — Tenney H below which voices risk fusion (default 3.5)
     :dissonance-threshold — Tenney H above which voices are in active dissonance
                             (default 5.5; informational only, not enforced)
+    :imitation            — map of {follower-voice {:follows leader-voice
+                                                    :interval semitones
+                                                    :delay-steps N}}
+                            :interval   — semitone transposition (positive = up)
+                            :delay-steps — rest for this many leader steps before
+                                          the follower begins playing (default 0)
 
-  Operations:
+  Tension operations:
     (ensemble-tension ctx-atom)         — current tension [0,1]
     (ensemble-consonance ctx-atom)      — map of {[v1 v2] tenney-h}
     (ensemble-parallel-pairs ctx-atom)  — set of parallel-motion pairs
     (run-update! ctx-atom)              — trigger a manual update
     (start-monitor! ctx-atom)           — re-attach ctrl watchers
-    (stop-monitor! ctx-atom)            — detach ctrl watchers"
+    (stop-monitor! ctx-atom)            — detach ctrl watchers
+
+  Imitation operations:
+    (make-imitation-seq ctx-atom follower-voice) — IStepSequencer for a follower
+    (imitation-buffer-size ctx-atom follower-voice) — buffered step count
+    (clear-imitation-buffer! ctx-atom follower-voice) — reset buffer and delay"
   [ensemble-name & opts]
   (let [opts-map (apply hash-map opts)
         ename    (keyword (name ensemble-name))]
@@ -214,6 +294,76 @@
        (ctrl/defnode! [:defensemble ~ename] :type :data :value @~ensemble-name)
        (start-monitor! ~ensemble-name)
        ~ensemble-name)))
+
+;; ---------------------------------------------------------------------------
+;; ImitationSeq — IStepSequencer for a follower voice
+;; ---------------------------------------------------------------------------
+
+(defrecord ImitationSeq [ctx-atom follower-voice interval delay-steps rest-beats vel started-atom])
+
+(defn make-imitation-seq
+  "Create an IStepSequencer for `follower-voice` that plays the leader's
+  buffered history, transposed by :interval semitones.
+
+  The sequencer returns rests until `delay-steps` leader steps have
+  accumulated in the buffer (one-time startup hold). After that it plays
+  continuously, returning rests whenever the buffer is momentarily empty.
+
+  The `:interval`, `:delay-steps`, and `:follows` values are read from the
+  :imitation config in the context atom at creation time.
+
+  Options:
+    :vel        — MIDI velocity for imitated notes (default 100)
+    :rest-beats — duration of rests when buffer is empty or in delay (default 1.0)"
+  [ctx-atom follower-voice & {:keys [vel rest-beats] :or {vel 100 rest-beats 1.0}}]
+  (let [cfg         (get-in @ctx-atom [:imitation follower-voice] {})
+        interval    (long (:interval cfg 0))
+        delay-steps (long (:delay-steps cfg 0))]
+    (->ImitationSeq ctx-atom follower-voice interval delay-steps
+                    (double rest-beats) (long vel) (atom false))))
+
+(extend-protocol sq/IStepSequencer
+  ImitationSeq
+  (next-event [is]
+    (let [follower    (:follower-voice is)
+          interval    (long (:interval is))
+          delay-steps (long (:delay-steps is))
+          rest-beats  (double (:rest-beats is))
+          vel         (long (:vel is))
+          started?    @(:started-atom is)
+          buf-size    (count (get-in @(:ctx-atom is) [:imitation-buffers follower]))]
+      ;; Hold in rest until delay-steps entries have accumulated (once only)
+      (if (and (not started?) (< buf-size delay-steps))
+        {:event nil :beats rest-beats}
+        (do
+          (when-not started? (reset! (:started-atom is) true))
+          (if-let [entry (pop-buffer-entry! (:ctx-atom is) follower)]
+            (let [midi       (long (:midi entry))
+                  dur        (double (get entry :dur/beats rest-beats))
+                  transposed (max 0 (min 127 (+ midi interval)))]
+              {:event {:pitch/midi transposed :dur/beats dur :gate/on? true
+                       :mod/velocity vel}
+               :beats dur})
+            ;; Buffer momentarily empty after delay crossed — rest one beat
+            {:event nil :beats rest-beats})))))
+  (seq-cycle-length [_] nil))
+
+;; ---------------------------------------------------------------------------
+;; Imitation inspection and control
+;; ---------------------------------------------------------------------------
+
+(defn imitation-buffer-size
+  "Return the number of leader steps currently buffered for `follower-voice`."
+  [ctx-atom follower-voice]
+  (count (get-in @ctx-atom [:imitation-buffers follower-voice])))
+
+(defn clear-imitation-buffer!
+  "Reset the imitation buffer for `follower-voice` to empty and reset its
+  delay counter (the follower will re-observe the startup hold)."
+  [ctx-atom follower-voice]
+  (swap! ctx-atom assoc-in [:imitation-buffers follower-voice]
+         clojure.lang.PersistentQueue/EMPTY)
+  nil)
 
 ;; ---------------------------------------------------------------------------
 ;; Inspection

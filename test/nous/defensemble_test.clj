@@ -4,6 +4,7 @@
   (:require [clojure.test      :refer [deftest is testing use-fixtures]]
             [nomos.maths.harmonic :as h]
             [nous.defensemble  :as de]
+            [nous.seq          :as sq]
             [nous.core         :as core]
             [nous.ctrl         :as ctrl]))
 
@@ -288,3 +289,106 @@
         (let [t (de/ensemble-tension ctx)]
           (is (<= 0.0 t 1.0)
               (str "tension out of [0,1] for midi pair " m1 "/" m2)))))))
+
+;; ---------------------------------------------------------------------------
+;; Imitation buffer
+;; ---------------------------------------------------------------------------
+
+(deftest imitation-buffer-starts-empty
+  (testing "imitation buffer is empty on construction"
+    (let [ctx (atom (de/make-ensemble-context
+                     {:voices    [:v1 :v2]
+                      :ens-name  :imit-empty
+                      :imitation {:v2 {:follows :v1 :interval 7 :delay-steps 0}}}))]
+      (is (= 0 (de/imitation-buffer-size ctx :v2))))))
+
+(deftest imitation-buffer-grows-when-leader-pushed
+  (testing "buffer grows when entries are added to the context directly"
+    (let [ctx (atom (de/make-ensemble-context
+                     {:voices    [:v1 :v2]
+                      :ens-name  :imit-grow
+                      :imitation {:v2 {:follows :v1 :interval 7 :delay-steps 0}}}))]
+      (swap! ctx update-in [:imitation-buffers :v2] conj {:midi 60 :dur/beats 1.0})
+      (swap! ctx update-in [:imitation-buffers :v2] conj {:midi 62 :dur/beats 1.0})
+      (is (= 2 (de/imitation-buffer-size ctx :v2))))))
+
+(deftest clear-imitation-buffer-empties-queue
+  (testing "clear-imitation-buffer! empties the queue"
+    (let [ctx (atom (de/make-ensemble-context
+                     {:voices    [:v1 :v2]
+                      :ens-name  :imit-clear
+                      :imitation {:v2 {:follows :v1 :interval 7 :delay-steps 0}}}))]
+      (swap! ctx update-in [:imitation-buffers :v2] conj {:midi 60 :dur/beats 1.0})
+      (is (= 1 (de/imitation-buffer-size ctx :v2)))
+      (de/clear-imitation-buffer! ctx :v2)
+      (is (= 0 (de/imitation-buffer-size ctx :v2))))))
+
+;; ---------------------------------------------------------------------------
+;; make-imitation-seq / IStepSequencer
+;; ---------------------------------------------------------------------------
+
+(deftest imitation-seq-rests-during-delay
+  (testing "sequencer returns rest while buffer is smaller than delay-steps"
+    (let [ctx (atom (de/make-ensemble-context
+                     {:voices    [:leader :follower]
+                      :ens-name  :imit-delay
+                      :imitation {:follower {:follows :leader :interval 0 :delay-steps 3}}}))]
+      ;; Only one entry buffered, delay requires 3
+      (swap! ctx update-in [:imitation-buffers :follower] conj {:midi 60 :dur/beats 1.0})
+      (let [seq (de/make-imitation-seq ctx :follower)
+            {:keys [event beats]} (sq/next-event seq)]
+        (is (nil? event) "should rest while in delay hold")
+        (is (= 1.0 beats))))))
+
+(deftest imitation-seq-plays-after-delay-threshold
+  (testing "sequencer plays once buffer reaches delay-steps"
+    (let [ctx (atom (de/make-ensemble-context
+                     {:voices    [:leader :follower]
+                      :ens-name  :imit-play
+                      :imitation {:follower {:follows :leader :interval 7 :delay-steps 2}}}))]
+      ;; Buffer two entries — meets delay threshold
+      (swap! ctx update-in [:imitation-buffers :follower] conj {:midi 60 :dur/beats 1.0})
+      (swap! ctx update-in [:imitation-buffers :follower] conj {:midi 62 :dur/beats 1.0})
+      (let [seq    (de/make-imitation-seq ctx :follower)
+            result (sq/next-event seq)]
+        (is (some? (:event result)) "should produce an event")
+        (is (= true (get-in result [:event :gate/on?])))))))
+
+(deftest imitation-seq-transposes-by-interval
+  (testing "imitation seq applies semitone interval to leader pitch"
+    (let [ctx (atom (de/make-ensemble-context
+                     {:voices    [:l :f]
+                      :ens-name  :imit-interval
+                      :imitation {:f {:follows :l :interval 7 :delay-steps 0}}}))]
+      (swap! ctx update-in [:imitation-buffers :f] conj {:midi 60 :dur/beats 1.0})
+      (let [seq    (de/make-imitation-seq ctx :f)
+            result (sq/next-event seq)]
+        (is (= 67 (get-in result [:event :pitch/midi]))
+            "MIDI 60 + 7 semitones = 67")))))
+
+(deftest imitation-seq-rests-when-buffer-empty-after-start
+  (testing "sequencer rests (not stuck) when buffer drains after delay"
+    (let [ctx (atom (de/make-ensemble-context
+                     {:voices    [:l :f]
+                      :ens-name  :imit-drain
+                      :imitation {:f {:follows :l :interval 0 :delay-steps 0}}}))]
+      ;; One entry — consume it, then check empty rest
+      (swap! ctx update-in [:imitation-buffers :f] conj {:midi 60 :dur/beats 1.0})
+      (let [seq (de/make-imitation-seq ctx :f)]
+        (sq/next-event seq)    ; consume the entry
+        (let [{:keys [event beats]} (sq/next-event seq)]
+          (is (nil? event) "empty buffer → rest event")
+          (is (= 1.0 beats)))))))
+
+(deftest imitation-seq-clamps-midi-range
+  (testing "transposed MIDI is clamped to [0, 127]"
+    (let [ctx (atom (de/make-ensemble-context
+                     {:voices    [:l :f]
+                      :ens-name  :imit-clamp
+                      :imitation {:f {:follows :l :interval 100 :delay-steps 0}}}))]
+      ;; MIDI 60 + 100 would exceed 127
+      (swap! ctx update-in [:imitation-buffers :f] conj {:midi 60 :dur/beats 1.0})
+      (let [seq    (de/make-imitation-seq ctx :f)
+            result (sq/next-event seq)]
+        (is (<= 0 (get-in result [:event :pitch/midi]) 127)
+            "pitch clamped to valid MIDI range")))))

@@ -486,8 +486,9 @@
                             (< (long curr-midi) (long prev-midi)) -1
                             :else                                  0)]
         (try
-          (ctrl/set! [:harmony :voice-pitch vn] (long curr-midi))
-          (ctrl/set! [:harmony :voice-motion vn] (long dir))
+          (ctrl/set! [:harmony :voice-pitch    vn] (long curr-midi))
+          (ctrl/set! [:harmony :voice-motion   vn] (long dir))
+          (ctrl/set! [:harmony :voice-duration vn] (double (:dur/beats step)))
           (catch Exception _ nil))))
     step))
 

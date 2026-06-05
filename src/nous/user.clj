@@ -704,6 +704,9 @@
 (def ensemble-consonance           defensemble/ensemble-consonance)
 (def ensemble-parallel-pairs       defensemble/ensemble-parallel-pairs)
 (def make-ensemble-context         defensemble/make-ensemble-context)
+(def make-imitation-seq            defensemble/make-imitation-seq)
+(def imitation-buffer-size         defensemble/imitation-buffer-size)
+(def clear-imitation-buffer!       defensemble/clear-imitation-buffer!)
 
 ;; ---------------------------------------------------------------------------
 ;; Keyboard layout (nous.ivk)
