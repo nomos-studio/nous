@@ -755,14 +755,26 @@
   node-id   — keyword identifying the target node (e.g. :synth/a)
   wasm-path — absolute path to the new .wasm file
 
-  The swap is atomic (RCU): audio continues without glitch or gap.
+  Options:
+    :replace-path — absolute path of the slot to replace (identifies which
+                    WASM module to swap in a multi-slot patch).  Omit or nil
+                    to replace the first WASM slot (single-slot patches).
+
+  The swap is atomic at the next process() block boundary: audio continues
+  without a gap.
 
   Example:
-    (kairos/send-wasm-hot-swap! :synth/a \"/tmp/new-phasor.wasm\")"
-  [node-id wasm-path]
-  (send-frame! (make-frame MSG-WASM-HOT-SWAP
-                           (edn-bytes {:node-id   node-id
-                                       :wasm-path (str wasm-path)}))))
+    ;; Single-slot patch — replace the only WASM module
+    (kairos/send-wasm-hot-swap! :synth/a \"/tmp/new-phasor.wasm\")
+
+    ;; Multi-slot patch — replace a specific slot by its current path
+    (kairos/send-wasm-hot-swap! :voice \"/tmp/new-filter.wasm\"
+                                :replace-path \"/tmp/old-filter.wasm\")"
+  [node-id wasm-path & {:keys [replace-path]}]
+  (let [payload (cond-> {:node-id   node-id
+                         :wasm-path (str wasm-path)}
+                  replace-path (assoc :old-wasm-path (str replace-path)))]
+    (send-frame! (make-frame MSG-WASM-HOT-SWAP (edn-bytes payload)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Routing matrix (aion)
