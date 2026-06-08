@@ -8,32 +8,114 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.17.0] — 2026-06-07
+
 ### Added
 
-#### nomos-topology → kairos translation (nous.session)
+#### nous.session — nomos-topology → kairos translation
 
-- **`nous.session`** — new namespace bridging nomos-topology Session maps to the
-  live kairos graph. `session->graph` translates nodes (`:kairos-grid` and CLAP
-  plugin strings), routes (integer port refs → `:out-N`/`:in-N`, keyword
-  endpoints → `[:host kw]`), and modulations. `load-session!` sends the
-  translated graph to kairos and wires the `:control-tree` into `nous.ctrl`.
-  `reload-session!` re-sends the active graph after a kairos restart.
-  `clear-session!` resets state and sends `graph-reset!`.
-- **`*kairos-grid-plugin-id*`** — dynamic var controlling the CLAP plugin ID for
-  `:kairos-grid` nodes; default `"org.nomos.kairos-grid"`, overridable per-binding.
-- **`nous.user` re-exports** — `session->graph`, `load-session!`, `active-session`,
-  `reload-session!`, `clear-session!` available at the REPL without namespace prefix.
+- **`nous.session`** — bridges nomos-topology Session maps to the live kairos
+  graph. `session->graph` translates `:kairos-grid` nodes and CLAP plugin
+  strings, integer port refs (`[:voice 0]`) → `:out-N`/`:in-N` keywords,
+  and route endpoints (`:master/left` → `[:host :master/left]`).
+  `load-session!` sends the translated graph to kairos and wires the
+  `:control-tree` into `nous.ctrl`. `reload-session!` re-sends after a
+  kairos restart. `clear-session!` resets state and sends `graph-reset!`.
+- **`*kairos-grid-plugin-id*`** — dynamic var for the kairos-grid CLAP plugin
+  ID; default `"org.nomos.kairos-grid"`, overridable per-binding.
+- Re-exported in `nous.user`: `session->graph`, `load-session!`,
+  `active-session`, `reload-session!`, `clear-session!`.
 
-#### Sidecar retirement / kairos first tier
+#### Sidecar retirement — kairos first tier
 
-- **`nous.link`** rewritten to consume 24 PPQN `MSG-TICK` pushes from kairos/aion
-  via `nous.kairos/on-tick!`. BPM estimated from 8-sample rolling window; staleness
-  gate at 500 ms. Transport hooks fire on first BPM estimate (nil → non-nil
-  transition).
-- **`:kairos` target** registered in `nous.user` via `nous.target/register!`.
-  Enables `(play! {:target :kairos ...})` for explicit kairos dispatch.
-- **`nous.sidecar`** preserved as a deprecated stub; all active call sites
-  migrated to `nous.kairos`.
+- **`nous.link`** rewritten to consume 24 PPQN `MSG-TICK` pushes from
+  kairos/aion via `nous.kairos/on-tick!`. BPM estimated from an 8-sample
+  rolling window with a 500 ms staleness gate.
+- **`:kairos` MIDI target** registered in `nous.user`; enables
+  `(play! {:target :kairos ...})` for explicit kairos dispatch.
+- **`nous.sidecar`** preserved as a deprecated stub; all call sites migrated
+  to `nous.kairos`.
+
+#### nous.book — Book of Sounds harmonic-series sequencer
+
+- **`defbook`** — define a step sequencer driven by a harmonic-series grid.
+  Each page is a matrix of cells with `:pitch`, `:dur`, `:vel`, and
+  `:target` fields; pages advance via `next-step!` / `go-page!`.
+- `make-book-seq`, `make-book-context`, `current-page`, `current-harmonic`,
+  `reset-cell!` — composable building blocks for book-driven live coding.
+
+#### JI multi-voice coordination — nous.lattice, nous.excursion, nous.defensemble
+
+- **`nous.lattice`** — just-intonation lattice navigator (`deflattice`).
+  Defines a pitch space as a 2D or 3D JI lattice; `lattice-step!` moves
+  through ratio-connected pitches while tracking tonal centre.
+- **`nous.excursion`** — harmonic journey planner (`defexcursion`).
+  Sequences lattice movements into coherent harmonic arcs with configurable
+  tension trajectory.
+- **`nous.defensemble`** — multi-voice JI ensemble coordinator
+  (`defensemble`). Voices are assigned lattice positions; counterpoint
+  constraints (parallel fifths/octaves, voice crossing, range) are enforced
+  at note-generation time. Josquin-style imitative entry supported.
+
+#### nous.analysis — voice-leading and counterpoint analysis
+
+- **Counterpoint analysis** — `check-parallel-motion`, `check-voice-crossing`,
+  `check-voice-range`, `pair-voices` with beat-position alignment, and
+  `analyze-counterpoint` (aggregate report).
+- Tightened parallel motion detection to successive perfect consonances only
+  (parallel thirds/sixths are permitted, matching common-practice rules).
+
+#### nous.alembic — Faust→WASM pipeline integration
+
+- **`nous.alembic`** — bridges alembic's `compile-to-wasm` to the
+  kairos-grid CLAP plugin for live REPL-driven DSP authoring.
+  - `compile!` — wraps `alembic.compile/compile-to-wasm`.
+  - `patch-descriptor` — pure data; builds a nomos-topology session map
+    from a `.wasm` path (testable without Faust).
+  - `load-patch!` — compile + `session/load-session!` end-to-end.
+  - `hot-swap!` — recompile + block-boundary swap via kairos hot-swap
+    extension.
+- Re-exported in `nous.user` as `alembic-compile!`, `alembic-patch-desc`,
+  `alembic-load-desc!`, `alembic-load-patch!`, `alembic-hot-swap!`.
+- `[alembic "0.1.0"]` added to project dependencies.
+
+#### kairos IPC extensions
+
+- **`list-plugins!` / `plugin-registry`** — request the installed CLAP plugin
+  list from kairos; block until the response arrives.
+- **Link transport control** — `send-link-set-tempo!`,
+  `send-link-start-transport!`, `send-link-stop-transport!`.
+- **MIDI CC/pitch-bend/channel-pressure/SysEx/MTS** — `send-cc!`,
+  `send-pitch-bend!`, `send-channel-pressure!`, `send-sysex!`, `send-mts!`.
+- **`send-route-set!`** — replace the aion routing matrix at runtime.
+  Configures MIDI source→destination routing and modulator→CC mapping.
+- **`send-wasm-hot-swap!` `:replace-path`** — optional keyword to identify
+  which WASM slot to replace in multi-module patches.
+
+#### defsynth! CLAP backend
+
+- **`defsynth!` `:clap` backend** — registers a synth with a CLAP plugin ID.
+  `place-synth!` dispatches to `session/place-synth!` for `:clap` backends,
+  sending a `graph-load!` frame to kairos.
+
+### Fixed
+
+- **defensemble duplicate-voice EDN** — voice maps were serialised with
+  duplicate keys when two voices shared a pitch; fixed by using a stable
+  sequential key scheme.
+- **Parallel-motion detection** — previously flagged parallel thirds and
+  sixths as errors; corrected to check successive perfect consonances only
+  (parallel 5ths and octaves).
+- **Counterpoint `pair-voices` beat alignment** — voices at fractional beat
+  positions were compared across non-overlapping time windows; fixed by
+  aligning to the nearest beat grid before pairing.
+
+### Changed
+
+- **nomos-maths** bumped from 0.2.0 → 0.2.1 (harmonic and lattice namespaces).
+- **nomos-topology** 0.1.0 added as a compile-time dependency.
 
 ---
 
