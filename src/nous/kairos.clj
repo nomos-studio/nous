@@ -82,6 +82,7 @@
 (def ^:private MSG-MTS               (unchecked-byte 0x4D))
 (def ^:private MSG-TICK              (unchecked-byte 0x50))
 (def ^:private MSG-MIDI-EVENT        (unchecked-byte 0x51))
+(def ^:private MSG-ROUTE-SET         (unchecked-byte 0x52))
 
 ;; ---------------------------------------------------------------------------
 ;; Frame serialization
@@ -762,6 +763,42 @@
   (send-frame! (make-frame MSG-WASM-HOT-SWAP
                            (edn-bytes {:node-id   node-id
                                        :wasm-path (str wasm-path)}))))
+
+;; ---------------------------------------------------------------------------
+;; Routing matrix (aion)
+;; ---------------------------------------------------------------------------
+
+(defn send-route-set!
+  "Replace the aion routing matrix.
+
+  Defines how events flow from each source to MIDI output and how modulator
+  outputs map to MIDI CC.
+
+  :midi-routes — vector of MIDI route maps:
+    :src       — source keyword: :ipc, :midi-hw, or :osc
+    :src-ch    — source MIDI channel 0-15, or -1 for any (default -1)
+    :dst-ch    — output MIDI channel override 0-15, or -1 to passthrough (default -1)
+    :xpose     — semitone transpose integer (default 0)
+
+  :mod-routes — vector of modulator→CC route maps:
+    :id        — modulator id string (e.g. \"lfo-1\")
+    :field     — output field: :cv, :aux, :gate, :gate2, :out0..:out15 (default :cv)
+    :ch        — MIDI channel 0-15 (default 0)
+    :cc        — CC number 0-127
+    :scale     — scale factor applied to [0,1] CV before mapping to 0-127 (default 1.0)
+    :offset    — offset added to CV before scale (default 0.0)
+
+  An empty map resets to the default pass-through behaviour (all sources → MIDI out).
+
+  Example:
+    ;; MIDI merge: hardware MIDI in passes through on ch1; OSC events go to ch2
+    (kairos/send-route-set!
+      {:midi-routes [{:src :ipc    :src-ch -1 :dst-ch 0}
+                     {:src :midi-hw :src-ch -1 :dst-ch 0}
+                     {:src :osc    :src-ch -1 :dst-ch 1}]
+       :mod-routes  [{:id \"lfo-1\" :field :cv :ch 0 :cc 74 :scale 1.0}]})"
+  [routes]
+  (send-frame! (make-frame MSG-ROUTE-SET (edn-bytes routes))))
 
 ;; ---------------------------------------------------------------------------
 ;; TX log

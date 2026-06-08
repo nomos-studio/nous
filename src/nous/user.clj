@@ -568,6 +568,8 @@
 (def send-param-set!         kairos/send-param-set!)
 ;; WASM hot-swap
 (def send-wasm-hot-swap!     kairos/send-wasm-hot-swap!)
+;; aion routing matrix
+(def send-route-set!         kairos/send-route-set!)
 ;; Note / MIDI events
 (def kairos-note-on!         kairos/send-note-on!)
 (def kairos-note-off!        kairos/send-note-off!)
