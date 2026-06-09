@@ -486,3 +486,42 @@
               zz   (bit-and (aget arr (+ base 2)) 0xFF)]
           (is (<= 0 yy 127) (str "key " k " yy out of range"))
           (is (<= 0 zz 127) (str "key " k " zz out of range")))))))
+
+;; ---------------------------------------------------------------------------
+;; scale->freq-map
+;; ---------------------------------------------------------------------------
+
+(deftest freq-map-completeness-test
+  (testing "scale->freq-map always returns 128 entries"
+    (let [ms (scala/parse-scl scl-12tet)
+          m  (scala/scale->freq-map ms)]
+      (is (= 128 (count m)))
+      (is (every? (set (range 128)) (keys m))))))
+
+(deftest freq-map-12tet-frequencies-test
+  (testing "12-TET freq-map matches standard MIDI→Hz formula"
+    (let [ms (scala/parse-scl scl-12tet)
+          m  (scala/scale->freq-map ms)]
+      ;; A4 = MIDI 69 → 440.0 Hz exactly
+      (is (< (Math/abs (- (m 69) 440.0)) 0.01))
+      ;; A3 = MIDI 57 → 220.0 Hz exactly
+      (is (< (Math/abs (- (m 57) 220.0)) 0.01))
+      ;; C4 = MIDI 60 → 261.626 Hz (standard value)
+      (is (< (Math/abs (- (m 60) 261.626)) 0.01)))))
+
+(deftest freq-map-all-positive-test
+  (testing "all frequencies are positive"
+    (let [ms (scala/parse-scl scl-pythagorean)
+          m  (scala/scale->freq-map ms)]
+      (is (every? pos? (vals m))))))
+
+(deftest freq-map-non-12tet-differs-test
+  (testing "Pythagorean tuning differs from 12-TET for major third above A4"
+    ;; A4 is MIDI 69 (anchor); E5 is MIDI 76 — a major third up.
+    ;; Pythagorean major third = 81/64 ≈ 407.82 cents vs. 12-TET 400 cents.
+    (let [ms-pyth (scala/parse-scl scl-pythagorean)
+          ms-tet  (scala/parse-scl scl-12tet)
+          m-pyth  (scala/scale->freq-map ms-pyth)
+          m-tet   (scala/scale->freq-map ms-tet)]
+      ;; They must disagree by more than 1 Hz at MIDI 76
+      (is (> (Math/abs (- (m-pyth 76) (m-tet 76))) 1.0)))))

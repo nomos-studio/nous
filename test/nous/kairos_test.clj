@@ -743,3 +743,38 @@
           (is (nil?   (:payload frame))))
         (finally
           (kairos/disconnect!))))))
+
+(deftest send-mts-byte-dispatch-test
+  (testing "send-mts! with raw bytes dispatches to MSG-SYSEX (0x4C), not MSG-MTS (0x4D)"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)
+          ;; Minimal valid-looking MTS byte array (not a real 408-byte dump)
+          raw    (byte-array [0xF0 0x7E 0x7F 0x08 0x01 0x00 0xF7])]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-mts! raw)
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x4C (:type frame)) "byte array should route to MSG-SYSEX")
+          (is (= 0 (get-in frame [:payload :port])))
+          (is (= [0xF0 0x7E 0x7F 0x08 0x01 0x00 0xF7]
+                 (mapv #(bit-and % 0xFF) (get-in frame [:payload :data])))))
+        (finally
+          (kairos/disconnect!)))))
+
+  (testing "send-mts! with note→Hz map dispatches to MSG-MTS (0x4D)"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-mts! {69 440.0 60 261.63})
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x4D (:type frame)) "freq map should route to MSG-MTS")
+          (is (= {69 440.0 60 261.63} (get-in frame [:payload :tuning])))
+          (is (= 0   (get-in frame [:payload :tuning-prog])))
+          (is (= :all (get-in frame [:payload :device-id]))))
+        (finally
+          (kairos/disconnect!))))))

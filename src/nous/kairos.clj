@@ -666,25 +666,34 @@
 (defn send-mts!
   "Send a MIDI Tuning Standard (MTS) bulk tuning dump via kairos/aion MIDI output.
 
-  tuning — map of MIDI note number → frequency in Hz for every note to retune.
-            Unspecified notes are left at 12-TET defaults.
+  Two accepted forms for `tuning`:
 
-  Options:
+  1. Raw byte array — a 408-byte MTS Bulk Dump SysEx payload as produced by
+     scala/scale->mts-bytes. Sent verbatim via send-sysex!; options are ignored
+     except :port.
+
+       (kairos/send-mts! (scala/scale->mts-bytes ms))
+       (kairos/send-mts! (scala/scale->mts-bytes ms kbm) :port 1)
+
+  2. Note→Hz map — {MIDI-note → Hz} for every note to retune. Unspecified notes
+     retain their 12-TET frequency. kairos assembles the SysEx bytes in C++.
+
+       (kairos/send-mts! {60 261.63 61 277.18} :tuning-prog 1)
+       (kairos/send-mts! (scala/scale->freq-map ms))
+
+  Options (map form only; port applies to both):
     :port         — MIDI port index (default 0)
     :tuning-prog  — MTS tuning programme number 0–127 (default 0)
-    :device-id    — SysEx device ID 0–127 or :all (default :all = 0x7F)
-
-  The frame payload is EDN; kairos assembles the SysEx bytes before output.
-
-  Example:
-    (kairos/send-mts! {60 261.63 61 277.18} :tuning-prog 1)"
+    :device-id    — SysEx device ID 0–127 or :all (default :all = 0x7F)"
   [tuning & {:keys [port tuning-prog device-id]
              :or   {port 0 tuning-prog 0 device-id :all}}]
-  (send-frame! (make-frame MSG-MTS
-                           (edn-bytes {:port       port
-                                       :tuning     tuning
-                                       :tuning-prog (long tuning-prog)
-                                       :device-id  device-id}))))
+  (if (bytes? tuning)
+    (send-sysex! tuning :port port)
+    (send-frame! (make-frame MSG-MTS
+                             (edn-bytes {:port        port
+                                         :tuning      tuning
+                                         :tuning-prog (long tuning-prog)
+                                         :device-id   device-id})))))
 
 (defn schedule-bundle!
   "Schedule a bundle of beat-accurate events for delivery by kairos.

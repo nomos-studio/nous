@@ -68,17 +68,25 @@
   ## MTS Bulk Dump (MIDI Tuning Standard)
 
   `scale->mts-bytes` generates a 408-byte MTS Bulk Dump SysEx message that
-  retunes all 128 MIDI keys simultaneously. Send it via `nous.kairos/send-mts!`
-  to retune any MTS-capable synth (including the Hydrasynth Explorer).
+  retunes all 128 MIDI keys simultaneously. Pass the result directly to
+  `nous.kairos/send-mts!` (which accepts either raw bytes or a note→Hz map):
 
     (def ms  (scala/load-scl \"31edo.scl\"))
     (def kbm (scala/load-kbm \"whitekeys.kbm\"))
 
     ;; Retune the whole keyboard in one message:
-    (kairos/send-mts! ms kbm)
+    (kairos/send-mts! (scala/scale->mts-bytes ms kbm))
 
-    ;; Or generate the raw bytes (e.g. for inspection or custom transport):
+    ;; Or inspect / archive the raw bytes:
     (scala/scale->mts-bytes ms kbm)
+
+  For gradual retune arcs (e.g. nudging from one tuning to another over
+  time), `scale->freq-map` produces a {MIDI-note → Hz} map you can
+  interpolate between and feed to `kairos/send-mts!`:
+
+    (def jI-map  (scala/scale->freq-map ms kbm))
+    (def tet-map (scala/scale->freq-map tet-ms))
+    ;; lerp between them at each schedule step
 
   Key design decision: MicrotonalScale is independent of the 12-TET Scale type.
   Use Scale for diatonic/modal work; use MicrotonalScale for tuning systems
@@ -484,15 +492,15 @@
   The checksum is the XOR of all bytes after F0 and before the checksum
   byte itself, masked to 7 bits.
 
-  The returned byte array can be passed directly to kairos/send-sysex!
-  or kairos/send-mts!.
+  The returned byte array can be passed directly to kairos/send-mts!
+  (which accepts raw bytes) or kairos/send-sysex! (lower-level).
 
   Example:
     (def ms (scala/load-scl \"31edo.scl\"))
-    (kairos/send-mts! ms)
+    (kairos/send-mts! (scala/scale->mts-bytes ms))
 
     (def kbm (scala/load-kbm \"whitekeys.kbm\"))
-    (kairos/send-mts! ms kbm)"
+    (kairos/send-mts! (scala/scale->mts-bytes ms kbm))"
   ([ms]    (scale->mts-bytes ms nil))
   ([ms kbm]
    (let [effective-kbm (or kbm mts-identity-kbm)
@@ -519,3 +527,36 @@
      (doseq [[i b] (map-indexed vector all-bytes)]
        (aset arr i (unchecked-byte b)))
      arr)))
+
+(defn scale->freq-map
+  "Return a {MIDI-note → Hz} map for all 128 keys under `ms` and optional `kbm`.
+
+  Each value is the retuned frequency in Hz. Unmapped or out-of-range keys
+  (nil from midi->note) fall back to their 12-TET frequency so the map is
+  always complete.
+
+  This is the input format for kairos/send-mts! when you have a pre-computed
+  or interpolated tuning rather than a SCL byte-dump:
+
+    ;; Send a JI tuning via the note→Hz map path:
+    (kairos/send-mts! (scala/scale->freq-map jI-ms))
+
+    ;; Interpolate between two tunings (e.g. for a gradual retune arc):
+    (let [jI  (scala/scale->freq-map jI-ms)
+          tet (scala/scale->freq-map tet-ms)
+          t   0.5]  ; 0.0 = pure JI, 1.0 = pure 12-TET
+      (kairos/send-mts!
+        (into {} (for [k (range 128)]
+                   [k (+ (* (- 1.0 t) (jI k))
+                         (* t         (tet k)))]))))"
+  ([ms] (scale->freq-map ms nil))
+  ([ms kbm]
+   (let [effective-kbm (or kbm mts-identity-kbm)]
+     (into {}
+       (for [k (range 128)]
+         (let [{:keys [midi bend-cents]}
+               (or (midi->note effective-kbm ms k)
+                   {:midi k :bend-cents 0.0})
+               base-hz (* 440.0 (Math/pow 2.0 (/ (- (double midi) 69.0) 12.0)))
+               hz      (* base-hz (Math/pow 2.0 (/ (double bend-cents) 1200.0)))]
+           [k hz]))))))
