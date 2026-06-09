@@ -525,3 +525,51 @@
           m-tet   (scala/scale->freq-map ms-tet)]
       ;; They must disagree by more than 1 Hz at MIDI 76
       (is (> (Math/abs (- (m-pyth 76) (m-tet 76))) 1.0)))))
+
+;; ---------------------------------------------------------------------------
+;; Partch 43-tone bundled scale
+;; ---------------------------------------------------------------------------
+
+(deftest partch-43-load-test
+  (testing "partch-43.scl loads from classpath resources"
+    (let [ms (scala/load-scl "partch-43.scl")]
+      (is (= 43 (scala/degree-count ms)))
+      (is (< (Math/abs (- (scala/period-cents ms) 1200.0)) 1e-6)))))
+
+(deftest partch-43-key-intervals-test
+  (testing "known JI ratios match expected cents values"
+    (let [ms (scala/load-scl "partch-43.scl")]
+      ;; degree 0 = 1/1 (unison) = 0 cents (always prepended by parse-scl)
+      (is (< (Math/abs (scala/degree->cents ms 0)) 1e-6))
+      ;; degree 1 = 81/80 ≈ 21.506 cents (first SCL entry)
+      (is (< (Math/abs (- (scala/degree->cents ms 1) 21.506)) 0.01))
+      ;; degree 18 = 4/3 (perfect fourth) ≈ 498.045 cents (SCL entry 17)
+      (is (< (Math/abs (- (scala/degree->cents ms 18) 498.045)) 0.01))
+      ;; degree 25 = 3/2 (perfect fifth) ≈ 701.955 cents (SCL entry 24)
+      (is (< (Math/abs (- (scala/degree->cents ms 25) 701.955)) 0.01))
+      ;; 2/1 is the period, not a degree — stored separately
+      (is (< (Math/abs (- (scala/period-cents ms) 1200.0)) 1e-6)))))
+
+(deftest partch-43-freq-map-test
+  (testing "scale->freq-map returns 128 positive Hz values for partch-43"
+    (let [ms (scala/load-scl "partch-43.scl")
+          m  (scala/scale->freq-map ms)]
+      (is (= 128 (count m)))
+      (is (every? pos? (vals m)))))
+  (testing "partch-43 MIDI 60 (middle C root) is near 261.626 Hz with identity KBM"
+    ;; The identity KBM anchors degree 0 to MIDI 60 at middle C (261.626 Hz).
+    (let [ms (scala/load-scl "partch-43.scl")
+          m  (scala/scale->freq-map ms)]
+      (is (< (Math/abs (- (double (get m 60)) 261.626)) 0.5))))
+  (testing "partch-43 differs substantially from 12-TET across the octave"
+    (let [ms-partch (scala/load-scl "partch-43.scl")
+          ms-tet    (scala/parse-scl scl-12tet)
+          m-partch  (scala/scale->freq-map ms-partch)
+          m-tet     (scala/scale->freq-map ms-tet)
+          ;; count keys where Partch and 12-TET diverge by more than 1 Hz
+          divergent (count (filter #(> (Math/abs (- (double (get m-partch %))
+                                                    (double (get m-tet %))))
+                                       1.0)
+                                   (range 128)))]
+      ;; Most pitches should be retuned — expect at least half to diverge
+      (is (> divergent 60)))))
