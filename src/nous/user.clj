@@ -86,6 +86,7 @@
             [nous.defensemble           :as defensemble]
             [nous.analysis.counterpoint :as cpt]
             [nous.lattice               :as lattice]
+            [nous.mts             :as mts]
             [nous.terrain         :as terr]))
 
 ;; ---------------------------------------------------------------------------
@@ -422,6 +423,11 @@
 (def midi->note        scala/midi->note)
 (def midi->step        scala/midi->step)
 (def scale->mts-bytes  scala/scale->mts-bytes)
+(def scale->freq-map   scala/scale->freq-map)
+
+;; MTS retune arc (nous.mts)
+(def lerp-freq-maps    mts/lerp-freq-maps)
+(def retune-arc!       mts/retune-arc!)
 
 ;; ---------------------------------------------------------------------------
 ;; Ardour DAW integration
