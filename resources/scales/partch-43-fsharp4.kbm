@@ -1,0 +1,30 @@
+! partch-43-fsharp4.kbm
+! Keyboard mapping for Partch 43-tone scale rooted on F#4 (MIDI 66)
+! Use with: partch-43.scl
+!
+! Linear / identity mapping: MIDI key N maps to Partch degree (N - 66)
+! One Partch octave spans 43 consecutive MIDI keys:
+!   MIDI 66 (F#4)  = degree 0  = 1/1    -> 369.994 Hz
+!   MIDI 67        = degree 1  = 81/80  -> 374.622 Hz
+!   MIDI 84        = degree 18 = 4/3    -> 493.325 Hz
+!   MIDI 91        = degree 25 = 3/2    -> 554.990 Hz
+!   MIDI 109       = degree 43          -> 739.988 Hz (one period up)
+!
+! F#4 is the arc pivot for the Fate piece: it sounds at 369.994 Hz in both
+! the Partch JI opening and the 12-TET arrival, so the tonal centre is
+! stable while the surrounding JI relationships transform.
+!
+! map size: 0 = linear identity mapping (no explicit key list required)
+0
+! first MIDI key to retune
+0
+! last MIDI key to retune
+127
+! middle note: MIDI 66 (F#4) = scale degree 0 (1/1)
+66
+! reference note: MIDI 66 (F#4)
+66
+! reference frequency in Hz: 12-TET F#4 = 440 * 2^(-3/12)
+369.994
+! formal octave: scale degree 43 = 2/1 (one Partch period)
+43

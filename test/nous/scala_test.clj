@@ -573,3 +573,89 @@
                                    (range 128)))]
       ;; Most pitches should be retuned — expect at least half to diverge
       (is (> divergent 60)))))
+
+;; ---------------------------------------------------------------------------
+;; 12-TET bundled scale
+;; ---------------------------------------------------------------------------
+
+(deftest tet12-load-test
+  (testing "12tet.scl loads from classpath resources"
+    (let [ms (scala/load-scl "12tet.scl")]
+      (is (= 12 (scala/degree-count ms)))
+      (is (< (Math/abs (- (scala/period-cents ms) 1200.0)) 1e-6))))
+  (testing "12tet.scl has 100-cent equal steps"
+    (let [ms (scala/load-scl "12tet.scl")]
+      (doseq [i (range 1 12)]
+        (is (< (Math/abs (- (scala/degree->cents ms i) (* i 100.0))) 1e-6)
+            (str "degree " i " should be " (* i 100) " cents"))))))
+
+(deftest tet12-freq-map-test
+  (testing "12tet.scl freq-map has A4 at 440 Hz"
+    (let [ms (scala/load-scl "12tet.scl")
+          m  (scala/scale->freq-map ms)]
+      (is (< (Math/abs (- (double (get m 69)) 440.0)) 0.01))))
+  (testing "12tet.scl freq-map has standard octave doubling"
+    (let [ms (scala/load-scl "12tet.scl")
+          m  (scala/scale->freq-map ms)]
+      ;; Each octave should double in frequency
+      (doseq [midi [48 60 69 72]]
+        (is (< (Math/abs (- (double (get m (+ midi 12)))
+                            (* 2.0 (double (get m midi))))
+                ) 0.01)
+            (str "octave doubling failed at MIDI " midi))))))
+
+;; ---------------------------------------------------------------------------
+;; partch-43-fsharp4 KBM — Fate piece keyboard mapping
+;; ---------------------------------------------------------------------------
+
+(deftest kbm-fsharp4-load-test
+  (testing "partch-43-fsharp4.kbm loads from classpath resources"
+    (let [kbm (scala/load-kbm "partch-43-fsharp4.kbm")]
+      (is (= 0   (:map-size kbm)))
+      (is (= 66  (:middle-note kbm)))
+      (is (= 66  (:reference-note kbm)))
+      (is (< (Math/abs (- (:reference-freq kbm) 369.994)) 0.001))
+      (is (= 43  (:formal-octave kbm))))))
+
+(deftest kbm-fsharp4-root-test
+  (testing "MIDI 66 (F#4) maps to degree 0 = 0 cents deviation"
+    (let [kbm (scala/load-kbm "partch-43-fsharp4.kbm")
+          ms  (scala/load-scl "partch-43.scl")
+          r   (scala/midi->note kbm ms 66)]
+      (is (= 66 (:midi r)))
+      (is (< (Math/abs (:bend-cents r)) 1e-9)))))
+
+(deftest kbm-fsharp4-freq-map-test
+  (testing "MIDI 66 anchors to F#4 = 369.994 Hz"
+    (let [kbm (scala/load-kbm "partch-43-fsharp4.kbm")
+          ms  (scala/load-scl "partch-43.scl")
+          m   (scala/scale->freq-map ms kbm)]
+      (is (< (Math/abs (- (double (get m 66)) 369.994)) 0.001))))
+  (testing "MIDI 67 is degree 1 = 81/80 above F#4"
+    (let [kbm (scala/load-kbm "partch-43-fsharp4.kbm")
+          ms  (scala/load-scl "partch-43.scl")
+          m   (scala/scale->freq-map ms kbm)
+          expected (* 369.994 (/ 81.0 80.0))]  ; = 374.619 Hz
+      (is (< (Math/abs (- (double (get m 67)) expected)) 0.01))))
+  (testing "MIDI 109 (= 66+43) is one Partch octave above F#4"
+    (let [kbm (scala/load-kbm "partch-43-fsharp4.kbm")
+          ms  (scala/load-scl "partch-43.scl")
+          m   (scala/scale->freq-map ms kbm)
+          f4  (double (get m 66))]
+      (is (< (Math/abs (- (double (get m 109)) (* 2.0 f4))) 0.01)))))
+
+(deftest kbm-fsharp4-arc-pivot-test
+  (testing "F#4 (MIDI 66) stays at 369.994 Hz in both Partch and 12-TET"
+    ;; The arc pivot property: MIDI 66 is the tonal centre of the Fate piece.
+    ;; It must be the same frequency in both the JI opening and 12-TET arrival
+    ;; so the root is stable while the surrounding JI relationships transform.
+    (let [kbm     (scala/load-kbm "partch-43-fsharp4.kbm")
+          partch  (scala/load-scl "partch-43.scl")
+          tet     (scala/load-scl "12tet.scl")
+          ji-map  (scala/scale->freq-map partch kbm)
+          tet-map (scala/scale->freq-map tet)]
+      ;; Both maps should agree at MIDI 66 to within 0.01 Hz
+      (is (< (Math/abs (- (double (get ji-map 66))
+                           (double (get tet-map 66))))
+             0.01)
+          "F#4 must be the same Hz in Partch and 12-TET"))))
