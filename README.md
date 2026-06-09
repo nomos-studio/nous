@@ -44,7 +44,8 @@ native real-time sidecar process.
 - **MIDI input monitoring** — incoming messages pushed to the JVM as events;
   `await-midi-message` for test and interactive workflows
 - **MTS Bulk Dump** — retune Hydrasynth / MicroFreak to any Scala scale
-  without per-note pitch bend; `send-mts!` sends the 408-byte SysEx
+  without per-note pitch bend; `send-mts!` accepts a `{MIDI-note → Hz}` map
+  or raw bytes (e.g. from `scale->mts-bytes`)
 
 ### Music theory
 - **Scale / chord / interval** — first-class records for all common modes,
@@ -61,7 +62,8 @@ native real-time sidecar process.
 - **Scala files** — parse `.scl` and `.kbm` files; full Scala library compatible
 - **`*tuning-ctx*`** — per-loop microtonal tuning context; `play!` auto-translates
   MIDI note numbers to the nearest scale degree + pitch bend
-- **MTS** — `scale->mts-bytes` generates standards-compliant bulk dump SysEx
+- **MTS** — `scale->mts-bytes` generates a standards-compliant 408-byte SysEx;
+  `scale->freq-map` returns the `{MIDI-note → Hz}` map for retune-arc interpolation
 
 ### Ableton Link
 - **Tempo sync** — join any Link session; all loops phase-quantize to the bar
