@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <functional>
 
-namespace cljseq {
+namespace nous {
 
 /// Callback invoked on each received MIDI message.
 ///
@@ -30,4 +30,4 @@ bool midi_monitor_start(unsigned int port_index, MidiInCallback cb);
 /// Safe to call even if no port is open (no-op).
 void midi_monitor_stop();
 
-} // namespace cljseq
+} // namespace nous

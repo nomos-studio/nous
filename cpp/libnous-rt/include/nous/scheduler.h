@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <functional>
 
-namespace cljseq {
+namespace nous {
 
 // ---------------------------------------------------------------------------
-// Wire message types — must match cljseq.sidecar Clojure enum
+// Wire message types — must match nous.sidecar Clojure enum
 // ---------------------------------------------------------------------------
 
 enum class MsgType : uint8_t {
@@ -70,4 +70,4 @@ void scheduler_run();
 /// Signal the scheduler loop to exit. Thread-safe.
 void scheduler_stop();
 
-} // namespace cljseq
+} // namespace nous

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <cmath>
 
-namespace cljseq {
+namespace nous {
 
 // ---------------------------------------------------------------------------
 // Beat — rational beat position
@@ -31,7 +31,7 @@ struct Beat {
 // ITemporalValue — C++ mirror of the Clojure protocol
 // ---------------------------------------------------------------------------
 
-/// A value that varies over musical time. Mirrors cljseq.clock/ITemporalValue.
+/// A value that varies over musical time. Mirrors nous.clock/ITemporalValue.
 class ITemporalValue {
 public:
     virtual ~ITemporalValue() = default;
@@ -43,17 +43,17 @@ public:
     virtual Beat next_edge(Beat beat) const = 0;
 };
 
-} // namespace cljseq
+} // namespace nous
 
 // ---------------------------------------------------------------------------
-// cljseq::phasor — pure phasor operations
+// nous::phasor — pure phasor operations
 //
 // A unipolar phasor is frac(beat × rate + offset) ∈ [0.0, 1.0).
 // All operations are constexpr where C++17 allows; shape functions that
 // depend on std::sin are inline noexcept.
 // ---------------------------------------------------------------------------
 
-namespace cljseq::phasor {
+namespace nous::phasor {
 
 inline constexpr double pi = 3.14159265358979323846;
 
@@ -135,16 +135,16 @@ inline auto square(double pw) noexcept {
     return [pw](double p) noexcept -> double { return p < pw ? 1.0 : 0.0; };
 }
 
-} // namespace cljseq::phasor
+} // namespace nous::phasor
 
 // ---------------------------------------------------------------------------
-// cljseq::Phasor — canonical ITemporalValue implementation
+// nous::Phasor — canonical ITemporalValue implementation
 // ---------------------------------------------------------------------------
 
-namespace cljseq {
+namespace nous {
 
 /// A unipolar phasor: frac(beat × rate + phase_offset) ∈ [0.0, 1.0).
-/// Mirrors the Clojure Phasor record from cljseq.clock (R&R §28).
+/// Mirrors the Clojure Phasor record from nous.clock (R&R §28).
 struct Phasor : public ITemporalValue {
     double rate;          ///< cycles per beat
     double phase_offset;  ///< initial phase shift ∈ [0.0, 1.0)
@@ -165,10 +165,10 @@ struct Phasor : public ITemporalValue {
     }
 };
 
-// Named constructors — mirror cljseq.clock Clojure API
+// Named constructors — mirror nous.clock Clojure API
 inline Phasor master_clock()                       { return {1.0,      0.0   }; }
 inline Phasor clock_div(double n)                  { return {1.0 / n,  0.0   }; }
 inline Phasor clock_mul(double n)                  { return {n,        0.0   }; }
 inline Phasor clock_shift(double n, double offset) { return {1.0 / n,  offset}; }
 
-} // namespace cljseq
+} // namespace nous

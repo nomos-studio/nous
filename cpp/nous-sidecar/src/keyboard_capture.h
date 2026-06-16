@@ -5,7 +5,7 @@
 #include <functional>
 #include <vector>
 
-namespace cljseq {
+namespace nous {
 
 /// Callback invoked on each keyboard event.
 ///
@@ -33,4 +33,4 @@ bool kbd_capture_start(const std::vector<uint8_t>& capture_keycodes,
 /// Safe to call even if capture is not active (no-op).
 void kbd_capture_stop();
 
-} // namespace cljseq
+} // namespace nous

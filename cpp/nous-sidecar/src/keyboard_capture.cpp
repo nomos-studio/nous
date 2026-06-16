@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 //
-// keyboard_capture.cpp — global keyboard event tap for cljseq.ivk
+// keyboard_capture.cpp — global keyboard event tap for nous.ivk
 //
 // macOS implementation: CGEventTap via ApplicationServices.
 //   Requires Accessibility permission for the sidecar process (one-time grant).
@@ -25,7 +25,7 @@ namespace {
 // ---------------------------------------------------------------------------
 
 std::unordered_set<uint8_t>  g_capture_set;
-cljseq::KbdCallback          g_callback;
+nous::KbdCallback          g_callback;
 CFMachPortRef                g_tap        = nullptr;
 CFRunLoopSourceRef           g_source     = nullptr;
 std::thread                  g_run_thread;
@@ -91,7 +91,7 @@ CGEventRef tap_callback(CGEventTapProxy /*proxy*/,
 
 } // anonymous namespace
 
-namespace cljseq {
+namespace nous {
 
 bool kbd_capture_start(const std::vector<uint8_t>& capture_keycodes,
                        KbdCallback cb) {
@@ -180,11 +180,11 @@ void kbd_capture_stop() {
     g_capture_set.clear();
 }
 
-} // namespace cljseq
+} // namespace nous
 
 #else // !__APPLE__
 
-namespace cljseq {
+namespace nous {
 
 bool kbd_capture_start(const std::vector<uint8_t>& /*keycodes*/,
                        KbdCallback /*cb*/) {
@@ -196,6 +196,6 @@ bool kbd_capture_start(const std::vector<uint8_t>& /*keycodes*/,
 
 void kbd_capture_stop() {}
 
-} // namespace cljseq
+} // namespace nous
 
 #endif // __APPLE__

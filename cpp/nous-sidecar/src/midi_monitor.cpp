@@ -19,7 +19,7 @@
 #include <cstdio>
 #include <memory>
 
-namespace cljseq {
+namespace nous {
 
 namespace {
 
@@ -88,7 +88,7 @@ bool midi_monitor_start(unsigned int port_index, MidiInCallback cb)
     g_midi_in->ignoreTypes(false /*sysex*/, false /*timing*/, false /*active-sensing*/);
 
     try {
-        g_midi_in->openPort(port_index, "cljseq-monitor");
+        g_midi_in->openPort(port_index, "nous-monitor");
     } catch (RtMidiError& e) {
         std::fprintf(stderr, "[midi_monitor] openPort failed: %s\n",
                      e.getMessage().c_str());
@@ -113,4 +113,4 @@ void midi_monitor_stop()
     std::fprintf(stderr, "[midi_monitor] closed\n");
 }
 
-} // namespace cljseq
+} // namespace nous

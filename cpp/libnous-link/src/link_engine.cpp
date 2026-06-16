@@ -11,12 +11,12 @@
 //   - The sidecar's registered callback (state_cb_) writes a 0x80 frame to
 //     the TCP socket via asio::async_write — non-blocking, safe from any thread.
 
-#include <cljseq/link_engine.h>
+#include <nous/link_engine.h>
 
 #include <cstddef>
 #include <cstdio>
 
-namespace cljseq {
+namespace nous {
 
 LinkEngine::LinkEngine(double initial_bpm)
     : link_(initial_bpm)
@@ -111,4 +111,4 @@ void LinkEngine::push_state() {
         state_cb_(ls);
 }
 
-} // namespace cljseq
+} // namespace nous

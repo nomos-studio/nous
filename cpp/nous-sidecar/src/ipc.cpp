@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 //
-// IPC — bidirectional TCP localhost frame receiver/sender for cljseq-sidecar
+// IPC — bidirectional TCP localhost frame receiver/sender for nous-sidecar
 //
 // Wire format (little-endian throughout):
 //   [uint32 payload_len][uint8 msg_type][uint8 reserved×3][uint8[] payload]
@@ -27,8 +27,8 @@
 #include "midi_dispatch.h"
 #include "midi_monitor.h"
 
-#include <cljseq/link_bridge.h>
-#include <cljseq/scheduler.h>
+#include <nous/link_bridge.h>
+#include <nous/scheduler.h>
 
 #include <asio.hpp>
 #include <array>
@@ -98,7 +98,7 @@ void write_le_double(uint8_t* p, double v) noexcept {
 }
 
 // ---------------------------------------------------------------------------
-// MsgType enum — must match cljseq.sidecar Clojure constants
+// MsgType enum — must match nous.sidecar Clojure constants
 // ---------------------------------------------------------------------------
 
 enum class MsgType : uint8_t {
@@ -328,20 +328,20 @@ public:
 class IpcSession : public std::enable_shared_from_this<IpcSession> {
 public:
     IpcSession(tcp::socket socket, asio::io_context& io,
-               cljseq::LinkBridge& link, int midi_in_port, bool enable_kbd)
+               nous::LinkBridge& link, int midi_in_port, bool enable_kbd)
         : socket_(std::move(socket)), io_(io), link_(link),
           midi_in_port_(midi_in_port), enable_kbd_(enable_kbd) {}
 
     ~IpcSession() {
         if (midi_in_port_ >= 0)
-            cljseq::midi_monitor_stop();
+            nous::midi_monitor_stop();
         if (enable_kbd_)
-            cljseq::kbd_capture_stop();
+            nous::kbd_capture_stop();
     }
 
     void start() {
         // Register Link state callback: when Link fires, push 0x80 to JVM.
-        link_.set_state_callback([this](const cljseq::LinkState& ls) {
+        link_.set_state_callback([this](const nous::LinkState& ls) {
             push_link_state(ls);
         });
 
@@ -349,7 +349,7 @@ public:
         // message back to the JVM as a 0x20 MidiIn frame.
         if (midi_in_port_ >= 0) {
             auto self = shared_from_this();
-            bool ok = cljseq::midi_monitor_start(
+            bool ok = nous::midi_monitor_start(
                 static_cast<unsigned int>(midi_in_port_),
                 [self](int64_t time_ns, uint8_t status, uint8_t b1, uint8_t b2) {
                     self->push_midi_in(time_ns, status, b1, b2);
@@ -363,7 +363,7 @@ public:
         // Optionally start keyboard capture (macOS CGEventTap).
         if (enable_kbd_) {
             auto self = shared_from_this();
-            bool ok = cljseq::kbd_capture_start(
+            bool ok = nous::kbd_capture_start(
                 {}, // empty = capture all keys; ivk filter is on the Clojure side
                 [self](uint8_t keycode, uint8_t mods, uint8_t evt_type) {
                     self->push_kbd_event(keycode, mods, evt_type);
@@ -381,7 +381,7 @@ private:
 
     tcp::socket              socket_;
     asio::io_context&        io_;
-    cljseq::LinkBridge&      link_;
+    nous::LinkBridge&      link_;
     int                      midi_in_port_;
     bool                     enable_kbd_;
     std::array<uint8_t, kHeaderLen> header_buf_;
@@ -455,16 +455,16 @@ private:
                 break;
             }
             {
-                cljseq::ScheduledEvent ev;
+                nous::ScheduledEvent ev;
                 ev.time_ns           = read_le64(payload);
-                ev.type              = static_cast<cljseq::MsgType>(msg_type_byte);
+                ev.type              = static_cast<nous::MsgType>(msg_type_byte);
                 ev.channel           = payload[8];
                 ev.note_or_cc        = payload[9];
                 ev.velocity_or_value = payload[10];
                 std::fprintf(stderr, "[ipc] enqueue type=0x%02x ch=%u b9=%u b10=%u time_ns=%lld\n",
                              msg_type_byte, ev.channel, ev.note_or_cc,
                              ev.velocity_or_value, (long long)ev.time_ns);
-                cljseq::scheduler_enqueue(ev);
+                nous::scheduler_enqueue(ev);
             }
             break;
 
@@ -550,7 +550,7 @@ private:
     //   [uint32 peers(4)][uint8 playing(1)][uint8 reserved×3(3)]
     // ---------------------------------------------------------------------------
 
-    void push_link_state(const cljseq::LinkState& ls) {
+    void push_link_state(const nous::LinkState& ls) {
         static constexpr std::size_t kPayloadLen = 37;
         static constexpr std::size_t kFrameLen   = 8 + kPayloadLen; // header + payload
 
@@ -672,7 +672,7 @@ private:
 // ipc_serve — entry point
 // ---------------------------------------------------------------------------
 
-void ipc_serve(unsigned short port, cljseq::LinkBridge& link,
+void ipc_serve(unsigned short port, nous::LinkBridge& link,
                int midi_in_port, bool enable_kbd) {
     asio::io_context io;
     tcp::acceptor acceptor(io, tcp::endpoint(tcp::v4(), port));

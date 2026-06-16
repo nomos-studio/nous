@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 //
-// cljseq-rt scheduler — timed MIDI event dispatch
+// nous-rt scheduler — timed MIDI event dispatch
 //
 // Holds a min-heap of ScheduledEvent sorted by time_ns (epoch-nanoseconds,
 // system_clock epoch — same reference as JVM System/currentTimeMillis×1e6).
@@ -8,7 +8,7 @@
 // sleeps again. A condition_variable wakes the thread early when a new event
 // is enqueued before the current sleep target, or when scheduler_stop() fires.
 
-#include <cljseq/scheduler.h>
+#include <nous/scheduler.h>
 
 #include <chrono>
 #include <condition_variable>
@@ -17,7 +17,7 @@
 #include <vector>
 #include <cstdio>
 
-namespace cljseq {
+namespace nous {
 
 // ---------------------------------------------------------------------------
 // Internal state
@@ -144,4 +144,4 @@ void scheduler_stop() {
     g_cv.notify_one();
 }
 
-} // namespace cljseq
+} // namespace nous

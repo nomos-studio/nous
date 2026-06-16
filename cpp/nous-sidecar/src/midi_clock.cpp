@@ -24,7 +24,7 @@
 
 namespace {
 
-cljseq::LinkBridge*     g_link    = nullptr;
+nous::LinkBridge*     g_link    = nullptr;
 std::thread             g_thread;
 std::atomic<bool>       g_stop    {false};
 std::atomic<bool>       g_playing {false};
@@ -142,7 +142,7 @@ static void clock_thread_fn() {
 // Public API
 // ---------------------------------------------------------------------------
 
-void midi_clock_init(cljseq::LinkBridge& link) {
+void midi_clock_init(nous::LinkBridge& link) {
     g_link = &link;
 }
 

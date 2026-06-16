@@ -3,12 +3,12 @@
 // link_bridge.h — Abstract interface between the sidecar and the Link engine.
 //
 // The sidecar always programs against this interface. When built without Link
-// (CLJSEQ_ENABLE_LINK=OFF), main.cpp injects a NullLinkBridge. When built with
-// Link (CLJSEQ_ENABLE_LINK=ON), it injects a LinkEngine from libcljseq-link.
+// (NOUS_ENABLE_LINK=OFF), main.cpp injects a NullLinkBridge. When built with
+// Link (NOUS_ENABLE_LINK=ON), it injects a LinkEngine from libnous-link.
 //
-// The GPL boundary is therefore entirely within libcljseq-link. The sidecar
+// The GPL boundary is therefore entirely within libnous-link. The sidecar
 // source files remain LGPL-2.1-or-later regardless of build configuration;
-// only the resulting binary is GPL-2.0-or-later when linked with cljseq-link.
+// only the resulting binary is GPL-2.0-or-later when linked with nous-link.
 //
 // LinkState — pushed to JVM via IPC 0x80 whenever tempo, peer count, or
 // transport state changes. Layout matches the wire format documented in
@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <functional>
 
-namespace cljseq {
+namespace nous {
 
 // ---------------------------------------------------------------------------
 // LinkState — pushed to the JVM on any change
@@ -97,7 +97,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-// NullLinkBridge — no-op stub used when CLJSEQ_ENABLE_LINK=OFF
+// NullLinkBridge — no-op stub used when NOUS_ENABLE_LINK=OFF
 // ---------------------------------------------------------------------------
 
 class NullLinkBridge final : public LinkBridge {
@@ -114,4 +114,4 @@ public:
     }
 };
 
-} // namespace cljseq
+} // namespace nous

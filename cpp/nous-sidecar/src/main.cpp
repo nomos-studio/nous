@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 //
-// cljseq-sidecar — real-time MIDI sidecar process
+// nous-sidecar — real-time MIDI sidecar process
 //
-// Usage: cljseq-sidecar --port <N>
+// Usage: nous-sidecar --port <N>
 //
 // The JVM spawns this process and immediately connects a TCP socket to
 // localhost:N. Received IPC frames are decoded by ipc.cpp and forwarded
 // to the scheduler and (optionally) the Link engine. The scheduler fires
 // MIDI events via midi_dispatch at their scheduled wall-clock times.
 //
-// When built with CLJSEQ_ENABLE_LINK=ON (GPL-2.0-or-later), a real LinkEngine
+// When built with NOUS_ENABLE_LINK=ON (GPL-2.0-or-later), a real LinkEngine
 // is injected. Otherwise a NullLinkBridge (no-op) is used and the binary
 // remains LGPL-2.1-or-later.
 //
@@ -25,11 +25,11 @@
 #include "midi_clock.h"
 #include "midi_dispatch.h"
 
-#include <cljseq/link_bridge.h>
-#include <cljseq/scheduler.h>
+#include <nous/link_bridge.h>
+#include <nous/scheduler.h>
 
-#ifdef CLJSEQ_WITH_LINK
-#  include <cljseq/link_engine.h>
+#ifdef NOUS_WITH_LINK
+#  include <nous/link_engine.h>
 #endif
 
 #include <cstdio>
@@ -46,7 +46,7 @@ static unsigned short parse_port(int argc, char* argv[]) {
                 return static_cast<unsigned short>(p);
         }
     }
-    std::fprintf(stderr, "usage: cljseq-sidecar --port <1-65535>\n");
+    std::fprintf(stderr, "usage: nous-sidecar --port <1-65535>\n");
     std::exit(1);
 }
 
@@ -99,12 +99,12 @@ int main(int argc, char* argv[]) {
     //    The sidecar's business logic is identical in both cases.
 #ifdef CLJSEQ_WITH_LINK
     // initial_bpm=120 — overridden immediately by LinkEnable message from JVM.
-    cljseq::LinkEngine link_engine(120.0);
-    cljseq::LinkBridge& link = link_engine;
+    nous::LinkEngine link_engine(120.0);
+    nous::LinkBridge& link = link_engine;
     std::fprintf(stderr, "[main] Ableton Link enabled (GPL-2.0-or-later build)\n");
 #else
-    cljseq::NullLinkBridge null_link;
-    cljseq::LinkBridge& link = null_link;
+    nous::NullLinkBridge null_link;
+    nous::LinkBridge& link = null_link;
 #endif
 
     // 2. Open the requested MIDI output port (default 0).
@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
     midi_clock_start();
 
     // 4. Wire scheduler callbacks to MIDI dispatch.
-    cljseq::scheduler_init({
+    nous::scheduler_init({
         .note_on       = midi_note_on,
         .note_off      = midi_note_off,
         .cc            = midi_cc,
@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
     });
 
     // 5. Start scheduler on its own thread.
-    std::thread sched_thread(cljseq::scheduler_run);
+    std::thread sched_thread(nous::scheduler_run);
 
     // 6. Accept the JVM connection and run the bidirectional IPC event loop.
     //    (blocks until Shutdown message received)
@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
     // 7. Signal clock and scheduler to stop and wait for them to drain.
     //    Clock must stop before MIDI port closes so the final 0xFC can be sent.
     midi_clock_stop();
-    cljseq::scheduler_stop();
+    nous::scheduler_stop();
     sched_thread.join();
 
     // 8. Close MIDI port.

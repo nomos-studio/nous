@@ -2,17 +2,17 @@
 //
 // link_engine.h — LinkBridge implementation backed by the Ableton Link SDK.
 //
-// Included only when CLJSEQ_ENABLE_LINK=ON. main.cpp injects a LinkEngine
+// Included only when NOUS_ENABLE_LINK=ON. main.cpp injects a LinkEngine
 // instance into the sidecar's IPC layer via the LinkBridge interface.
 #pragma once
 
-#include <cljseq/link_bridge.h>
+#include <nous/link_bridge.h>
 #include <ableton/Link.hpp>
 
 #include <atomic>
 #include <mutex>
 
-namespace cljseq {
+namespace nous {
 
 class LinkEngine final : public LinkBridge {
 public:
@@ -41,4 +41,4 @@ private:
     void push_state();
 };
 
-} // namespace cljseq
+} // namespace nous

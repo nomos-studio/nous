@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 //
-// MIDI dispatch — RtMidi wrapper for cljseq-sidecar
+// MIDI dispatch — RtMidi wrapper for nous-sidecar
 //
 // Phase 1: opens the first available MIDI output port. Port selection by name
 // is deferred to Phase 2 (defdevice EDN maps, Q55).
@@ -58,7 +58,7 @@ bool midi_init(unsigned int port_index) {
 
 void midi_note_on(uint8_t channel, uint8_t note, uint8_t velocity) {
     if (!g_midi || !g_midi->isPortOpen()) return;
-    // MIDI channel is 1-indexed in cljseq; wire format is 0-indexed
+    // MIDI channel is 1-indexed in nous; wire format is 0-indexed
     uint8_t ch = static_cast<uint8_t>((channel - 1) & 0x0F);
     std::vector<uint8_t> msg = { static_cast<uint8_t>(0x90 | ch), note, velocity };
     try {

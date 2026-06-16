@@ -19,10 +19,10 @@
 //   midi_clock_set_playing(false) — thread emits 0xFC and idles
 #pragma once
 
-#include <cljseq/link_bridge.h>
+#include <nous/link_bridge.h>
 
 /// Inject the Link bridge reference. Must be called before midi_clock_start().
-void midi_clock_init(cljseq::LinkBridge& link);
+void midi_clock_init(nous::LinkBridge& link);
 
 /// Start the clock thread. Idempotent — safe to call multiple times.
 void midi_clock_start();

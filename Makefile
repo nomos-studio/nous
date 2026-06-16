@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-.PHONY: all build test clean docs docs-clj docs-cpp docs-guide
+.PHONY: all build build-link install test clean docs docs-clj docs-cpp docs-guide
 
-BUILD_DIR ?= build
+BUILD_DIR  ?= build
 CMAKE_FLAGS ?= -DCMAKE_BUILD_TYPE=Release
+PREFIX     ?= $(HOME)/.local/nomos-studio
 
 # ---------------------------------------------------------------------------
 # Default target
@@ -25,9 +26,22 @@ build-cpp: $(BUILD_DIR)/Makefile
 $(BUILD_DIR)/Makefile:
 	cmake -S . -B $(BUILD_DIR) $(CMAKE_FLAGS)
 
-build-link: $(BUILD_DIR)/Makefile
-	cmake -S . -B $(BUILD_DIR) $(CMAKE_FLAGS) -DCLJSEQ_ENABLE_LINK=ON
+build-link:
+	cmake -S . -B $(BUILD_DIR) $(CMAKE_FLAGS) -DNOUS_ENABLE_LINK=ON
 	cmake --build $(BUILD_DIR) --parallel
+
+uberjar:
+	lein uberjar
+
+# ---------------------------------------------------------------------------
+# Install — copies nous-sidecar binary and nous standalone jar to PREFIX
+# ---------------------------------------------------------------------------
+
+install: uberjar build-cpp
+	install -d $(PREFIX)/bin $(PREFIX)/lib/nous
+	install -m 755 $(BUILD_DIR)/cpp/nous-sidecar/nous-sidecar $(PREFIX)/bin/nous-sidecar
+	install -m 644 target/uberjar/nous-$(shell lein version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')-standalone.jar \
+	    $(PREFIX)/lib/nous/nous-standalone.jar
 
 # ---------------------------------------------------------------------------
 # Test
@@ -39,11 +53,8 @@ test-clj:
 	lein test
 
 test-cpp: $(BUILD_DIR)/Makefile
-	cmake --build $(BUILD_DIR) --target cljseq-tests --parallel
+	cmake --build $(BUILD_DIR) --target nous-tests --parallel
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
-
-test-python:
-	python -m pytest python/tests
 
 # ---------------------------------------------------------------------------
 # Documentation
