@@ -45,7 +45,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest defdevice-model-stores-in-ctrl-tree-test
-  (testing "defdevice-model stores the model in [:cljseq/schema :device-models ...]"
+  (testing "defdevice-model stores the model in [:txlog/schema :device-models ...]"
     (schema/defdevice-model :test/synth test-model)
     (let [stored (schema/get-model :test/synth)]
       (is (some? stored) "model is stored")
@@ -60,7 +60,7 @@
           txs  (filter #(= :schema (-> % :tx/source :source/kind)) log)]
       (is (seq txs) "at least one schema transaction in the log")
       (let [last-tx (last txs)]
-        (is (= [:cljseq/schema :device-models :test/synth-log]
+        (is (= [:txlog/schema :device-models :test/synth-log]
                (-> last-tx :tx/changes first :path)))))))
 
 (deftest defdevice-model-idempotent-test
@@ -82,7 +82,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest defrealization-stores-in-ctrl-tree-test
-  (testing "defrealization stores the realization in [:cljseq/schema :realizations ...]"
+  (testing "defrealization stores the realization in [:txlog/schema :realizations ...]"
     (schema/defrealization :test/midi-rig midi-realization)
     (let [stored (schema/get-realization :test/midi-rig)]
       (is (some? stored) "realization is stored")
@@ -97,7 +97,7 @@
           txs (filter #(= :schema (-> % :tx/source :source/kind)) log)]
       (is (seq txs))
       (let [paths (set (map #(-> % :tx/changes first :path) txs))]
-        (is (contains? paths [:cljseq/schema :realizations :test/r-log-test]))))))
+        (is (contains? paths [:txlog/schema :realizations :test/r-log-test]))))))
 
 (deftest satisfies-profile-test
   (testing "satisfies-profile? reflects declared :satisfies set"
@@ -158,7 +158,7 @@
           txs  (filter #(= :schema (-> % :tx/source :source/kind)) log)
           paths (set (map #(-> % :tx/changes first :path) txs))]
       (is (contains? paths
-                     [:cljseq/schema :active-realizations :test/synth])))))
+                     [:txlog/schema :active-realizations :test/synth])))))
 
 (deftest realize-node-type-from-profile-test
   (testing "realize! assigns correct type from profile spec"

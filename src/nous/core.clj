@@ -281,7 +281,7 @@
                                [m r]))
      :params        (for [{:keys [path value]} (ctrl/all-nodes)
                           :when (and (some? value)
-                                     (not= :cljseq/schema (first path))
+                                     (not= :txlog/schema (first path))
                                      (not= :config        (first path)))]
                       [path value])}))
 
@@ -295,13 +295,13 @@
       (and (= p0 :config) (= p1 :bpm))           (assoc state :bpm value)
       (and (= p0 :config) (= p1 :beats-per-bar)) (assoc state :beats-per-bar value)
       (= p0 :config)                              state
-      (and (= p0 :cljseq/schema) (= p1 :device-models))
+      (and (= p0 :txlog/schema) (= p1 :device-models))
       (assoc-in state [:models p2] value)
-      (and (= p0 :cljseq/schema) (= p1 :realizations))
+      (and (= p0 :txlog/schema) (= p1 :realizations))
       (assoc-in state [:realizations p2] value)
-      (and (= p0 :cljseq/schema) (= p1 :active-realizations))
+      (and (= p0 :txlog/schema) (= p1 :active-realizations))
       (assoc-in state [:active p2] value)
-      (= p0 :cljseq/schema)                       state
+      (= p0 :txlog/schema)                       state
       :else                                       (update state :params conj [path value]))))
 
 (defn- journal-session-state

@@ -77,7 +77,7 @@
 
   Example:
     (read-journal \"/path/to/session.sqlite\")
-    ;; => [{:tx/beat 0.0 :tx/source :schema :tx/path [:cljseq/schema ...] ...} ...]"
+    ;; => [{:tx/beat 0.0 :tx/source :schema :tx/path [:txlog/schema ...] ...} ...]"
   [^String db-path]
   (with-open [conn (DriverManager/getConnection (str "jdbc:sqlite:" db-path))
               stmt (.createStatement conn)
@@ -179,7 +179,7 @@
 
   Options:
     :source  — restrict to one source kind keyword (e.g. :loop, :user)
-    :schema? — include [:cljseq/schema ...] paths (default false)
+    :schema? — include [:txlog/schema ...] paths (default false)
 
   Example:
     (crystallize txs 64.0 128.0 :source :loop)
@@ -188,7 +188,7 @@
   [txs beat-from beat-to & {:keys [source schema?]}]
   (let [window (cond->> (tx-range txs beat-from beat-to)
                  source        (filter #(= source (:tx/source %)))
-                 (not schema?) (remove #(= :cljseq/schema (first (:tx/path %))))
+                 (not schema?) (remove #(= :txlog/schema (first (:tx/path %))))
                  true          (filter #(some? (:tx/after %))))
         ->entry (fn [[path writes]]
                   [path (mapv #(hash-map :beat  (- (:tx/beat %) beat-from)
@@ -205,7 +205,7 @@
     :changed   — {path {:before va :after vb}}  present in both, different values
     :unchanged — #{path}                   present in both, same value
 
-  Schema paths are included; filter :cljseq/schema from the journals first
+  Schema paths are included; filter :txlog/schema from the journals first
   if not needed.
 
   Example:

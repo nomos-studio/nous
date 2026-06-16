@@ -44,13 +44,13 @@
       (with-open [conn (DriverManager/getConnection (str "jdbc:sqlite:" path))]
         ;; beat 0 — schema writes
         (write-row! conn 0.0 100 (journal/source-kind->int :schema)
-                    [:cljseq/schema :device-models :arp2600]
+                    [:txlog/schema :device-models :arp2600]
                     nil {:model/id :arp2600 :model/name "ARP 2600"})
         (write-row! conn 0.0 101 (journal/source-kind->int :schema)
-                    [:cljseq/schema :realizations :grey-meanie]
+                    [:txlog/schema :realizations :grey-meanie]
                     nil {:model :arp2600 :binding :midi})
         (write-row! conn 0.0 102 (journal/source-kind->int :schema)
-                    [:cljseq/schema :active-realizations :arp2600]
+                    [:txlog/schema :active-realizations :arp2600]
                     nil :grey-meanie)
         ;; beat 1 — user sets initial values
         (write-row! conn 1.0 200 (journal/source-kind->int :user)
@@ -186,8 +186,8 @@
 (deftest latest-values-excludes-schema-paths-when-filtered-test
   (let [txs    (journal/read-journal *db-path*)
         latest (journal/latest-values
-                 (remove #(= :cljseq/schema (first (:tx/path %))) txs))]
-    (is (not (contains? latest [:cljseq/schema :device-models :arp2600])))))
+                 (remove #(= :txlog/schema (first (:tx/path %))) txs))]
+    (is (not (contains? latest [:txlog/schema :device-models :arp2600])))))
 
 ;; ---------------------------------------------------------------------------
 ;; Vocabulary
@@ -227,12 +227,12 @@
 (deftest crystallize-excludes-schema-by-default-test
   (let [txs    (journal/read-journal *db-path*)
         result (journal/crystallize txs 0.0 64.0)]
-    (is (not (some #(= :cljseq/schema (first %)) (keys result))))))
+    (is (not (some #(= :txlog/schema (first %)) (keys result))))))
 
 (deftest crystallize-includes-schema-when-requested-test
   (let [txs    (journal/read-journal *db-path*)
         result (journal/crystallize txs 0.0 64.0 :schema? true)]
-    (is (some #(= :cljseq/schema (first %)) (keys result)))))
+    (is (some #(= :txlog/schema (first %)) (keys result)))))
 
 (deftest crystallize-empty-window-returns-empty-map-test
   (let [txs (journal/read-journal *db-path*)]

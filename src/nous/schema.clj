@@ -4,7 +4,7 @@
 
   Schema changes are first-class transactions: `defdevice-model`,
   `defrealization`, and `realize!` all write to well-known
-  [:cljseq/schema ...] paths in the ctrl tree, so the transaction log
+  [:txlog/schema ...] paths in the ctrl tree, so the transaction log
   captures schema evolution alongside parameter changes.
 
   ## Concepts
@@ -47,7 +47,7 @@
 
   Every schema write (defdevice-model, defrealization, realize!) appears in the
   ctrl transaction log with :source/kind :schema. Session templates can replay
-  schema state by projecting [:cljseq/schema ...] transactions first.
+  schema state by projecting [:txlog/schema ...] transactions first.
 
   Key design decisions: doc/design-device-model.md, Q74-Q76, Q79."
   (:require [nous.ctrl :as ctrl]))
@@ -63,9 +63,9 @@
 ;; Schema path helpers
 ;; ---------------------------------------------------------------------------
 
-(defn- model-path       [model-id]       [:cljseq/schema :device-models       model-id])
-(defn- realization-path [realization-id] [:cljseq/schema :realizations         realization-id])
-(defn- active-path      [model-id]       [:cljseq/schema :active-realizations  model-id])
+(defn- model-path       [model-id]       [:txlog/schema :device-models       model-id])
+(defn- realization-path [realization-id] [:txlog/schema :realizations         realization-id])
+(defn- active-path      [model-id]       [:txlog/schema :active-realizations  model-id])
 
 ;; ---------------------------------------------------------------------------
 ;; Profile introspection
@@ -97,7 +97,7 @@
     :profile/base     — required parameter schema (nested {:type :range ...} map)
     :profile/extended — optional extended parameter schema
 
-  Writes to [:cljseq/schema :device-models model-id] as a schema transaction.
+  Writes to [:txlog/schema :device-models model-id] as a schema transaction.
   Idempotent: re-calling replaces the stored model.
 
   Example:
@@ -130,7 +130,7 @@
     :nrpn-map  — {path-vec {:nrpn N :bits 14 :range [lo hi]}} MIDI NRPN assignments
     :param-map — {path-vec param-id} for :clap binding (future sprint)
 
-  Writes to [:cljseq/schema :realizations realization-id] as a schema transaction.
+  Writes to [:txlog/schema :realizations realization-id] as a schema transaction.
 
   Example:
     (defrealization :grey-meanie
@@ -217,7 +217,7 @@
   (MIDI CC, NRPN). Any prior realization for the same model is torn down first.
 
   Records the active realization as a schema transaction at:
-    [:cljseq/schema :active-realizations model-id]
+    [:txlog/schema :active-realizations model-id]
 
   Throws if the model or realization is not registered, or if the realization
   declares a different model than model-id.
@@ -234,11 +234,11 @@
     (when-not model
       (throw (ex-info "nous.schema/realize!: model not registered"
                       {:model model-id
-                       :registered (ctrl/child-keys [:cljseq/schema :device-models])})))
+                       :registered (ctrl/child-keys [:txlog/schema :device-models])})))
     (when-not realization
       (throw (ex-info "nous.schema/realize!: realization not registered"
                       {:realization realization-id
-                       :registered (ctrl/child-keys [:cljseq/schema :realizations])})))
+                       :registered (ctrl/child-keys [:txlog/schema :realizations])})))
     (when (not= (:model realization) model-id)
       (throw (ex-info "nous.schema/realize!: realization is for a different model"
                       {:model model-id :realization-model (:model realization)})))
@@ -280,12 +280,12 @@
 (defn list-models
   "Return a seq of registered model IDs."
   []
-  (ctrl/child-keys [:cljseq/schema :device-models]))
+  (ctrl/child-keys [:txlog/schema :device-models]))
 
 (defn list-realizations
   "Return a seq of registered realization IDs."
   []
-  (ctrl/child-keys [:cljseq/schema :realizations]))
+  (ctrl/child-keys [:txlog/schema :realizations]))
 
 (defn satisfies-profile?
   "Return true if realization-id declares support for the given profile keyword.

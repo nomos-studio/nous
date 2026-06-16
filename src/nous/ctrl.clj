@@ -582,7 +582,7 @@
   Returns nil if the path doesn't exist or is a CtrlNode leaf.
 
   Example:
-    (ctrl/child-keys [:cljseq/schema :device-models])
+    (ctrl/child-keys [:txlog/schema :device-models])
     ;; => (:arp2600 :korg/minilogue-xd)"
   [path]
   (when-let [s @system-ref]
