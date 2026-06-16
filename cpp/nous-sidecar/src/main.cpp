@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
 
     // 1. Select Link bridge based on build configuration.
     //    The sidecar's business logic is identical in both cases.
-#ifdef CLJSEQ_WITH_LINK
+#ifdef NOUS_WITH_LINK
     // initial_bpm=120 — overridden immediately by LinkEnable message from JVM.
     nous::LinkEngine link_engine(120.0);
     nous::LinkBridge& link = link_engine;

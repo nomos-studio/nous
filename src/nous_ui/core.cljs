@@ -1,8 +1,8 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous-ui.core
-  "cljseq browser control surface.
+  "nous browser control surface.
 
-  Connects to the cljseq HTTP server via WebSocket (/ws) for live ctrl-tree
+  Connects to the nous HTTP server via WebSocket (/ws) for live ctrl-tree
   updates. The ctrl-tree panel groups nodes by their first path segment, with
   each group collapsible. Interactive controls (sliders, toggles, enum buttons)
   write back via WebSocket. BPM has +/− nudge and click-to-edit.

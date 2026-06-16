@@ -1,8 +1,8 @@
 {
-  "name": "cljseq-ui",
+  "name": "nous-ui",
   "version": "0.14.0",
   "private": true,
-  "description": "ClojureScript control surface for cljseq",
+  "description": "ClojureScript control surface for nous",
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
