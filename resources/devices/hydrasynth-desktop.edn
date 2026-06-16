@@ -260,7 +260,7 @@
   :clock {:type :clock  :note "Clock in; divides LFO/ARP sync"}}
 
  ;; Desktop has no keyboard so no :notes bind-source
- :cljseq/bind-sources
+ :nous/bind-sources
  {:mod-wheel {:source :cc-1  :yields :cc-0-127}
   :macro-1   {:source :cc-16 :yields :cc-0-127}
   :macro-2   {:source :cc-17 :yields :cc-0-127}

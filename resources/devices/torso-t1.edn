@@ -247,7 +247,7 @@
  ;; nous binding hints
  ;; Default track→channel: track 1=ch1, track 2=ch2, etc.
  ;; -------------------------------------------------------------------------
- :cljseq/bind-sources
+ :nous/bind-sources
  {:notes-ch1  {:source :note-on  :channel 1  :yields :pitch-midi
                :note "T-1 track 1 (default ch 1); redirect any track to ch 1 via CHANNEL knob"}
   :notes-ch2  {:source :note-on  :channel 2  :yields :pitch-midi}
@@ -266,7 +266,7 @@
  ;; -------------------------------------------------------------------------
  ;; Travel rig setup notes
  ;; -------------------------------------------------------------------------
- :cljseq/travel-rig
+ :nous/travel-rig
  {:role        "Primary clock lead (Link) + euclidean rhythm/melody source"
   :link-setup  ["Connect T-1 to same Wi-Fi network as laptop (or use T-1 hotspot)"
                 "(nous.link/enable!) in REPL — auto-joins Link session"

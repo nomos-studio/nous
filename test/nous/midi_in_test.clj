@@ -29,7 +29,7 @@
   {:device/id   :test/keystep
    :device/role :controller
    :midi/channel 1
-   :cljseq/bind-sources
+   :nous/bind-sources
    {:notes       {:source :note-on            :yields :pitch-midi}
     :velocity    {:source :note-on            :yields :velocity-0-127}
     :touch-strip {:source :channel-pressure   :yields :pressure-0-127}
@@ -40,7 +40,7 @@
   {:device/id   :test/multichan
    :device/role :sequencer
    :midi/channel {:default :track-number :range [1 16] :per-track true}
-   :cljseq/bind-sources {}})
+   :nous/bind-sources {}})
 
 (def ^:private NOTE_ON          144)
 (def ^:private CHANNEL_PRESSURE 208)

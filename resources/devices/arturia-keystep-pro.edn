@@ -143,7 +143,7 @@
  ;; -------------------------------------------------------------------------
  ;; nous binding hints
  ;; -------------------------------------------------------------------------
- :cljseq/bind-sources
+ :nous/bind-sources
  {:notes       {:source :note-on          :yields :pitch-midi}
   :velocity    {:source :note-on          :yields :velocity-0-127}
   :touch-strip {:source :channel-pressure :yields :pressure-0-127}

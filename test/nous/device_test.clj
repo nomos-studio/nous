@@ -186,7 +186,7 @@
     (device/defdevice :test/ctrl
       {:device/role :controller :midi/channel 1
        :midi/cc []
-       :cljseq/bind-sources
+       :nous/bind-sources
        {:touch-strip {:source :channel-pressure :yields :pressure-0-127}}})
     (ctrl/defnode! [:synth/cutoff] :type :float :meta {:range [0.0 1.0]})
     (device/device-bind! [:synth/cutoff]
@@ -203,7 +203,7 @@
   (testing "device-bind! throws on unknown source name"
     (device/defdevice :test/ctrl
       {:device/role :controller :midi/channel 1 :midi/cc []
-       :cljseq/bind-sources {:sustain {:source :cc-64 :yields :boolean}}})
+       :nous/bind-sources {:sustain {:source :cc-64 :yields :boolean}}})
     (ctrl/defnode! [:some/param] :type :float)
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo

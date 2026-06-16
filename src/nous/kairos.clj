@@ -405,12 +405,12 @@
 (defn send-register-source!
   "Register a txlog source.
 
-  id          — keyword identifying the source (e.g. :cljseq/repl)
+  id          — keyword identifying the source (e.g. :nous/repl)
   name        — human-readable name string
   description — optional description string
 
   Example:
-    (kairos/send-register-source! :cljseq/repl \"nous REPL\" \"live session\")"
+    (kairos/send-register-source! :nous/repl \"nous REPL\" \"live session\")"
   [id name & [description]]
   (send-frame! (make-frame MSG-REGISTER-SOURCE
                            (edn-bytes {:id          id
@@ -923,7 +923,7 @@
       {:id      (java.util.UUID/randomUUID)
        :beat    8.0
        :wall-ns (System/nanoTime)
-       :source  :cljseq/repl
+       :source  :nous/repl
        :path    [:synth/a :freq]
        :after   440.0})"
   [entry]

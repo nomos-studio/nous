@@ -125,7 +125,7 @@
  ;; ctrl/bind! sources for incoming KeyStep data:
  ;;   (ctrl/bind! [:some/param] {:device :arturia/keystep :source :touch-strip})
  ;; -------------------------------------------------------------------------
- :cljseq/bind-sources
+ :nous/bind-sources
  {:notes       {:source :note-on    :yields :pitch-midi}
   :velocity    {:source :note-on    :yields :velocity-0-127}
   :touch-strip {:source :channel-pressure :yields :pressure-0-127}

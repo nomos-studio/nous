@@ -97,7 +97,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- matches-source?
-  "True if `midi-source` keyword (from :cljseq/bind-sources) describes
+  "True if `midi-source` keyword (from :nous/bind-sources) describes
   this MIDI command + data1 pair."
   [midi-source command data1]
   (case midi-source

@@ -257,7 +257,7 @@
   :mod-wheel  {:type :wheel :cc 1}
   :pitch-bend {:type :wheel}}
 
- :cljseq/bind-sources
+ :nous/bind-sources
  {:notes      {:source :note-on           :yields :pitch-midi}
   :velocity   {:source :note-on           :yields :velocity-0-127}
   :aftertouch {:source :channel-pressure  :yields :pressure-0-127}

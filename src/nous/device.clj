@@ -275,7 +275,7 @@
   Options:
     :priority — binding priority (default 20)
 
-  The source is looked up in the device's :cljseq/bind-sources map.
+  The source is looked up in the device's :nous/bind-sources map.
   The binding is stored on the ctrl node as type :midi-device-input.
 
   Actual inbound MIDI routing (KeyStep events → ctrl tree updates) requires
@@ -286,7 +286,7 @@
     (when-not reg
       (throw (ex-info "nous.device/device-bind!: unknown device"
                       {:device device :registered (keys @device-registry)})))
-    (let [bind-sources (clojure.core/get-in reg [:map :cljseq/bind-sources])
+    (let [bind-sources (clojure.core/get-in reg [:map :nous/bind-sources])
           source-info  (clojure.core/get bind-sources source)]
       (when-not source-info
         (throw (ex-info "nous.device/device-bind!: unknown bind source"
