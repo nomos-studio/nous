@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: EPL-2.0
 #
-# cljseq Music21 persistent server — JSON-lines stdio protocol
+# nous Music21 persistent server — JSON-lines stdio protocol
 #
 # Replaces the one-shot m21_extract.py with a long-running process that
 # eliminates the 2-4 second music21 startup cost on every call.
 #
 # Lifecycle:
-#   Started lazily by cljseq.m21/ensure-server! on first corpus request.
+#   Started lazily by nous.m21/ensure-server! on first corpus request.
 #   Exits cleanly when stdin closes (parent JVM process died — free crash
 #   detection via OS pipe semantics, no heartbeat needed).
 #   Can also be terminated cleanly via {"op": "shutdown"}.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: EPL-2.0
 #
-# cljseq Music21 extractor — Phase 1 + Phase 2
+# nous Music21 extractor — Phase 1 + Phase 2
 #
 # Loads a Bach chorale from the music21 corpus by BWV number and prints
 # the result as EDN on stdout.
