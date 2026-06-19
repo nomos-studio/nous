@@ -89,7 +89,7 @@ sudo dnf install alsa-lib-devel cmake gcc-c++ make
 ## 2. Build
 
 ```bash
-git clone https://github.com/rodgert/nous.git
+git clone https://github.com/nomos-studio/nous.git
 cd nous
 
 # Build the real-time MIDI sidecar
