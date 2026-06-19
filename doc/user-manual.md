@@ -1,6 +1,6 @@
 # nous User Manual
 
-Version 0.14.0 · April 2026
+Version 0.18.0 · June 2026
 
 ---
 
@@ -49,6 +49,11 @@ Version 0.14.0 · April 2026
 41. [Step Sequencer Protocol (`nous.seq`)](#41-step-sequencer-protocol-nousseq)
 42. [Pattern × Rhythm Motifs (`nous.pattern`)](#42-pattern--rhythm-motifs-nouspattern)
 43. [Transaction Journal (`nous.journal`)](#43-transaction-journal-nousjournal)
+44. [Kairos CLAP Host (`nous.kairos`)](#44-kairos-clap-host-nouskairos)
+45. [MTS Retune Arc (`nous.mts`)](#45-mts-retune-arc-nousmts)
+46. [Berlin School Vocabulary (`nous.berlin`)](#46-berlin-school-vocabulary-nousberlin)
+47. [Harmonic Excursion Arc (`nous.excursion`)](#47-harmonic-excursion-arc-nousexcursion)
+48. [Journey Conductor (`nous.journey`)](#48-journey-conductor-nousjourney)
 
 ---
 
@@ -88,7 +93,7 @@ git clone https://github.com/rodgert/nous.git
 cd nous
 
 # Build the real-time MIDI sidecar
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCLJSEQ_BUILD_AUDIO=OFF
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 
 # Run the test suite (optional; requires no MIDI hardware)
@@ -102,8 +107,7 @@ Windows). The Clojure side finds it automatically.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release \
-      -DCLJSEQ_BUILD_AUDIO=OFF \
-      -DCLJSEQ_ENABLE_LINK=ON
+      -DNOUS_ENABLE_LINK=ON
 cmake --build build --parallel
 ```
 
@@ -530,7 +534,7 @@ Link-enabled software).
 (link/disable!)
 ```
 
-Link requires the sidecar to be built with `-DCLJSEQ_ENABLE_LINK=ON`.
+Link requires the sidecar to be built with `-DNOUS_ENABLE_LINK=ON`.
 
 ### Transport control (Phase 2)
 
@@ -4302,6 +4306,619 @@ journal for session save/restore:
 The `.nous` export format is fully-qualified, human-readable Clojure forms
 (`nous.schema/defdevice-model`, `nous.ctrl/set!`, etc.) — diff-friendly
 and safe to commit to version control.
+
+---
+
+---
+
+## 44. Kairos CLAP Host (`nous.kairos`)
+
+kairos is a C++ CLAP host that nous controls via a Unix domain socket. It
+manages the plugin graph, MIDI routing, and Ableton Link transport for the
+CLAP synthesis layer. Both the nous-sidecar (MIDI-only) and kairos can be
+active simultaneously on different MIDI paths.
+
+### Connection
+
+```clojure
+(require '[nous.kairos :as kairos])
+
+;; Launch kairos as a managed subprocess and connect
+(kairos/start-kairos! :binary "/usr/local/bin/kairos")
+
+;; Or connect to an already-running kairos instance
+(kairos/connect!)
+(kairos/connect! :socket-path "/tmp/my-kairos.sock")
+
+;; Check connection
+(kairos/connected?)  ; => true
+
+;; Disconnect (does not kill a managed subprocess)
+(kairos/disconnect!)
+
+;; Kill managed subprocess and disconnect
+(kairos/stop-kairos!)
+
+;; Kill and relaunch using stored opts from last start-kairos! call
+(kairos/restart-kairos!)
+```
+
+### MIDI output via kairos
+
+```clojure
+;; Send a note on channel 1, MIDI note 60, velocity 100, duration in ms
+(kairos/send-note-on!  channel note velocity duration-ms)
+(kairos/send-note-off! channel note velocity)
+
+;; Send CC
+(kairos/send-cc! channel cc-num value)
+
+;; Send pitch bend (14-bit: 0=full down, 8192=centre, 16383=full up)
+(kairos/send-pitch-bend! channel bend-value)
+
+;; Send channel pressure
+(kairos/send-channel-pressure! channel pressure)
+
+;; Send SysEx bytes
+(kairos/send-sysex! [0xF0 0x41 0x10 0xF7])
+```
+
+### MTS via kairos
+
+```clojure
+;; Send MTS Bulk Dump from a scala Scale record
+(require '[nous.scala :as scala])
+(def ms (scala/load-scl "31edo.scl"))
+(kairos/send-mts! ms)
+
+;; With a keyboard map and explicit slot/device
+(kairos/send-mts! ms kbm :tuning-prog 0 :device-id :all)
+
+;; From a raw {MIDI-note → Hz} freq-map
+(kairos/send-mts! freq-map :tuning-prog 0)
+```
+
+### Plugin graph
+
+```clojure
+;; Load a plugin graph from EDN (produced by alembic or hand-written)
+(kairos/send-graph-load! graph-edn)
+
+;; Reset the plugin graph (unload all plugins)
+(kairos/send-graph-reset!)
+
+;; List plugins the kairos instance has discovered
+(kairos/list-plugins!)
+;; => [{:id "org.nomos-studio.alembic.mypatch" :name "mypatch" :version "1.0.0"} ...]
+
+;; Get cached plugin registry (last result from list-plugins!)
+(kairos/plugin-registry)
+```
+
+### Hot-swap WASM patch
+
+Alembic-compiled WASM patches can be hot-swapped into a running graph:
+
+```clojure
+;; Send a new WASM binary to the running graph node identified by plugin-id
+(kairos/send-wasm-hot-swap! plugin-id wasm-bytes)
+```
+
+### Ableton Link via kairos
+
+When kairos is the Link peer, use these instead of `nous.link`:
+
+```clojure
+(kairos/send-link-set-tempo! 120.0)
+(kairos/send-link-start-transport!)
+(kairos/send-link-stop-transport!)
+```
+
+### RT modulator engine
+
+kairos hosts a sample-accurate modulator engine with 20+ modulator types.
+Start and stop modulators by name:
+
+```clojure
+;; Start a named modulator (modulator-edn is a map describing type and params)
+(kairos/start-modulator! modulator-name modulator-edn)
+
+;; Stop a named modulator
+(kairos/stop-modulator! modulator-name)
+```
+
+### MIDI input from kairos
+
+kairos/aion buffers incoming MIDI into `midi-in-messages`:
+
+```clojure
+;; Ring-buffer of recent MIDI messages (last 256)
+@kairos/midi-in-messages
+;; => [{:port 0 :channel 1 :data [0x90 60 100]} ...]
+
+;; Block until a matching message arrives
+(kairos/await-midi-message #(= 0x90 (first (:data %))))
+(kairos/await-midi-message #(= 0x90 (first (:data %))) :timeout-ms 2000)
+```
+
+### Tick callbacks
+
+kairos sends a tick on every MIDI clock pulse. Register lightweight callbacks:
+
+```clojure
+(def handle (kairos/on-tick! ::my-cb (fn [] (println "tick"))))
+(kairos/off-tick! handle)
+```
+
+---
+
+## 45. MTS Retune Arc (`nous.mts`)
+
+`nous.mts` provides `retune-arc!` — a gradual, beat-accurate retune that
+interpolates between two `{MIDI-note → Hz}` freq-maps and sends MTS Bulk Dumps
+at each step via `kairos/send-mts!`. Interpolation is log-linear (cents space)
+so each step covers a perceptually equal interval.
+
+### Building freq-maps from Scala scales
+
+```clojure
+(require '[nous.scala :as scala]
+         '[nous.mts   :as mts])
+
+;; Parse Scala files or inline strings
+(def partch-43 (scala/load-scl "partch-43.scl"))
+(def tet-12    (scala/parse-scl "! 12-tet.scl\n12\n100.0\n200.0\n..."))
+
+;; Build freq-maps (128-entry {MIDI-note → Hz} maps)
+(def ji-map  (scala/scale->freq-map partch-43))
+(def tet-map (scala/scale->freq-map tet-12))
+```
+
+### Point-in-time interpolation
+
+```clojure
+;; Blend at t ∈ [0.0, 1.0] — useful for manual or trajectory-driven retune
+(def blended (mts/lerp-freq-maps ji-map tet-map 0.5))
+(kairos/send-mts! blended)
+```
+
+### Scheduled retune arc
+
+```clojure
+(require '[nous.link :as link]
+         '[nous.loop :as loop-ns])
+
+;; 8-step JI→12-TET arc over 32 beats, starting on the next 32-beat boundary
+(let [start (link/next-quantum-beat (loop-ns/-current-beat) 32)]
+  (mts/retune-arc! ji-map tet-map start 32))
+
+;; With options
+(mts/retune-arc! ji-map tet-map start 64
+                 :steps 16         ; more steps = smoother morph
+                 :tuning-prog 0    ; MTS program slot
+                 :device-id :all)  ; or an integer device ID
+
+;; retune-arc! returns a future — deref to wait for completion
+@(mts/retune-arc! ji-map tet-map start 32)
+```
+
+Step spacing: at 120 BPM, 1 beat = 500 ms. The default 8 steps over 32 beats
+gives one MTS dump every 4 beats (~2 s) — enough time for the synthesiser to
+process each dump. Increase `:steps` for a smoother morph; decrease if CPU
+or MIDI bandwidth is constrained.
+
+### berlin/tuning-morph! (higher-level)
+
+For direct Scale-to-Scale morphing in the Berlin vocabulary, use
+`berlin/tuning-morph!` instead — it sends MTS at each bar boundary and
+stops automatically when complete:
+
+```clojure
+(require '[nous.berlin :as berlin])
+
+(berlin/tuning-morph! (scala/load-scl "12-tet.scl")
+                      (scala/load-scl "carlos-alpha.scl")
+                      32 nil)   ; 32 bars, no KBM
+```
+
+---
+
+## 46. Berlin School Vocabulary (`nous.berlin`)
+
+`nous.berlin` captures the structural grammar of Berlin School / Kosmische
+music — slowly mutating ostinati, portamento glides, filter journeys, tape
+drift, and Frippertronics-style SOS accumulation.
+
+### Ostinato
+
+An ostinato is a mutating repeating step sequence. Mutation fires at each
+complete pass; the rhythmic skeleton (step count, durations) is preserved
+across all mutation modes.
+
+```clojure
+(require '[nous.berlin :as berlin])
+
+;; Build an ostinato context
+(def ost
+  (berlin/ostinato
+    [{:pitch/midi 62 :dur/beats 1/8}
+     {:pitch/midi 65 :dur/beats 1/8}
+     {:pitch/midi 69 :dur/beats 1/8}
+     {:pitch/midi 72 :dur/beats 1/4}]
+    {:scale         (make-scale :D 4 :dorian)
+     :mutation-rate 0.12   ; probability per note per pass
+     :drift         :up    ; :up, :down, or :random
+     :microtonal    true   ; per-note cent drift
+     :gravity       0.7})) ; pull back toward equal temperament
+
+;; Advance in a live loop
+(deflive-loop :seq {}
+  (play! (berlin/next-step! ost))
+  (sleep! 1/8))
+```
+
+#### Mutation modes
+
+| Function | Mode | Behaviour |
+|---|---|---|
+| `freeze-ostinato!` | — | Stop all mutation; pattern repeats exactly |
+| `thaw-ostinato!` | :random-walk | Resume random-walk at rate (default 0.1) |
+| `deflect-ostinato!` | :teleological | Drift toward a target pattern over passes |
+| `crystallize!` | :crystallize | Pull any out-of-set note toward nearest target note |
+| `dissolve!` | :dissolve | Notes drift away from current degrees (fragmentation) |
+| `reset-ostinato!` | — | Reset position to step 0 (re-sync to beat boundary) |
+
+```clojure
+;; Freeze, then deflect toward a new pattern
+(berlin/freeze-ostinato! ost)
+(berlin/deflect-ostinato! ost
+  [{:pitch/midi 64 :dur/beats 1/8}
+   {:pitch/midi 67 :dur/beats 1/8}
+   {:pitch/midi 71 :dur/beats 1/8}
+   {:pitch/midi 74 :dur/beats 1/4}]
+  {:rate 0.2})
+
+;; Crystallize toward a target (pulls notes to nearest target pitch)
+(berlin/crystallize! ost target-pattern {:rate 0.25})
+
+;; Begin fragmentation
+(berlin/dissolve! ost {:rate 0.2})
+```
+
+#### Trajectory-driven mutation rate
+
+```clojure
+(require '[nous.trajectory :as traj])
+
+;; Rate rises from 0.02 to 0.25 over 64 passes
+(berlin/set-mutation-trajectory! ost
+  (traj/trajectory :smooth-step 0 0.02 1 0.25)
+  64)
+```
+
+### Portamento
+
+```clojure
+;; Enable portamento on channel 1, 120 ms glide time
+(berlin/set-portamento! 1 120)
+
+;; Disable
+(berlin/set-portamento! 1 0)
+
+;; Scoped: enable for the play! call then disable
+(deflive-loop :glide {}
+  (berlin/with-portamento 1 80
+    (play! (berlin/next-step! ost)))
+  (sleep! 1/4))
+```
+
+### Filter journey
+
+A slow CC sweep over N bars driven by a trajectory curve. Launches a
+background loop that stops itself when complete.
+
+```clojure
+;; Open filter cutoff from 0→127 over 64 bars with a breathing curve
+(berlin/filter-journey! [:filter :cutoff] 74 1 0 127 64 :breathe)
+;; curves: :breathe (default), :linear, :smooth-step, :bounce
+```
+
+### Tuning morph
+
+Interpolate between two Scala scales over N bars, sending MTS at each bar:
+
+```clojure
+(berlin/tuning-morph! (scala/load-scl "12-tet.scl")
+                      (scala/load-scl "carlos-alpha.scl")
+                      32 nil)  ; 32 bars, no KBM
+```
+
+### Phase drift
+
+Register a fractional tempo offset between two loops:
+
+```clojure
+;; Loop :seq-b runs 1% slower than master tempo
+(berlin/phase-drift! :seq-b 0.01)
+(berlin/clear-drift! :seq-b)
+
+;; Use journey/phase-pair to find when incommensurate loops re-align
+(require '[nous.journey :as journey])
+(journey/phase-pair 12 17)
+;; => {:lcm 204 :alignment-beats [204 408 612 816 1020]
+;;     :drift-rate 0.0294 :at-bpm {:bpm 100 :minutes 2.04}}
+```
+
+### Tape drift
+
+Wrap an ostinato with tape-style pitch wobble (worn tape simulation):
+
+```clojure
+(def drifting-ost (berlin/tape-drift ost 12))  ; ±12 cents max drift
+
+(deflive-loop :tape {}
+  (play! (berlin/tick-tape! drifting-ost))
+  (sleep! 1/8))
+```
+
+### Frippertronics SOS (Sound on Sound)
+
+Models the Fripp/Eno tape loop technique using `nous.temporal-buffer`:
+
+```clojure
+;; Create a SOS accumulation buffer
+(def sos (berlin/frippertronics! :sos
+           {:zone            :z6   ; 64-beat tape loop
+            :feedback        0.75
+            :max-generation  12
+            :color           :tape}))
+
+;; Feed and play simultaneously
+(def ost-a (berlin/tape-drift ost 8))
+(deflive-loop :layer-a {}
+  (play! (berlin/sos-send! sos (berlin/tick-tape! ost-a)))
+  (sleep! 1/4))
+
+;; After 64 beats, layer-a begins accumulating.
+;; Add a second layer on top:
+(deflive-loop :layer-b {}
+  (play! (berlin/sos-send! sos (berlin/next-step! ost)))
+  (sleep! 1/8))
+```
+
+Color presets: `:tape` (vel×0.95, dur×0.98, ±10¢ flutter), `:dark`
+(vel×0.90, dur×1.15, −5¢ sag), `:warm` (vel×0.93, dur×1.05).
+
+---
+
+## 47. Harmonic Excursion Arc (`nous.excursion`)
+
+`nous.excursion` implements the most characteristic Partch compositional
+shape: a five-phase arc that gives complex JI intervals their weight by
+framing them with established consonance.
+
+```
+Phase 1: GROUND     — establish the tonic region (low Tenney distance)
+Phase 2: DEPARTURE  — move outward, increasing Tenney distance
+Phase 3: EXCURSION  — reach the far territory (alien frontier)
+Phase 4: RETURN     — follow gravity back toward origin
+Phase 5: RESOLUTION — arrive at the tonic with perceptible weight
+```
+
+### Defining an excursion arc
+
+```clojure
+(require '[nous.excursion :as exc])
+
+(defexcursion f-sharp-arc
+  :fundamental :F#2
+  :region {:otonal-limit 11 :utonal-limit 7 :tenney-limit 6.5}
+  :arc {:ground     {:steps 8}
+        :departure  {:steps 6  :target-tenney 5.0}
+        :excursion  {:steps 4}
+        :return     {:steps 8  :target-tenney 1.5}
+        :resolution {:steps 2  :approach :septimal :to [1 1]}}
+  :repeat true)
+```
+
+`defexcursion` creates a var bound to an atom and registers it at
+`[:excursion :f-sharp-arc]` in the ctrl tree.
+
+### Advancing and output keys
+
+```clojure
+(exc/next-step! f-sharp-arc)
+;; => {:pitch/voct         ...        ; V/oct from fundamental (JI, not ET)
+;;     :pitch/midi         42         ; nearest MIDI note
+;;     :dur/beats          4.0        ; step duration
+;;     :gate/on?           true
+;;     :lattice/point      [3 2]      ; [m n] current lattice position
+;;     :lattice/tenney     2.585      ; Tenney H (log₂(mn))
+;;     :lattice/otonality  0.58       ; [0,1] otonal character
+;;     :excursion/phase    :ground
+;;     :excursion/step     0}         ; step within phase
+```
+
+In a live loop — the step already contains `:pitch/midi` and `:dur/beats`, so
+`play!` + `sleep!` consume it naturally:
+
+```clojure
+(deflive-loop :excursion-voice {}
+  (let [step (exc/next-step! f-sharp-arc)]
+    (play! step)
+    (sleep! (:dur/beats step))))
+```
+
+### Phase control
+
+```clojure
+;; Jump to a named phase immediately
+(exc/skip-to-phase! f-sharp-arc :excursion)
+
+;; Reset to ground phase, step 0
+(exc/restart! f-sharp-arc)
+```
+
+### Phase config reference
+
+```clojure
+:arc {:ground     {:steps 8
+                   :positions [[1 1] [5 4] [3 2]]  ; optional fixed cycle
+                   :mode :gravity}                   ; default
+      :departure  {:steps 6
+                   :target-tenney 5.0               ; exit early if H ≥ this
+                   :mode :expand}
+      :excursion  {:steps 4
+                   :mode :random-walk               ; or :gravity :expand
+                               ;  :otonal-step :utonal-step
+                   :otonality 0.5}
+      :return     {:steps 8
+                   :target-tenney 1.5               ; exit early if H ≤ this
+                   :mode :gravity}
+      :resolution {:steps 2
+                   :approach :septimal              ; or :direct :supertonic
+                               ;  :overtone :diatonic
+                   :to [1 1]}}
+```
+
+### Duration modes
+
+`:duration` controls how long each step lasts:
+
+```clojure
+;; Fixed
+:duration 4.0
+
+;; Tenney-modulated — longer duration at higher harmonic distance
+:duration {:mode :tenney-modulated :base-beats 8.0 :scale :inverse}
+
+;; Probability — hold until a Bernoulli event fires
+:duration {:mode :probability :p 0.1 :min-beats 1.0}
+```
+
+### Voice name — inter-voice harmony
+
+When used with `defensemble`, set `:voice-name` to publish pitch and motion
+to the harmony bus so ensemble peers can monitor this voice:
+
+```clojure
+(defexcursion bass-arc
+  :fundamental :C2
+  :voice-name :bass
+  ...)
+```
+
+---
+
+## 48. Journey Conductor (`nous.journey`)
+
+`nous.journey` provides the macro-temporal structure for long-form Berlin
+School compositions: a global bar counter, a journey conductor that fires
+transition functions at scheduled bars, and utilities for working with
+incommensurate loop relationships.
+
+### Global bar counter
+
+```clojure
+(require '[nous.journey :as journey])
+
+;; Start the counter — increments every 4 beats (or beats-per-bar if set)
+(journey/start-bar-counter!)
+(journey/start-bar-counter! 3)   ; 3/4 time
+
+;; Query
+(journey/current-bar)   ; => 47
+
+;; Reset without stopping
+(journey/reset-bar-counter!)
+
+;; Stop
+(journey/stop-bar-counter!)
+```
+
+The bar counter is a live loop (`:journey/bar-counter`) — it updates
+continuously and can be read from any other loop.
+
+### Journey conductor
+
+`start-journey!` takes a timeline of `[bar fn]` pairs and fires each
+function exactly once when that bar is reached:
+
+```clojure
+(journey/start-journey!
+  [[0   #(begin-emergence!)]
+   [32  #(open-filter!)]
+   [64  #(crystallise-ostinato!)]
+   [128 #(begin-dissolution!)]]
+  {:on-end #(println "Journey complete")})
+
+;; Stop the conductor loop
+(journey/stop-journey!)
+(journey/stop-journey! :my-named-conductor)  ; if started with :name
+```
+
+### Phaedra arc scaffold
+
+The canonical four-movement timeline for a ~20-minute journey at 100 BPM:
+
+```clojure
+(let [arc   (journey/phaedra-arc)
+      tl    (:timeline arc)
+      ;; (:timeline arc) => [[0 :begin-emergence] [32 :open-filter-1] ...]
+      ;; Replace keyword placeholders with your transition functions:
+      fns   {:begin-emergence  #(begin-emergence!)
+             :open-filter-1    #(open-filter-1!)
+             :crystallise      #(crystallise!)
+             :enter-development #(enter-development!)
+             ,,,}
+      tl+fn (mapv (fn [[bar kw]] [bar (get fns kw #(println kw))]) tl)]
+  (journey/start-journey! tl+fn))
+
+;; Movement ranges
+(:movements (journey/phaedra-arc))
+;; => {:emergence [0 64] :crystallise [48 80]
+;;     :development [64 240] :dissolution [240 320]}
+```
+
+### Phase-pair analysis
+
+Two loops of incommensurate length drift in and out of phase. Calculate
+their alignment events before you start:
+
+```clojure
+(journey/phase-pair 12 17)
+;; => {:lcm 204
+;;     :alignment-beats [204 408 612 816 1020]
+;;     :drift-rate 0.02941...
+;;     :at-bpm {:bpm 100 :minutes 2.04}}
+
+;; Classic Rubycon-style pairs
+(journey/phase-pair 16 23)  ; LCM 368  ≈ 3.7 min
+(journey/phase-pair 12 19)  ; LCM 228  ≈ 2.3 min
+(journey/phase-pair 17 23)  ; LCM 391  ≈ 3.9 min
+```
+
+Use these pairs as loop lengths in `deflive-loop` to build the drift
+texture characteristic of Tangerine Dream and Klaus Schulze.
+
+### Humanise
+
+Apply analogue sequencer micro-timing and velocity variance to a step:
+
+```clojure
+;; Default: ±6 ms timing, ±8 velocity
+(journey/humanise step)
+
+;; Custom
+(journey/humanise step {:timing-variance-ms 10
+                        :velocity-variance   12
+                        :timing-bias         :late})
+
+;; In a loop
+(deflive-loop :ost-humanised {}
+  (play! (journey/humanise (berlin/next-step! ost)))
+  (sleep! 1/8))
+```
 
 ---
 
