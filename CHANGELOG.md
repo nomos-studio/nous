@@ -10,6 +10,50 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.18.0] — 2026-06-20
+
+### Added
+
+#### Smart peer launcher
+
+- **`start-sidecar!`** — rewritten as a real auto-discoverer. Searches
+  `/usr/local/bin`, `/opt/homebrew/bin`, and `$PREFIX/bin` for kairos
+  (preferred, full CLAP host) then aion (fallback, MIDI/Link only). Constructs
+  the CLI arg vector from keyword options; kairos-specific flags
+  (`--plugin-path`, `--plugin`, `--block-size`, `--audio-out-ch`,
+  `--audio-in-ch`) are silently dropped when aion is selected. Socket path
+  defaults to `/tmp/kairos.sock` or `/tmp/aion.sock` per binary.
+  `:binary` override skips discovery; filenames starting with `aion` enter
+  aion mode automatically.
+- **`start-aion!`** — explicit aion launcher for sessions targeting low-power
+  hardware (Raspberry Pi Zero 2W, remote nodes). Accepts the same common
+  options as `start-sidecar!`; kairos-only flags are silently ignored.
+- **`nous.user-test`** — unit coverage for peer auto-discovery helpers
+  (`sidecar-cli-args`, `locate-sidecar`) and the public launcher API.
+
+#### User manual v0.18.0
+
+- New chapters: §44 Kairos CLAP host, §45 MTS retune arc, §46 Berlin school
+  oscillator model, §47 Excursion harmonic journey, §48 Journey composition.
+- §2 Build rewritten for kairos/aion as separate repos; per-peer build steps;
+  `start-sidecar!` search path documented.
+- §4 "The Sidecar" → "The Runtime Peer": TCP → Unix domain socket; kairos/aion
+  comparison table; auto-discovery explained.
+- All remaining sidecar noun references updated throughout (§3, §9, §10, §14,
+  §35, §36, §37, §43, §44, config table, license footer).
+
+### Changed
+
+- **nomos-studio rename complete** — all remaining cljseq-era identifiers swept
+  from Clojure source, CLAP plugin IDs, test payloads, CHANGELOG comparison
+  URLs, CI config, UI labels, and C++ comments. Extension ID
+  `org.cljseq.kairos.ext.hot-swap/1` documented as historical in ABI comment.
+- **`stop-sidecar!`** docstring corrected: explicitly states it delegates to
+  `stop-kairos!` because connection state is shared regardless of which binary
+  is running.
+
+---
+
 ## [0.17.0] — 2026-06-07
 
 ### Added
