@@ -279,10 +279,10 @@
   "Canonical path for the user's studio topology file.
 
   Default: (user-config-dir)/topology.edn
-  Override: CLJSEQ_TOPOLOGY environment variable.
+  Override: NOUS_TOPOLOGY environment variable.
 
   The file is not created automatically. Use nous.topology/load-topology!
   to load it; see doc/topology-example.edn for the schema and annotations."
   ^String []
-  (or (read-env "CLJSEQ_TOPOLOGY")
+  (or (read-env "NOUS_TOPOLOGY")
       (str (user-config-dir) "/topology.edn")))

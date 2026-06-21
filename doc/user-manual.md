@@ -947,7 +947,7 @@ cp doc/topology-example.edn ~/.config/nous/topology.edn
 The path can also be set explicitly:
 
 ```bash
-export CLJSEQ_TOPOLOGY=/path/to/my-studio.edn
+export NOUS_TOPOLOGY=/path/to/my-studio.edn
 ```
 
 ### Loading and using the topology
@@ -955,7 +955,7 @@ export CLJSEQ_TOPOLOGY=/path/to/my-studio.edn
 ```clojure
 (require '[nous.topology :as topology])
 
-;; Load from default path (~/.config/nous/topology.edn or CLJSEQ_TOPOLOGY)
+;; Load from default path (~/.config/nous/topology.edn or NOUS_TOPOLOGY)
 (topology/load-topology!)
 
 ;; Or load from an explicit path

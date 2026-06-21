@@ -47,7 +47,7 @@
   "Return the default path for the studio topology file.
 
   Resolution order:
-    1. CLJSEQ_TOPOLOGY environment variable
+    1. NOUS_TOPOLOGY environment variable
     2. (dirs/user-config-dir)/topology.edn
        -- XDG default: ~/.config/nous/topology.edn
        -- macOS native: ~/Library/Application Support/nous/topology.edn
@@ -76,7 +76,7 @@
                 (throw (ex-info
                         (str "Topology file not found: " path "\n"
                              "  Create it from the schema reference: doc/topology-example.edn\n"
-                             "  Or set CLJSEQ_TOPOLOGY to an explicit path.")
+                             "  Or set NOUS_TOPOLOGY to an explicit path.")
                         {:path path})))]
      (when-not (map? (:devices topo))
        (throw (ex-info "Invalid topology: :devices must be a map"

@@ -10,6 +10,59 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.19.0] — 2026-06-21
+
+### Added
+
+#### Device maps
+
+- **`arturia-microfreak.edn`** — MicroFreak mono synth; 11 osc algorithms, SEM
+  analog filter, poly-AT, MTS Scale Tuning (Bulk Dump) support; looper chain context.
+- **`hologram-microcosm.edn`** — Microcosm granular FX pedal; 35 CCs transcribed
+  from official manual pp. 20-21; Hold Sampler (CC 48) and Pre-FX routing (CC 24)
+  for drone/texture workflows; full PC chart (45 presets + 4 user banks); DIN MIDI
+  only, THRU chain topology documented.
+- **`singular-sound-aeros.edn`** — Aeros Loop Studio 6×6 looper; RPO (CC 43),
+  stop/parts/undo (CC 44-46), track solo/mute matrix (CC 47-58); high-confidence
+  entries cross-referenced against `singular-sound-midi-maestro.edn` App Mode 2.
+- **`behringer-lm-drum.edn`** — LM DRUM sampling drum machine (LinnDrum clone);
+  16 voices, 109 sounds; GM-compatible note map; CC 74 analog filter; CC 75-90
+  per-voice tuning; chromatic MIDI channel assignments; multi-sample voice notes.
+  Transcribed from official manual v1.1 (firmware 1.5, January 2025).
+
+#### Documentation
+
+- **README.md** — complete rewrite for nomos-studio era: kairos/aion peer model;
+  18 feature sections covering all namespaces; corrected Unix socket architecture
+  diagram; device table expanded from 14 to 42 entries grouped by manufacturer.
+- **BUILD.md** — complete rewrite: nous is Clojure-only (`lein test`/`lein repl`);
+  separate peer install for kairos/aion; correct cmake flag `NOUS_ENABLE_LINK=ON`;
+  updated directory layout.
+- **`doc/user-manual.md`** §22 "Score Corpus (`nous.m21`)" — renamed from "Bach
+  Corpus"; adds `search-corpus`, `load-work` with `:parts`/`:chords`/`:intervals`,
+  Palestrina example, full corpus scope.
+- **`doc/user-manual.md`** §22a "Freesound Sample Library (`nous.freesound`)" —
+  API key setup, `search-freesound`, `fetch-and-load!`, `load-essentials!`,
+  `curate-essentials!`.
+- **`doc/user-manual.md`** §49 "Terrain Sequencer (`nous.terrain`)" — `defterrain`,
+  X/Y/Z phasors, `make-terrain-seq`, ctrl-tree/trajectory integration.
+- **`doc/user-manual.md`** §50 "Book of Sounds (`nous.book`)" — `defbook`,
+  pages/harmonics/gravity, `next-step!`, `go-page!`, cell mode.
+- **`doc/design-bwosc.md`** — bwosc design: Bitwig Studio controller extension as a
+  full ctrl tree peer; owns `[:bitwig ...]` namespace; push-native via nREPL in both
+  directions; `nous.bitwig` companion namespace; `peer/connect-peer!` spec.
+- **`project.clj`** codox namespace list expanded from 21 to ~55 namespaces organised
+  by category; `nous.sidecar` removed.
+
+### Changed
+
+- **`CLJSEQ_TOPOLOGY → NOUS_TOPOLOGY`** — environment variable renamed in
+  `nous.dirs/topology-path`, `nous.topology/default-topology-path` docstring and
+  error message, and user manual §14. `doc/topology-example.edn` already used
+  `NOUS_TOPOLOGY`; now consistent across all files.
+
+---
+
 ## [0.18.0] — 2026-06-20
 
 ### Added

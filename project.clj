@@ -1,5 +1,5 @@
 ; SPDX-License-Identifier: EPL-2.0
-(defproject nous "0.18.0"
+(defproject nous "0.19.0"
   :description "nous — music-theory-aware Clojure sequencer targeting MIDI and OSC"
   :url "https://github.com/nomos-studio/nous"
   :license {:name "EPL-2.0"
