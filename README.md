@@ -274,6 +274,7 @@ scheduler thread, independent of JVM garbage collection.
 
 | Device | Type | Notes |
 |--------|------|-------|
+| LM DRUM | Drum machine | LinnDrum clone; 109 sounds, 64-step seq, tuning CCs 75-90, filter CC 74 |
 | 2600 | Semi-modular | ARP 2600 clone; MIDI CV/gate + limited CC |
 | K-2 MK2 | Semi-modular | Korg MS-20 MK2 clone |
 | Kobol Expander | Semi-modular | RSF Kobol Expander clone |

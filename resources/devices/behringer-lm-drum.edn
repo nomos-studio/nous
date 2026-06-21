@@ -1,0 +1,236 @@
+;; SPDX-License-Identifier: EPL-2.0
+;;
+;; Behringer LM DRUM — nous device map
+;;
+;; Classic Hybrid Sampling Drum Machine with 109 Drum Sounds, Sample Recording,
+;; 64-Step Sequencer, Wave Designer, and Dual-Mode Analog Filter.
+;; Clone of the Roger Linn LinnDrum (LM-2, 1982) — the instrument that defined
+;; the sound of 1980s pop and established the template for programmable drum
+;; machines that followed (Roland TR-808/909, etc.).
+;;
+;; 16 voices: Bass, Snare (×3 variations), Sidestick, Closed Hat (×2),
+;; Open Hat, Hi/Mid/Lo Tom, Ride, Crash, Cabasa, Tambourine, Hi/Lo Conga,
+;; Cowbell, Claps. User sample recording. Bitcrusher per voice (12→1-bit).
+;;
+;; MIDI: USB-B + 5-pin DIN IN/OUT/THRU. Analog SYNC IN/OUT (3.5mm TS).
+;; Note assignments are re-assignable via MIDI Map menu; defaults listed below.
+;; The same note numbers are used for TX and RX.
+;;
+;; Source: Behringer LM DRUM User Manual v1.1 (firmware 1.5, January 2025)
+;;         pp. 19-22 — MIDI Map, Tune Controls, Analog Filter, Chromatic channels
+;; Confidence: High — transcribed directly from official manual.
+
+{:device/id           :behringer/lm-drum
+ :device/name         "Behringer LM DRUM"
+ :device/manufacturer "Behringer"
+ :device/type         :drum-machine
+ :device/role         :target
+ :device/connectivity [:usb-midi    ; USB 2.0 Type B — MIDI + SynthTribe app + firmware
+                        :din-midi   ; 5-pin DIN MIDI IN + OUT + THRU
+                        :analog-sync] ; 3.5mm TS SYNC IN + SYNC OUT
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI channel
+ ;; -------------------------------------------------------------------------
+ :midi/channel        10            ; standard GM drum channel (default)
+                                    ; channel assignment configurable via MIDI Map menu
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI clock
+ ;; -------------------------------------------------------------------------
+ :midi/clock
+ {:receive true
+  :send    true
+  :analog-sync {:in  "3.5mm TS SYNC IN — slave to external analog clock (DIN sync)"
+                :out "3.5mm TS SYNC OUT — master clock for external analog devices"}}
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI note map — drum voice triggers
+ ;; Default assignments; re-assignable per voice via MIDI Map menu.
+ ;; Same notes used for TX (from pads) and RX (external trigger).
+ ;; Largely GM-compatible.
+ ;; -------------------------------------------------------------------------
+ :midi/notes
+ {:velocity-sensitive true
+  :velocity-thd       {:range [3 127] :default 110
+                       :note  "Velocity THD sets the threshold at which multi-sample
+                               voices (Bass, Snare, Closed Hat, Ride, Cabasa, Tambourine)
+                               switch from first to second sample variant."}
+  :velo-sensitive-pad {:default :off
+                       :note    "When on, pad velocity is dynamic; when off, velocity
+                                is fixed and multi-sample voices switch at velocity-thd points."}
+  :note-map
+  [;; --- Kick ---------------------------------------------------------------
+   {:note 36 :name "C1"  :voice :bass-drum    :gm-compatible true}
+
+   ;; --- Snare / sidestick --------------------------------------------------
+   {:note 40 :name "E1"  :voice :snare-drum   :gm-compatible true
+    :note "Snare has 3 sample variations (01/02/03 via button 16 shift); tuned via CC 76"}
+   {:note 37 :name "C#1" :voice :sidestick    :gm-compatible true}
+   {:note 39 :name "D#1" :voice :claps        :gm-compatible true}
+
+   ;; --- Hi-hats ------------------------------------------------------------
+   {:note 42 :name "F#1" :voice :closed-hi-hat :gm-compatible true
+    :note "Two sample variants; Random Closed Hat option randomises start point"}
+   {:note 46 :name "A#1" :voice :open-hi-hat  :gm-compatible true}
+
+   ;; --- Toms ---------------------------------------------------------------
+   {:note 50 :name "D2"  :voice :hi-tom       :gm-note "high floor tom"}
+   {:note 47 :name "B1"  :voice :mid-tom      :gm-compatible true}
+   {:note 45 :name "A1"  :voice :lo-tom       :gm-compatible true}
+
+   ;; --- Cymbals ------------------------------------------------------------
+   {:note 49 :name "C#2" :voice :crash-cymbal :gm-compatible true}
+   {:note 51 :name "D#2" :voice :ride-cymbal  :gm-compatible true
+    :note "Ride has 2 sample variants"}
+
+   ;; --- Percussion ---------------------------------------------------------
+   {:note 69 :name "A3"  :voice :cabasa       :gm-compatible true
+    :note "Cabasa has 2 sample variants"}
+   {:note 54 :name "F#2" :voice :tambourine   :gm-compatible true
+    :note "Tambourine has 2 sample variants"}
+   {:note 63 :name "D#3" :voice :hi-conga     :gm-compatible true}
+   {:note 64 :name "E3"  :voice :lo-conga     :gm-compatible true}
+   {:note 56 :name "G#2" :voice :cowbell      :gm-compatible true}]}
+
+ ;; -------------------------------------------------------------------------
+ ;; Chromatic MIDI mode — per-voice channel assignments
+ ;; When Chromatic MIDI In is enabled (Options menu), each voice responds
+ ;; to MIDI notes on its own dedicated channel, allowing melodic/pitched
+ ;; triggering from an external keyboard or nous live loop.
+ ;; Channel assignments are configurable via MIDI Map menu (Tap to switch).
+ ;; -------------------------------------------------------------------------
+ :midi/chromatic-channels
+ {:note "Activate in Options menu: Chromatic MIDI In = on. Each voice then responds
+         to pitched notes on its assigned channel. Pitch values editable in Step mode."
+  :voices
+  {:bass-drum    {:channel 1}
+   :snare-drum   {:channel 2}
+   :sidestick    {:channel 3}
+   :closed-hi-hat {:channel 4}
+   :open-hi-hat  {:channel 5}
+   :hi-tom       {:channel 6}
+   :mid-tom      {:channel 7}
+   :lo-tom       {:channel 8}
+   :ride-cymbal  {:channel 9}
+   :crash-cymbal {:channel 10}
+   :cabasa       {:channel 11}
+   :tambourine   {:channel 12}
+   :hi-conga     {:channel 13}
+   :lo-conga     {:channel 14}
+   :cowbell      {:channel 15}
+   :claps        {:channel 16}}}
+
+ ;; -------------------------------------------------------------------------
+ ;; CC map
+ ;; -------------------------------------------------------------------------
+ :midi/cc
+
+ [;; --- Analog filter -------------------------------------------------------
+  {:cc 74  :path [:filter :cutoff]          :range [0 127] :default 127
+   :cc-type :continuous :confidence :high
+   :note "Analog low-pass filter cutoff (standard CC 74). Filter can also be set to
+          high-pass mode via HPF button on device. Filter must be switched ON (button 46)
+          to take effect. Filter applies to wave-designer-selected voices only."}
+
+  ;; --- Per-voice tuning (CC 75-90) -----------------------------------------
+  ;; Tune controls adjust pitch of snares, toms, congas, and hi-hat decay.
+  ;; Range is not specified as semitones in the manual — treat as relative fine-tune.
+  {:cc 75  :path [:voice :bass-drum    :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 76  :path [:voice :snare-drum   :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 77  :path [:voice :sidestick    :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 78  :path [:voice :closed-hi-hat :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high
+   :note "Also controls hi-hat decay time"}
+  {:cc 79  :path [:voice :open-hi-hat  :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 80  :path [:voice :hi-tom       :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 81  :path [:voice :mid-tom      :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 82  :path [:voice :lo-tom       :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 83  :path [:voice :ride-cymbal  :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 84  :path [:voice :crash-cymbal :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 85  :path [:voice :cabasa       :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 86  :path [:voice :tambourine   :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 87  :path [:voice :hi-conga     :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 88  :path [:voice :lo-conga     :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 89  :path [:voice :cowbell      :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+  {:cc 90  :path [:voice :claps        :tune] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}]
+
+ ;; -------------------------------------------------------------------------
+ ;; Analog trigger outputs
+ ;; -------------------------------------------------------------------------
+ :analog-triggers
+ {:count   3
+  :output  "3.5mm TS VOICE OUTS on rear panel; +5V trigger"
+  :default {:trigger-1 :cabasa :trigger-2 :tambourine :trigger-3 :cowbell}
+  :note    "Assignable to any voice via Trigger Assign menu or SynthTribe app"}
+
+ ;; -------------------------------------------------------------------------
+ ;; nous bind targets
+ ;; -------------------------------------------------------------------------
+ :nous/bind-targets
+ {:kick         {:target :note-36  :channel 10 :yields :trigger}
+  :snare        {:target :note-40  :channel 10 :yields :trigger}
+  :sidestick    {:target :note-37  :channel 10 :yields :trigger}
+  :claps        {:target :note-39  :channel 10 :yields :trigger}
+  :closed-hat   {:target :note-42  :channel 10 :yields :trigger}
+  :open-hat     {:target :note-46  :channel 10 :yields :trigger}
+  :hi-tom       {:target :note-50  :channel 10 :yields :trigger}
+  :mid-tom      {:target :note-47  :channel 10 :yields :trigger}
+  :lo-tom       {:target :note-45  :channel 10 :yields :trigger}
+  :crash        {:target :note-49  :channel 10 :yields :trigger}
+  :ride         {:target :note-51  :channel 10 :yields :trigger}
+  :cabasa       {:target :note-69  :channel 10 :yields :trigger}
+  :tambourine   {:target :note-54  :channel 10 :yields :trigger}
+  :hi-conga     {:target :note-63  :channel 10 :yields :trigger}
+  :lo-conga     {:target :note-64  :channel 10 :yields :trigger}
+  :cowbell      {:target :note-56  :channel 10 :yields :trigger}
+  :filter-sweep {:target :cc-74   :yields :value-0-127}}
+
+ ;; -------------------------------------------------------------------------
+ ;; Notes
+ ;; -------------------------------------------------------------------------
+ :device/notes
+ {:lineage
+  "Clone of the Roger Linn LinnDrum (LM-2, 1982). The original LinnDrum was
+   the successor to the LM-1 (1980) and defined the sound of 1980s pop
+   (Prince, Michael Jackson, Human League, Peter Gabriel). It was among the
+   first drum machines with real sampled sounds and established the 16-voice
+   pattern sequencer as the standard architecture that the TR-808/909 and
+   every subsequent drum machine iterated on."
+  :multi-sample-voices
+  "Several voices have 2-3 sample variants (Bass, Snare×3, Closed Hat×2,
+   Ride×2, Cabasa×2, Tambourine×2). Variants are selected by velocity when
+   Velocity Sensitive Pad is on; by Velocity THD threshold (default 110) when off.
+   Toms and Congas share a single sample tuned to different pitches — tuning
+   one will update all variations of that voice."
+  :note-reassignment
+  "All 16 note assignments are re-assignable via MIDI Map menu. The same note
+   is used for TX and RX. Press Tap in the MIDI Map menu to switch between
+   note assignment and chromatic channel assignment view."
+  :wave-designer
+  "Attack + Sustain transient shaping per voice (ported from RD-8/RD-9).
+   Select voice(s) via SEND button, then use Attack/Sustain knobs. Only
+   affects main outputs, not individual voice outs. Not CC-controllable."
+  :filter-note
+  "Analog filter (ported from RD-8/RD-9). Applies only to voices selected
+   for wave designer processing. CC 74 controls cutoff in real time; mode
+   (LP/HP) and on/off state are device-only controls."}
+
+ :device/map-source   "Behringer LM DRUM User Manual v1.1 (firmware 1.5, January 2025)"
+ :device/map-version  "2026-06-21"
+ :device/map-confidence :high}
