@@ -14,7 +14,7 @@
   Typical live session:
 
     (session!)
-    (start-kairos! :binary \"/usr/local/bin/kairos\")  ; connect MIDI output
+    (start-sidecar!)                                   ; auto-discover kairos or aion
 
     ;; Simple loop
     (deflive-loop :kick {}
@@ -536,19 +536,132 @@
 (def await-midi-message      kairos/await-midi-message)
 (def midi-in-messages        kairos/midi-in-messages)
 
+;; ---------------------------------------------------------------------------
+;; Peer auto-discovery helpers
+;; ---------------------------------------------------------------------------
+
+(defn- executable? [^String path]
+  (.canExecute (java.io.File. path)))
+
+(defn- find-bin
+  "Search standard install locations for an executable named `name`.
+  Returns the first absolute path found, or nil."
+  [name]
+  (let [prefix (System/getenv "PREFIX")
+        dirs   (cond-> ["/usr/local/bin" "/opt/homebrew/bin" "/usr/bin"]
+                 prefix (conj (str prefix "/bin")))]
+    (first (filter executable? (map #(str % "/" name) dirs)))))
+
+(defn- locate-sidecar
+  "Resolve the peer binary and whether it is kairos.
+  Returns [path kairos?]. Throws when nothing is found."
+  [user-binary]
+  (if user-binary
+    [user-binary (not (.startsWith (.getName (java.io.File. ^String user-binary)) "aion"))]
+    (if-let [k (find-bin "kairos")]
+      [k true]
+      (if-let [a (find-bin "aion")]
+        [a false]
+        (throw (ex-info "start-sidecar!: neither kairos nor aion found in standard locations" {}))))))
+
+(defn- sidecar-cli-args
+  "Build the binary CLI argument vector from the option map.
+  Always includes --socket. kairos-specific flags are omitted when kairos? is false."
+  [sock kairos? {:keys [bpm db midi-port midi-in-port osc-port audio-device no-audio
+                        plugin-path plugin block-size audio-out-ch audio-in-ch]}]
+  (cond-> ["--socket" sock]
+    bpm                        (conj "--bpm"          (str bpm))
+    db                         (conj "--db"           db)
+    midi-port                  (conj "--midi-port"    midi-port)
+    midi-in-port               (conj "--midi-in-port" midi-in-port)
+    osc-port                   (conj "--osc-port"     (str osc-port))
+    audio-device               (conj "--audio-device" audio-device)
+    no-audio                   (conj "--no-audio")
+    (and kairos? plugin-path)  (conj "--plugin-path"  plugin-path)
+    (and kairos? plugin)       (conj "--plugin"       plugin)
+    (and kairos? block-size)   (conj "--block-size"   (str block-size))
+    (and kairos? audio-out-ch) (conj "--audio-out-ch" (str audio-out-ch))
+    (and kairos? audio-in-ch)  (conj "--audio-in-ch"  (str audio-in-ch))))
+
+;; ---------------------------------------------------------------------------
+;; Peer launcher
+;; ---------------------------------------------------------------------------
+
 (defn start-sidecar!
-  "Deprecated. Delegates to start-kairos! — the sidecar is retired.
-  Use (start-kairos! :binary path) directly."
-  [& {:keys [binary] :as opts}]
-  (println "[user] start-sidecar! is deprecated; delegating to start-kairos!")
-  (kairos/start-kairos! :binary (or binary "/usr/local/bin/kairos"))
-  nil)
+  "Auto-discover and launch a nomos-rt peer (kairos preferred, aion fallback).
+
+  Searches /usr/local/bin, /opt/homebrew/bin, and $PREFIX/bin for kairos
+  first (full CLAP host + audio synthesis). If kairos is not found, aion
+  is tried (MIDI/Link only, runs on low-power hardware). Both speak the same
+  IPC socket protocol; the connection side is identical either way.
+
+  Common options (both kairos and aion):
+    :socket-path  — IPC socket path; default /tmp/kairos.sock or /tmp/aion.sock
+    :bpm          — initial BPM
+    :db           — session database path
+    :midi-port    — MIDI output port name
+    :midi-in-port — MIDI input port name
+    :osc-port     — OSC receive port
+    :audio-device — audio device name
+    :no-audio     — pass --no-audio to the binary
+
+  kairos-only options (silently ignored when aion is used):
+    :plugin-path  — directory to scan for CLAP plugins
+    :plugin       — plugin ID to load at startup
+    :block-size   — audio block size
+    :audio-out-ch — audio output channel count
+    :audio-in-ch  — audio input channel count
+
+  General options:
+    :binary  — explicit path, skipping auto-discovery
+    :retry   — IPC connection retry count (default 10)
+    :wait-ms — ms to wait after launch before first connect attempt (default 200)
+
+  Returns the java.lang.Process."
+  [& {:keys [binary socket-path retry wait-ms]
+      :or   {retry 10 wait-ms 200}
+      :as   opts}]
+  (let [[bin kairos?] (locate-sidecar binary)
+        sock          (or socket-path (if kairos? "/tmp/kairos.sock" "/tmp/aion.sock"))
+        cli-args      (sidecar-cli-args sock kairos? opts)]
+    (println (format "[sidecar] launching %s → %s" (if kairos? "kairos" "aion") bin))
+    (kairos/start-kairos! :binary      bin
+                          :socket-path sock
+                          :args        cli-args
+                          :retry       retry
+                          :wait-ms     wait-ms)))
+
+(defn start-aion!
+  "Launch aion (lightweight nomos-rt peer, MIDI/Link only, no CLAP) and connect.
+
+  Auto-discovers aion in standard locations. Uses /tmp/aion.sock as the
+  default socket. Accepts the same common options as start-sidecar!; kairos-only
+  options (:plugin-path, :plugin, :block-size, :audio-out-ch, :audio-in-ch) are
+  silently ignored.
+
+  Use this when you know you want aion specifically (e.g. a remote RPi Zero 2W
+  session). For the general case prefer start-sidecar! which picks the best peer.
+
+  Returns the java.lang.Process."
+  [& {:keys [socket-path retry wait-ms]
+      :or   {retry 10 wait-ms 200}
+      :as   opts}]
+  (let [bin  (or (find-bin "aion")
+                 (throw (ex-info "start-aion!: aion not found in standard locations" {})))
+        sock (or socket-path "/tmp/aion.sock")
+        cli  (sidecar-cli-args sock false opts)]
+    (println (format "[sidecar] launching aion → %s" bin))
+    (kairos/start-kairos! :binary      bin
+                          :socket-path sock
+                          :args        cli
+                          :retry       retry
+                          :wait-ms     wait-ms)))
 
 (defn stop-sidecar!
-  "Deprecated. Delegates to stop-kairos! — the sidecar is retired."
+  "Stop the peer launched by start-sidecar! or start-aion!.
+  Delegates to stop-kairos! — process and connection state are shared."
   []
-  (kairos/stop-kairos!)
-  nil)
+  (kairos/stop-kairos!))
 
 ;; ---------------------------------------------------------------------------
 ;; kairos (nous.kairos)
