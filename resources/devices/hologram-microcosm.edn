@@ -1,0 +1,337 @@
+;; SPDX-License-Identifier: EPL-2.0
+;;
+;; Hologram Electronics Microcosm — nous device map
+;;
+;; Granular sampler, looper, and multi-effect pedal.
+;; 11 effects in 4 families × 4 presets (A-D) = 44 factory presets.
+;; Built-in 60-second Phrase Looper.
+;; Stereo in/out, MIDI IN + MIDI OUT/THRU (5-pin DIN only, no USB MIDI).
+;;
+;; Effect families:
+;;   Micro Loop:  Mosaic, Seq, Glide
+;;   Glitch:      Blocks, Interrupt, Arp
+;;   Granules:    Haze, Tunnel, Strum
+;;   Multidelay:  Pattern, Warp
+;;   USER:        4 banks × 4 slots = 16 user presets
+;;
+;; Primary nous use case — looper texture chain:
+;;   MicroFreak (audio out) → Microcosm (granular FX + phrase looper) → Aeros
+;;   nous drives: effect selection (PC), Activity/Shape/Filter sweeps (CC),
+;;                Phrase Looper control (CC 22-35), Hold Sampler (CC 48),
+;;                Bypass (CC 102), and TAP Tempo (CC 93).
+;;
+;; MIDI connectivity: DIN MIDI IN + DIN MIDI OUT/THRU only (no USB MIDI).
+;; Use a USB-MIDI interface (e.g. through kairos DIN port) to reach from nous.
+;;
+;; Source: Hologram Electronics Microcosm Owner's Manual — hologramelectronics.com
+;;         MIDI implementation chart on manual p.20-21; Global Config on p.23.
+;; Confidence: High — transcribed directly from official printed manual.
+
+{:device/id           :hologram/microcosm
+ :device/name         "Hologram Electronics Microcosm"
+ :device/manufacturer "Hologram Electronics"
+ :device/type         :fx-granular-looper
+ :device/role         :target
+ :device/connectivity [:din-midi]    ; MIDI IN + OUT/THRU — no USB MIDI
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI channel
+ ;; -------------------------------------------------------------------------
+ :midi/channel        1              ; default; configurable in Global Config
+                                     ; (Time knob menu: groups 1-4, 5-8, 9-12, 13-16)
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI Thru
+ ;; -------------------------------------------------------------------------
+ :midi/thru
+ {:enabled true                      ; default: echoes all MIDI IN on MIDI OUT/THRU
+  :note    "Default behaviour — useful for daisy-chaining to Aeros or BeatBuddy.
+            Thru can be disabled in Global Config (Filter knob menu, option 3 or 4)."}
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI clock
+ ;; -------------------------------------------------------------------------
+ :midi/clock
+ {:receive   true                    ; accepts clock on MIDI IN
+  :send      true                    ; transmits clock on MIDI OUT/THRU
+  :sync-note "On MIDI Start: switches to external clock. On MIDI Stop: reverts to
+              internal clock. Tap Tempo disabled while slaved to external clock."
+  :config    "Send/receive behaviour set in Global Config (Filter knob menu)"}
+
+ ;; -------------------------------------------------------------------------
+ ;; Program Change — preset / effect selection
+ ;; -------------------------------------------------------------------------
+ :midi/program-change
+ {:supported true
+  :range     [1 60]                  ; note: 1-indexed per Hologram manual
+  :presets
+  {:arp         [1 4]     ; Glitch — Arp A/B/C/D
+   :interrupt   [5 8]     ; Glitch — Interrupt A/B/C/D
+   :blocks      [9 12]    ; Glitch — Blocks A/B/C/D
+   :glide       [13 16]   ; Micro Loop — Glide A/B/C/D
+   :seq         [17 20]   ; Micro Loop — Seq A/B/C/D
+   :mosaic      [21 24]   ; Micro Loop — Mosaic A/B/C/D
+   :haze        [25 28]   ; Granules — Haze A/B/C/D
+   :tunnel      [29 32]   ; Granules — Tunnel A/B/C/D
+   :strum       [33 36]   ; Granules — Strum A/B/C/D
+   :pattern     [37 40]   ; Multidelay — Pattern A/B/C/D
+   :warp        [41 44]   ; Multidelay — Warp A/B/C/D
+   :user-bank-1 [45 48]   ; User Bank 1 A/B/C/D
+   :user-bank-2 [49 52]   ; User Bank 2 A/B/C/D
+   :user-bank-3 [53 56]   ; User Bank 3 A/B/C/D
+   :user-bank-4 [57 60]}  ; User Bank 4 A/B/C/D
+  :note "PC takes effect immediately. Loaded preset includes any saved loop content."}
+
+ ;; -------------------------------------------------------------------------
+ ;; CC map — effect parameters
+ ;; -------------------------------------------------------------------------
+ :midi/cc
+
+ [;; --- Timing / tempo -------------------------------------------------------
+  {:cc 5   :path [:time :subdiv]     :range [0 127] :default 32
+   :cc-type :stepped :confidence :high
+   :steps {0 "1/4" 22 "1/2" 43 "TAP" 64 "2x" 85 "4x" 106 "8x"}
+   :note "Each of the 6 subdivisions occupies ~21 values: 0-21=1/4, 22-42=1/2, 43-63=TAP, 64-84=2x, 85-105=4x, 106-127=8x"}
+
+  {:cc 93  :path [:time :tap-tempo]  :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Any value triggers a TAP — pulse to set tempo. Not available when slaved to MIDI clock."}
+
+  {:cc 10  :path [:time :global-tempo] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high
+   :note "Global tempo knob; use when SELECT button is set to TEMPO mode rather than SUBDIV"}
+
+  ;; --- Main effect macro controls -------------------------------------------
+  {:cc 6   :path [:effect :activity] :range [0 127] :default 64
+   :cc-type :continuous :confidence :high
+   :note "Effect density / complexity macro. Function varies by preset: e.g. Tunnel = depth
+          of sample and filter manipulation, Haze = granule density. Central performance knob."}
+
+  {:cc 11  :path [:effect :repeats]  :range [0 127] :default 64
+   :cc-type :continuous :confidence :high
+   :note "Effect duration / frequency macro. Works with Activity to shape the texture.
+          Secondary control = Pitch Modulation depth (accessed via Shift hold on device)."}
+
+  {:cc 7   :path [:effect :shape]    :range [0 127] :default 0
+   :cc-type :stepped :confidence :high
+   :steps {:square    [0 31]         ; flat envelope
+            :ramp-up   [32 63]       ; fade in
+            :triangle  [64 95]       ; fade in + fade out
+            :ramp-down [96 127]}     ; fade out
+   :note "Looper/effect envelope shape. Divided into 4 equal quadrants of 32 values each."}
+
+  {:cc 12  :path [:effect :space]    :range [0 127] :default 32
+   :cc-type :continuous :confidence :high
+   :note "Reverb pre-delay / size. Secondary = Reverse Time (Shift hold on device)."}
+
+  {:cc 16  :path [:effect :volume]   :range [0 127] :default 100
+   :cc-type :continuous :confidence :high
+   :note "Effect output volume (post-mix)"}
+
+  {:cc 47  :path [:effect :reverse]  :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Toggle effect playback direction (forward / reverse). Any value triggers toggle."}
+
+  ;; --- Filter ---------------------------------------------------------------
+  {:cc 8   :path [:filter :cutoff]   :range [0 127] :default 127
+   :cc-type :continuous :confidence :high
+   :note "Resonant low-pass filter cutoff. Affects the processed signal path."}
+
+  {:cc 15  :path [:filter :resonance] :range [0 127] :default 0
+   :cc-type :continuous :confidence :high}
+
+  ;; --- Mix / levels ---------------------------------------------------------
+  {:cc 9   :path [:mix :wet-dry]     :range [0 127] :default 64
+   :cc-type :continuous :confidence :high
+   :note "Wet/dry blend. 0 = dry only, 127 = wet only. Secondary = Loop Volume (Shift hold)."}
+
+  {:cc 13  :path [:mix :loop-level]  :range [0 127] :default 64
+   :cc-type :continuous :confidence :high
+   :note "Phrase looper output level relative to live signal"}
+
+  {:cc 21  :path [:mix :looper-fade-time] :range [0 127] :default 32
+   :cc-type :continuous :confidence :high
+   :note "Phrase looper fade in/out time (Looper Shape must include Fade In or Fade Out
+          in Global Config to take effect)"}
+
+  ;; --- Pitch modulation -----------------------------------------------------
+  {:cc 14  :path [:mod :freq]        :range [0 127] :default 64
+   :cc-type :continuous :confidence :high
+   :note "Pitch modulation rate"}
+
+  {:cc 19  :path [:mod :depth]       :range [0 127] :default 0
+   :cc-type :continuous :confidence :high
+   :note "Pitch modulation depth. Also the secondary function of the Repeats knob."}
+
+  ;; --- Reverb ---------------------------------------------------------------
+  {:cc 20  :path [:reverb :time]     :range [0 127] :default 64
+   :cc-type :continuous :confidence :high}
+
+  ;; --- Phrase Looper — mode toggles -----------------------------------------
+  {:cc 22  :path [:looper :on-off]   :range [0 127] :default 0
+   :cc-type :switch :confidence :high
+   :switch {:off [0 63] :on [64 127]}
+   :note "Phrase Looper on/off. 0-63 = off, 64-127 = on."}
+
+  {:cc 23  :path [:looper :direction] :range [0 127] :default 0
+   :cc-type :switch :confidence :high
+   :switch {:forward [0 63] :reverse [64 127]}}
+
+  {:cc 24  :path [:looper :routing]  :range [0 127] :default 0
+   :cc-type :switch :confidence :high
+   :switch {:post-fx [0 63] :pre-fx [64 127]}
+   :note "Post-FX (default): looper captures processed signal. Pre-FX: looper captures
+          dry signal; loop is then re-processed every pass."}
+
+  {:cc 25  :path [:looper :mode]     :range [0 127] :default 0
+   :cc-type :switch :confidence :high
+   :switch {:effects-and-looper [0 63] :looper-only [64 127]}
+   :note "Looper Only mutes the effects engine. Pitch mod, reverb, and filter remain active."}
+
+  {:cc 26  :path [:looper :burst]    :range [0 127] :default 0
+   :cc-type :switch :confidence :high
+   :switch {:default [0 63] :burst [64 127]}
+   :note "Burst mode: left footswitch records only while held; releases start playback immediately."}
+
+  {:cc 27  :path [:looper :quantize] :range [0 127] :default 0
+   :cc-type :switch :confidence :high
+   :switch {:free [0 63] :quantize [64 127]}
+   :note "Quantize trims loop to nearest quarter note at close-loop time. Effect tempo
+          must be set before recording starts."}
+
+  ;; --- Phrase Looper — transport --------------------------------------------
+  {:cc 28  :path [:looper :record]   :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Start recording. Any value triggers. Sequence: Record → Play → Overdub
+          (default order; can be changed to Rec > Overdub > Play in Global Config)."}
+
+  {:cc 29  :path [:looper :play]     :range [0 127] :default 0
+   :cc-type :momentary :confidence :high}
+
+  {:cc 30  :path [:looper :overdub]  :range [0 127] :default 0
+   :cc-type :momentary :confidence :high}
+
+  {:cc 31  :path [:looper :stop]     :range [0 127] :default 0
+   :cc-type :momentary :confidence :high}
+
+  {:cc 34  :path [:looper :erase]    :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Erase the current loop. Any value triggers. Cannot be undone."}
+
+  {:cc 35  :path [:looper :undo]     :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Undo the last overdub layer."}
+
+  ;; --- Looper playback speed ------------------------------------------------
+  {:cc 17  :path [:looper :speed]    :range [0 127] :default 64
+   :cc-type :continuous :confidence :high
+   :note "Continuous looper playback speed: 1/4x to 4x. 64 ≈ 1x (normal)."}
+
+  {:cc 18  :path [:looper :speed-stepped] :range [0 127] :default 32
+   :cc-type :stepped :confidence :high
+   :steps {0 "1/4" 22 "1/2" 43 "TAP/1x" 64 "2x" 85 "4x" 106 "8x"}
+   :note "Stepped looper speed — same step values as CC 5 (Subdiv)."}
+
+  ;; --- Hold Sampler ---------------------------------------------------------
+  {:cc 48  :path [:hold-sampler :on-off] :range [0 127] :default 0
+   :cc-type :switch :confidence :high
+   :switch {:off [0 63] :on [64 127]}
+   :note "Hold Sampler captures a note or chord and sustains it as a drone.
+          Useful for sustaining a MicroFreak note while the fingers are free."}
+
+  ;; --- Preset management ----------------------------------------------------
+  {:cc 45  :path [:preset :copy]     :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Copy current settings (step 1 of save workflow). Lights flash blue to confirm."}
+
+  {:cc 46  :path [:preset :save]     :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Save copied settings to current user preset slot (step 2 of save workflow)."}
+
+  ;; --- Bypass ---------------------------------------------------------------
+  {:cc 102 :path [:bypass]           :range [0 127] :default 0
+   :cc-type :switch :confidence :high
+   :switch {:bypass [0 63] :engage [64 127]}
+   :note "0-63 = bypassed. 64-127 = effect engaged. Bypass style (buffered/true/trails)
+          is set in Global Config (Space knob menu)."}]
+
+ ;; -------------------------------------------------------------------------
+ ;; nous bind targets — looper texture chain roles
+ ;; -------------------------------------------------------------------------
+ :nous/bind-targets
+ {;; Effect selection
+  :preset-select        {:target :program-change :note "PC 1-60; use :presets map above"}
+  :activity             {:target :cc-6  :yields :value-0-127}
+  :shape                {:target :cc-7  :yields :value-0-127}
+  :filter               {:target :cc-8  :yields :value-0-127}
+  :mix                  {:target :cc-9  :yields :value-0-127}
+  :reverb               {:target :cc-20 :yields :value-0-127}
+  :pitch-mod-depth      {:target :cc-19 :yields :value-0-127}
+
+  ;; Looper transport (pour into live-loop for coordinated capture)
+  :looper-record        {:target :cc-28 :value 127}
+  :looper-play          {:target :cc-29 :value 127}
+  :looper-overdub       {:target :cc-30 :value 127}
+  :looper-stop          {:target :cc-31 :value 127}
+  :looper-erase         {:target :cc-34 :value 127}
+  :looper-undo          {:target :cc-35 :value 127}
+  :looper-on            {:target :cc-22 :value 127}
+  :looper-off           {:target :cc-22 :value 0}
+
+  ;; Texture performance
+  :hold-on              {:target :cc-48 :value 127}
+  :hold-off             {:target :cc-48 :value 0}
+  :reverse              {:target :cc-47 :value 127}
+  :bypass-on            {:target :cc-102 :value 0}
+  :bypass-off           {:target :cc-102 :value 127}
+  :tap-tempo            {:target :cc-93 :value 127}}
+
+ ;; -------------------------------------------------------------------------
+ ;; Effect vocabulary (for nous.learn and reference)
+ ;; -------------------------------------------------------------------------
+ :device/effects
+ [{:family :micro-loop
+   :effects [:mosaic :seq :glide]
+   :description "Microscopic slice-and-loop effects; tight rhythmic micro-loops"}
+  {:family :glitch
+   :effects [:blocks :interrupt :arp]
+   :description "Glitchy pitch/time manipulation, stutter, arpeggiating loops"}
+  {:family :granules
+   :effects [:haze :tunnel :strum]
+   :description "Granular sampling: diffuse textures (Haze), drone (Tunnel), harmonic strum (Strum)"}
+  {:family :multidelay
+   :effects [:pattern :warp]
+   :description "Patterned multi-tap delays and warped time stretching"}]
+
+ ;; -------------------------------------------------------------------------
+ ;; Ecosystem notes
+ ;; -------------------------------------------------------------------------
+ :device/notes
+ {:looper-texture-chain
+  "In the granular texture chain:
+     MicroFreak (melody/retune) → Microcosm (granular FX) → Aeros (multi-track looper)
+   Typical nous workflow:
+     1. (device/send! :hologram/microcosm :bypass-off)       ; engage
+     2. Select effect via PC: (device/pc! :hologram/microcosm 29)  ; Tunnel-A
+     3. Automate Activity sweep via trajectory/ctrl
+     4. (device/send! :hologram/microcosm :looper-record)    ; capture a pass
+     5. (device/send! :hologram/microcosm :looper-overdub)   ; layer
+     6. Send CC 44 to Aeros to stop all at section boundary"
+  :no-usb-midi
+  "Microcosm has DIN MIDI only — no USB. Route through kairos DIN output or
+   use a USB-DIN interface. In the standard looper chain, Microcosm sits between
+   Aeros (MIDI THRU from Microcosm OUT → Aeros IN) so nous can address both with
+   a single MIDI cable to Microcosm."
+  :midi-thru-chain
+  "Default Microcosm MIDI THRU echoes all incoming CC/PC to MIDI OUT.
+   Chain: nous → kairos MIDI OUT → Microcosm MIDI IN → Microcosm MIDI OUT/THRU → Aeros MIDI IN.
+   Address Microcosm on channel 1 (default), Aeros on a different channel —
+   the THRU carries all channels so Aeros sees its own channel messages transparently."
+  :hold-sampler-for-drones
+  "CC 48 (Hold Sampler) latches the current input and sustains it as a drone.
+   Use in the MicroFreak chain: play a chord, fire CC 48 ≥64, then retune MicroFreak
+   via MTS while the Microcosm holds the previous note. Creates smooth harmonic transitions."}
+
+ :device/map-source    "Hologram Electronics Microcosm Owner's Manual pp. 20-21 (© 2020)"
+ :device/map-version   "2026-06-21"
+ :device/map-confidence :high}

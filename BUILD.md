@@ -1,320 +1,271 @@
-# Building nous from source
+# Building nous
 
-nous has two independent build systems that both need to be run from a fresh
-clone: **Leiningen** for the Clojure library, and **CMake** for the C++ sidecar
-binary that handles real-time MIDI output.
+nous is a Clojure library. There is no C++ code in this repository. Real-time
+MIDI delivery is handled by a separate C++ runtime peer — **kairos** (full
+CLAP host) or **aion** (MIDI/Link only) — which you build and install once from
+its own repository.
 
 ---
 
 ## Prerequisites
 
-### All platforms
+### Clojure
 
 | Tool | Minimum | Notes |
 |------|---------|-------|
-| Git | 2.x | For cloning and shallow FetchContent fetches |
 | Java (JDK) | 21 | OpenJDK 21+ recommended; tested on OpenJDK 25 |
-| Leiningen | 2.11+ | Clojure build tool; install via [leiningen.org](https://leiningen.org) |
-| CMake | 3.20+ | C++ build system |
-| C++17 compiler | — | See platform notes below |
+| Leiningen | 2.11+ | Install via [leiningen.org](https://leiningen.org) |
 
-### macOS
+### C++ peer (kairos or aion)
 
-```
-xcode-select --install          # installs Apple clang
-brew install cmake leiningen
-```
-
-Apple clang (Xcode Command Line Tools 14+) is sufficient. Xcode itself is not
-required. Tested on Apple clang 17 (Xcode 26).
-
-### Linux
-
-```
-# Debian / Ubuntu
-sudo apt install build-essential cmake default-jdk leiningen
-
-# Fedora / RHEL
-sudo dnf install gcc-c++ cmake java-21-openjdk leiningen
-```
-
-### Windows
-
-CMake + MSVC (Visual Studio 2022, C++ Desktop workload) or clang-cl. Leiningen
-runs under WSL2 or natively with the Windows installer. The MIDI sidecar uses
-the Windows Multimedia API (WinMM) via RtMidi — no extra driver is required.
+| Tool | Minimum | Notes |
+|------|---------|-------|
+| CMake | 3.22+ | C++ build system |
+| C++20 compiler | — | Apple clang (Xcode CLT 14+), GCC 12+, or MSVC 2022 |
 
 ---
 
-## 1. Clone
+## 1. Clone and test
 
 ```bash
-git clone https://github.com/rodgert/nous.git
+git clone https://github.com/nomos-studio/nous.git
 cd nous
-```
-
-No submodules. All C++ dependencies are fetched automatically by CMake
-FetchContent on first build.
-
----
-
-## 2. Build the C++ sidecar
-
-The sidecar (`nous-sidecar`) is a small native process that the JVM spawns
-at runtime to handle scheduled MIDI output with sub-millisecond accuracy.
-
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-```
-
-The resulting binary is at `build/cpp/nous-sidecar/nous-sidecar`.
-
-**What CMake fetches on first run** (requires internet, ~60 MB total):
-
-| Library | Version | License | Purpose |
-|---------|---------|---------|---------|
-| [Asio](https://github.com/chriskohlhoff/asio) | 1.30.2 | BSL-1.0 | Async I/O for IPC |
-| [RtMidi](https://github.com/thestk/rtmidi) | 6.0.0 | MIT | Cross-platform MIDI output |
-
-Subsequent `cmake --build` invocations skip the network entirely
-(`FETCHCONTENT_UPDATES_DISCONNECTED=ON` is set by default).
-
-### Build options
-
-| Option | Default | Effect |
-|--------|---------|--------|
-| `CLJSEQ_BUILD_SIDECAR` | `ON` | Build `nous-sidecar` |
-| `CLJSEQ_BUILD_AUDIO` | `ON` | Build `nous-audio` (CLAP host, requires more deps) |
-| `CLJSEQ_ENABLE_LINK` | `OFF` | Add Ableton Link support — see §4 below |
-| `CLJSEQ_BUILD_TESTS` | `OFF` | Build C++ unit tests |
-| `CMAKE_BUILD_TYPE` | _(none)_ | Set to `Release` for production, `Debug` for dev |
-
-To skip `nous-audio` (not needed for MIDI-only use):
-
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCLJSEQ_BUILD_AUDIO=OFF
-cmake --build build --parallel
-```
-
-### MIDI device setup (macOS)
-
-The sidecar opens the first available MIDI output port on startup. On macOS,
-enable the IAC Driver in **Audio MIDI Setup → MIDI Studio → IAC Driver** to
-create a virtual loopback port for testing without hardware.
-
----
-
-## 3. Build the Clojure library
-
-```bash
-lein deps          # download Clojure dependencies
-lein test          # run the test suite
-```
-
-All tests should pass with 0 failures, 0 errors. Tests that exercise the
-full MIDI path require the sidecar binary (step 2) to be present at
-`build/cpp/nous-sidecar/nous-sidecar`.
-
-### Start a REPL
-
-```bash
+lein test      # 0 failures, 0 errors
 lein repl
 ```
 
-```clojure
-(require '[nous.core :refer :all])
-(start!)                                    ; spawns sidecar, starts clock
+The Clojure library runs without a peer. Calls to `play!` are silently dropped
+if no peer is connected, so you can develop theory, harmony, and generative
+logic offline. Connecting a peer is only needed for real-time MIDI output.
 
-(deflive-loop :hello {}
-  (play! :C4)
-  (sleep! 1))
+---
 
-(stop!)
-```
+## 2. Install kairos (recommended peer)
 
-### Run tests only (no sidecar)
-
-The unit tests for `nous.clock`, `nous.loop`, and `nous.ctrl` run
-without the sidecar. Only `nous.integration-test` requires it.
+kairos is the full nomos-studio runtime: CLAP plugin host, audio I/O, MIDI
+routing, Ableton Link, and nomos-rt scheduler.
 
 ```bash
-lein test nous.core-test nous.ctrl-test nous.phasor-test
+git clone https://github.com/nomos-studio/kairos.git
+cd kairos
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+sudo cp build/kairos /usr/local/bin/
+```
+
+`start-sidecar!` auto-discovers kairos at `/usr/local/bin/kairos`,
+`/opt/homebrew/bin/kairos`, and `$PREFIX/bin/kairos`.
+
+---
+
+## 2a. Install aion (MIDI/Link only, alternative peer)
+
+aion is a lightweight variant of the nomos-rt scheduler with no CLAP host and
+no audio engine. Ideal for Raspberry Pi Zero 2W, remote sessions, or
+development machines without an audio interface.
+
+```bash
+git clone https://github.com/nomos-studio/aion.git
+cd aion
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+sudo cp build/aion /usr/local/bin/
+```
+
+`start-sidecar!` falls back to aion when kairos is not found.
+`start-aion!` targets aion explicitly.
+
+---
+
+## 3. Start a peer from the REPL
+
+```clojure
+(require '[nous.user :refer :all])
+
+;; Auto-discover kairos (preferred) or aion and connect:
+(start-sidecar! :midi-port "IAC")
+
+;; Or target explicitly:
+(start-kairos! :midi-port "IAC" :plugin "/path/to/plugin.clap")
+(start-aion!   :midi-port "IAC" :bpm 120)
+
+;; Disconnect:
+(stop-sidecar!)
 ```
 
 ---
 
-## 4. Build with Ableton Link support (optional, GPL-2.0-or-later)
+## 4. Build kairos or aion with Ableton Link (optional, GPL-2.0-or-later)
 
-Ableton Link provides beat-accurate tempo synchronization with other Link-
-enabled applications on the same LAN (Ableton Live, Bitwig, Sonic Pi, etc.).
+Link provides beat-accurate tempo sync with other Link-enabled apps on the LAN
+(Ableton Live, Bitwig, Sonic Pi, etc.).
 
 > **License note**: The [Ableton Link SDK](https://github.com/Ableton/link) is
-> GPL-2.0-or-later. Enabling Link changes the license of the sidecar binary from
-> LGPL-2.1-or-later to GPL-2.0-or-later. The Clojure library (EPL-2.0) is
-> unaffected. See [doc/licensing.md](doc/licensing.md) for full details.
+> GPL-2.0-or-later. Enabling Link changes the peer binary's license from
+> LGPL-2.1-or-later to GPL-2.0-or-later. The nous Clojure library (EPL-2.0)
+> is unaffected. See [doc/licensing.md](doc/licensing.md) for full details.
 
 ```bash
 cmake -B build \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCLJSEQ_ENABLE_LINK=ON
+  -DNOUS_ENABLE_LINK=ON
 cmake --build build --parallel
 ```
-
-**Additional FetchContent download** (~40 MB shallow clone of the Link SDK):
-
-| Library | Version | License |
-|---------|---------|---------|
-| [Ableton Link](https://github.com/Ableton/link) | 3.0.4 | GPL-2.0-or-later |
-
-The Link SDK's own Asio dependency is satisfied by the Asio already fetched in
-step 2 — no duplicate download.
 
 Once built, enable Link from the REPL:
 
 ```clojure
 (require '[nous.link :as link])
 (start!)
-(link/enable!)      ; joins or creates a Link session
-(link/bpm)          ; => current session BPM
-(link/peers)        ; => number of connected peers
+(link/enable!)    ; join or create a Link session
+(link/bpm)        ; => current session BPM
+(link/peers)      ; => number of connected peers
 ```
 
 ---
 
-## 5. Development workflow
+## 5. MIDI device setup
 
-### Iterating on C++
+### macOS
 
-After editing sidecar source, rebuild with:
+Enable the IAC Driver for a virtual loopback port (useful for testing without
+hardware):
 
-```bash
-cmake --build build --parallel
-```
+**Audio MIDI Setup → Window → Show MIDI Studio → IAC Driver → Device is online**
 
-The Clojure tests call `sidecar/start-sidecar!` which spawns the binary from
-`build/cpp/nous-sidecar/nous-sidecar`, so a rebuilt binary is picked up
-automatically on the next test run or REPL restart.
-
-### Live coding at the REPL
-
-The Clojure library supports hot-reloading without restarting the JVM.
-Re-evaluating a `deflive-loop` form swaps its body on the next iteration:
+Then pass the port name to `start-sidecar!`:
 
 ```clojure
-;; Running loop:
-(deflive-loop :bass {}
-  (play! :C2)
-  (sleep! 1))
-
-;; Edit and re-evaluate — takes effect on next iteration:
-(deflive-loop :bass {}
-  (play! :G2)
-  (sleep! 1/2))
+(start-sidecar! :midi-port "IAC Driver Bus 1")
 ```
 
-### Running tests during development
+### Linux
 
 ```bash
-lein test                      # full suite
-lein test nous.core-test     # single namespace
+sudo apt install alsa-utils   # for aplaymidi / amidi diagnostics
+aplaymidi -l                  # list available MIDI output ports
+```
+
+Pass the port name string returned by `aplaymidi -l` as `:midi-port`.
+
+---
+
+## 6. SuperCollider (optional)
+
+nous can drive SuperCollider via OSC for synthesis and sample playback. This
+is entirely optional and has no effect on kairos/aion MIDI delivery.
+
+```bash
+# macOS
+brew install supercollider
+
+# or download from supercollider.github.io
+```
+
+```clojure
+(require '[nous.sc :as sc])
+(sc/start-sc!)       ; launches scsynth subprocess
+(sc/compile-synth :sc (defsynth :pad [...] ...))
 ```
 
 ---
 
-## 6. Directory layout
+## 7. Development workflow
 
+### Running tests
+
+```bash
+lein test                          # full suite
+lein test nous.user-test           # single namespace
 ```
-nous/
-├── src/nous/         Clojure library (EPL-2.0)
-│   ├── core.clj        System lifecycle, public API
-│   ├── loop.clj        deflive-loop, sleep!, sync!
-│   ├── clock.clj       Clock primitives, beat arithmetic
-│   ├── ctrl.clj        Control tree (bind!, send!, undo!)
-│   ├── link.clj        Ableton Link client
-│   └── sidecar.clj     Sidecar process management + IPC
-├── test/nous/        Clojure tests
-├── cpp/
-│   ├── libnous-rt/   Shared C++ runtime (LGPL-2.1-or-later)
-│   │   ├── include/    Public headers (scheduler, link_bridge)
-│   │   └── src/        Scheduler, clock, OSC codec
-│   ├── libnous-link/ Ableton Link engine (GPL-2.0-or-later, opt-in)
-│   ├── nous-sidecar/ MIDI sidecar binary (LGPL, or GPL when Link enabled)
-│   └── nous-audio/   CLAP audio host binary
-├── doc/                Design documents, R&R, open questions
-├── CMakeLists.txt      Root C++ build
-├── project.clj         Clojure build (Leiningen)
-├── BUILD.md            This file
-└── README.md           Project overview
+
+Tests run entirely in the JVM. No peer binary is required — `nous.kairos`
+functions that write to the socket are skipped or mocked via `^:dynamic` vars.
+
+### Changing peer options at the REPL
+
+```clojure
+(stop-sidecar!)
+(start-sidecar! :bpm 140 :midi-port "USB Midi")
+```
+
+### MIDI learn (device map authoring)
+
+```clojure
+(require '[nous.learn :as learn])
+(learn/start! :device :my-synth)    ; listen for incoming CC/note events
+;; wiggle a knob → nous writes an EDN entry to resources/devices/my-synth.edn
+(learn/stop!)
 ```
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
-**`nous-sidecar binary not found`**
-Run `cmake --build build` (step 2) before starting the Clojure REPL or tests.
+**`No peer found at /usr/local/bin/kairos or /usr/local/bin/aion`**
+Build and install kairos (§2) or aion (§2a). `start-sidecar!` will print the
+locations it searched.
 
-**`MIDI init failed — continuing without MIDI`**
-The sidecar found no MIDI output ports. On macOS, enable the IAC Driver
-in Audio MIDI Setup. The sidecar runs in a degraded mode; REPL sessions that
-don't call `play!` are unaffected.
+**`MIDI init failed — peer running without MIDI output`**
+The peer found no MIDI output ports. On macOS, enable the IAC Driver. On
+Linux, install `libasound2-dev` before building the peer.
 
-**`Could not connect to nous-sidecar after 10 attempts`**
-The sidecar failed to start. Check `lein test` output for a preceding C++
-error message. Common causes: missing MIDI driver on Linux
-(`sudo apt install libasound2-dev` before building), or binary not rebuilt
-after a source change.
-
-**CMake FetchContent hangs or fails**
-The first build requires internet access. If your environment is air-gapped,
-pre-populate the FetchContent cache by running the build on a connected machine
-and copying `build/_deps/` to the target machine before running CMake.
-Set `-DFETCHCONTENT_UPDATES_DISCONNECTED=ON` (it is on by default).
+**`could not connect to peer socket`**
+The peer binary failed to start. Check the process log printed to `*out*` after
+`start-sidecar!`. Common causes: a stale `.sock` file in `/tmp` (delete it and
+retry) or a port conflict on the OSC port.
 
 **`lein` fails with `No such program: java` or `JAVA_HOME not set`**
-Leiningen requires `JAVA_HOME` to be set if `java` is not on your `PATH`, or if
-multiple JVMs are installed and the wrong one is selected. Set it dynamically
-rather than hardcoding a path:
 
 ```bash
-# macOS (uses system Java discovery tool)
+# macOS
 export JAVA_HOME=$(/usr/libexec/java_home)
 
 # Linux
 export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
 ```
 
-Add the appropriate line to your shell profile (`~/.zshrc`, `~/.bashrc`) to
-make it permanent. Do not hardcode a version-specific path — it will break
-when the JDK is updated.
+Add to your shell profile (`~/.zshrc`, `~/.bashrc`) to persist.
 
-**Clojure tests fail with `java.net.ConnectException`**
-Integration tests spawn the sidecar on a random port. If the port is blocked
-by a firewall, all connections are to `127.0.0.1` and only need the loopback
-interface — ensure `lo` is not blocked.
+**Apple Silicon (arm64)**
+Builds natively on Apple Silicon. No Rosetta required. CMake selects the
+native architecture automatically.
 
-**Apple Silicon (`arm64`)**
-The build works natively on Apple Silicon. No Rosetta required. CMake selects
-the native architecture automatically.
+**CMake FetchContent hangs or fails (peer repos)**
+The first peer build fetches ~60 MB of C++ dependencies (RtMidi, Asio, etc.).
+If air-gapped, pre-populate the `build/_deps/` cache on a connected machine
+and copy it over before running CMake. Set
+`-DFETCHCONTENT_UPDATES_DISCONNECTED=ON` (on by default in kairos/aion).
 
 ---
 
-## 8. Dependency versions and update policy
+## 9. Directory layout
 
-All C++ dependencies are pinned to exact tags in `CMakeLists.txt`. Update
-deliberately and record the reason in the CMakeLists comment. Do not use
-`GIT_TAG main` or floating tags.
+```
+nous/
+├── src/nous/            Clojure source (EPL-2.0)
+│   ├── user.clj           Public REPL API, peer lifecycle
+│   ├── loop.clj           deflive-loop, sleep!, sync!
+│   ├── kairos.clj         kairos / aion IPC client
+│   ├── ctrl.clj           Control tree (bind!, send!, undo!)
+│   ├── link.clj           Ableton Link client
+│   ├── m21.clj            Music21 corpus integration
+│   ├── freesound.clj      Freesound API v2 client
+│   └── ...                (35+ namespaces)
+├── test/nous/           Clojure tests
+├── resources/
+│   └── devices/           EDN device maps (37+ instruments)
+├── doc/                 User manual, design docs, licensing
+├── project.clj          Leiningen build
+├── BUILD.md             This file
+└── README.md            Project overview
+```
 
-| Dependency | Pinned tag | How to update |
-|------------|-----------|---------------|
-| Asio | `asio-1-30-2` | Edit root `CMakeLists.txt`; re-run `cmake -B build` |
-| RtMidi | `6.0.0` | Edit root `CMakeLists.txt`; delete `build/_deps/rtmidi-*`; re-run |
-| Ableton Link | `Link-3.0.4` | Edit `cpp/libnous-link/CMakeLists.txt`; delete `build/_deps/ableton-link-*`; re-run |
+C++ peer repos (separate git repositories):
 
-To force a re-fetch after updating a pin:
-
-```bash
-rm -rf build/_deps/<library>-src build/_deps/<library>-build
-cmake --build build
+```
+kairos/    CLAP host + audio + MIDI + Link   github.com/nomos-studio/kairos
+aion/      MIDI + Link only (no CLAP)        github.com/nomos-studio/aion
+nomos-rt/  Shared C++ substrate              github.com/nomos-studio/nomos-rt
+alembic/   Faust → WASM → CLAP compiler      github.com/nomos-studio/alembic
 ```

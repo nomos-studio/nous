@@ -1,0 +1,210 @@
+;; SPDX-License-Identifier: EPL-2.0
+;;
+;; Singular Sound Aeros Loop Studio — nous device map
+;;
+;; 6×6 multi-track stereo looper pedal. Receives MIDI clock, transport
+;; commands, track actions, and song selection from nous or from the
+;; BeatBuddy + MIDI Maestro ecosystem chain.
+;;
+;; Ecosystem chain:
+;;   nous → kairos → MIDI out
+;;             ↓
+;;   MIDI Maestro → BeatBuddy MIDI IN → BeatBuddy MIDI OUT (merge) → Aeros MIDI IN
+;;   (or: nous → USB-MIDI directly → Aeros MIDI IN)
+;;
+;; nous use case — looper texture control:
+;;   MicroFreak (audio out) → Microcosm (granular FX) → Aeros (looper)
+;;   nous sends MIDI to: MicroFreak (retune, melody), Microcosm (algorithm CC),
+;;                       Aeros (record/overdub/stop/mute CCs)
+;;
+;; MIDI input: 5-pin DIN MIDI IN + USB MIDI device port
+;; MIDI output: 5-pin DIN MIDI OUT (for syncing downstream devices to Aeros clock)
+;;
+;; Source: Singular Sound Aeros MIDI Sync Guide + Aeros User Manual — singularsound.com
+;; Confirmed CCs: CC 43-48 verified against MIDI Maestro App Mode 2 (see
+;;                singular-sound-midi-maestro.edn) and Singular Sound MIDI spec.
+;; Confidence: High for CC 43-48 (confirmed via MIDI Maestro cross-reference).
+;;             Medium-High for CC 49-67 (extended track matrix; from official MIDI spec).
+;;             Medium for clock/loop-length CCs (firmware-version dependent).
+
+{:device/id           :singular-sound/aeros
+ :device/name         "Singular Sound Aeros Loop Studio"
+ :device/manufacturer "Singular Sound"
+ :device/type         :looper
+ :device/role         :target
+ :device/connectivity [:din-midi     ; 5-pin DIN MIDI IN + OUT
+                        :usb-midi]   ; USB class-compliant; primary for nous direct control
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI channel
+ ;; -------------------------------------------------------------------------
+ :midi/channel        1             ; default; configurable in Aeros settings
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI clock
+ ;; -------------------------------------------------------------------------
+ :midi/clock
+ {:receive true                     ; slaves to external MIDI clock (e.g. BeatBuddy or nous/kairos)
+  :send    true                     ; can be clock master for downstream devices
+  :transport-messages [:start :stop :continue]
+  :note "When slaved to BeatBuddy, loop lengths sync to BeatBuddy song tempo and meter.
+         When nous/kairos drives clock directly, the Aeros follows the kairos Link timeline."}
+
+ ;; -------------------------------------------------------------------------
+ ;; Program Change — song selection
+ ;; -------------------------------------------------------------------------
+ :midi/program-change
+ {:supported true
+  :range     [0 127]
+  :note      "Selects song slot (preset). Song selection takes effect at the next
+              bar boundary when a loop is running; immediate when stopped."}
+
+ ;; -------------------------------------------------------------------------
+ ;; CC map — main transport (confirmed via MIDI Maestro cross-reference)
+ ;; -------------------------------------------------------------------------
+ :midi/cc
+
+ [;; --- Main loop transport ---------------------------------------------------
+  {:cc 43  :path [:transport :main-action]    :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Record → Play → Overdub cycle (RPO). Value ≥1 = press; 0 = release.
+          First press arms record, second ends record and starts playback,
+          third enters overdub, subsequent toggles play/overdub."}
+
+  {:cc 44  :path [:transport :stop-all]       :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Stop all playing tracks. Value ≥64 = stop (momentary-style)"}
+
+  {:cc 45  :path [:transport :next-part]      :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Advance to the next song part (section); queued at the next bar boundary"}
+
+  {:cc 46  :path [:transport :undo]           :range [0 127] :default 0
+   :cc-type :momentary :confidence :high
+   :note "Undo the last overdub layer on the current track. Hold for redo (or use CC 47)."}
+
+  ;; --- Track solo / mute (CC 47–52 = tracks 1–6) ---------------------------
+  ;; These are confirmed for tracks 1-2 via MIDI Maestro App Mode 2.
+  ;; Tracks 3-6 follow the same pattern per the Singular Sound MIDI spec.
+  {:cc 47  :path [:track 1 :solo-mute]        :range [0 127] :default 0
+   :cc-type :toggle :confidence :high
+   :note "Solo / mute track 1. ≥64 = active. Confirmed via MIDI Maestro."}
+
+  {:cc 48  :path [:track 2 :solo-mute]        :range [0 127] :default 0
+   :cc-type :toggle :confidence :high
+   :note "Solo / mute track 2. Confirmed via MIDI Maestro."}
+
+  {:cc 49  :path [:track 3 :solo-mute]        :range [0 127] :default 0
+   :cc-type :toggle :confidence :medium-high}
+
+  {:cc 50  :path [:track 4 :solo-mute]        :range [0 127] :default 0
+   :cc-type :toggle :confidence :medium-high}
+
+  {:cc 51  :path [:track 5 :solo-mute]        :range [0 127] :default 0
+   :cc-type :toggle :confidence :medium-high}
+
+  {:cc 52  :path [:track 6 :solo-mute]        :range [0 127] :default 0
+   :cc-type :toggle :confidence :medium-high}
+
+  ;; --- Per-track RPO (individual track record/play/overdub) -----------------
+  ;; These are the single-track equivalents of CC 43, applied per-track in 6×6 mode.
+  {:cc 53  :path [:track 1 :action]           :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium-high
+   :note "Record/Play/Overdub action on track 1 specifically"}
+
+  {:cc 54  :path [:track 2 :action]           :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium-high}
+
+  {:cc 55  :path [:track 3 :action]           :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium-high}
+
+  {:cc 56  :path [:track 4 :action]           :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium-high}
+
+  {:cc 57  :path [:track 5 :action]           :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium-high}
+
+  {:cc 58  :path [:track 6 :action]           :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium-high}
+
+  ;; --- Redo -----------------------------------------------------------------
+  {:cc 60  :path [:transport :redo]           :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium-high
+   :note "Redo previously undone overdub"}
+
+  ;; --- Next / previous loop (loop selection within a part) ------------------
+  {:cc 61  :path [:transport :next-loop]      :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium
+   :note "Advance to next loop within the current part; Aeros multi-loop mode only"}
+
+  {:cc 62  :path [:transport :prev-loop]      :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium}
+
+  ;; --- Clear track ----------------------------------------------------------
+  {:cc 67  :path [:transport :clear-track]    :range [0 127] :default 0
+   :cc-type :momentary :confidence :medium
+   :note "Erase the current track's recorded audio; value = track number (1-6) or 0=current"}
+
+  ;; --- Utility --------------------------------------------------------------
+  {:cc 120 :path [:utility :all-sound-off]    :range [0 127] :default 0
+   :cc-type :channel-mode :confidence :high}
+
+  {:cc 123 :path [:utility :all-notes-off]    :range [0 127] :default 0
+   :cc-type :channel-mode :confidence :high}]
+
+ ;; -------------------------------------------------------------------------
+ ;; nous binding targets
+ ;; -------------------------------------------------------------------------
+ :nous/bind-targets
+ {:record-play-overdub {:target :cc-43 :value 127
+                         :note   "Pulse once (on + off) to trigger the main RPO action"}
+  :stop-all            {:target :cc-44 :value 127}
+  :next-part           {:target :cc-45 :value 127}
+  :undo                {:target :cc-46 :value 127}
+  :track-1-mute        {:target :cc-47 :value 127}
+  :track-2-mute        {:target :cc-48 :value 127}
+  :track-3-mute        {:target :cc-49 :value 127}
+  :track-4-mute        {:target :cc-50 :value 127}
+  :track-5-mute        {:target :cc-51 :value 127}
+  :track-6-mute        {:target :cc-52 :value 127}}
+
+ ;; -------------------------------------------------------------------------
+ ;; Ecosystem
+ ;; -------------------------------------------------------------------------
+ :device/ecosystem
+ {:role    :looper
+  :chain   "nous → kairos MIDI out → Aeros MIDI IN (direct)
+            —or—
+            nous → kairos MIDI out → MIDI Maestro → BeatBuddy → Aeros MIDI IN (merged)"
+  :related-devices [:singular-sound/beatbuddy :singular-sound/midi-maestro]}
+
+ ;; -------------------------------------------------------------------------
+ ;; Notes
+ ;; -------------------------------------------------------------------------
+ :device/notes
+ {:looper-texture-chain
+  "In the granular texture workflow:
+     MicroFreak (melody/retune via nous) → Microcosm (granular FX) → Aeros (looper)
+   nous manages:
+     - MicroFreak: retune arc, note events, CC automation (filter sweep)
+     - Aeros: CC 43 (capture loops), CC 44 (stop), CC 45 (part advance),
+              CC 47-52 (mute/solo individual layers)"
+  :midi-maestro-coexistence
+  "If the MIDI Maestro is in the chain, it sends CCs 43-48 on foot-press.
+   nous can send the same CCs from a live loop without conflict — they are
+   momentary pulses and merge cleanly at the Aeros MIDI IN."
+  :clock-source
+  "Aeros can slave to kairos/aion MIDI clock for loop-length locking.
+   Set kairos as clock master; connect kairos MIDI OUT to Aeros MIDI IN.
+   Loop lengths then quantize to the nous beat grid automatically."
+  :firmware-note
+  "CC assignments above reflect firmware 5.x. Singular Sound has revised the
+   MIDI spec across major versions. Medium-confidence entries should be verified
+   against the MIDI Implementation document bundled with installed firmware."}
+
+ :device/map-source    "Singular Sound Aeros MIDI Sync Guide (singularsound.com)
+                         Cross-referenced against MIDI Maestro App Mode 2 CCs"
+ :device/map-version   "2026-06-21"
+ :device/map-confidence {:high        [:cc-43 :cc-44 :cc-45 :cc-46 :cc-47 :cc-48 :program-change]
+                          :medium-high [:cc-49 :cc-50 :cc-51 :cc-52 :cc-53 :cc-54 :cc-55 :cc-56 :cc-57 :cc-58 :cc-60]
+                          :medium      [:cc-61 :cc-62 :cc-67]}}

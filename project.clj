@@ -23,25 +23,66 @@
   :aliases {"mcp" ["run" "-m" "nous.mcp"]}
   :plugins [[lein-codox "0.10.8"]]
   :codox {:output-path "target/codox"
-          :namespaces [nous.book
+          :namespaces [;; Core sequencing
+                       nous.loop
                        nous.clock
-                       nous.excursion
-                       nous.defensemble
-                       nous.analysis.counterpoint
-                       nous.lattice
+                       nous.timing
+                       nous.dsl
+                       nous.live
+                       ;; Control and connectivity
                        nous.ctrl
                        nous.device
-                       nous.dsl
+                       nous.learn
+                       nous.link
+                       nous.kairos
+                       nous.midi-in
+                       nous.osc
+                       nous.peer
+                       nous.supervisor
+                       nous.topology
+                       ;; Music theory
+                       nous.analysis.counterpoint
+                       nous.chord
+                       nous.interval
+                       nous.pitch
+                       nous.rhythm
+                       nous.scale
+                       ;; Microtonal and JI
+                       nous.lattice
+                       nous.excursion
+                       nous.defensemble
+                       nous.mts
+                       nous.scala
+                       ;; Generative
+                       nous.book
+                       nous.berlin
+                       nous.conductor
+                       nous.extractor
                        nous.flux
                        nous.fractal
-                       nous.loop
-                       nous.m21
+                       nous.journey
+                       nous.pattern
+                       nous.seq
                        nous.stochastic
+                       nous.temporal-buffer
+                       nous.terrain
+                       nous.trajectory
+                       ;; Corpus
+                       nous.freesound
+                       nous.m21
+                       ;; Synthesis and samples
+                       nous.alembic
+                       nous.fm
+                       nous.sample
+                       nous.sc
+                       nous.spectral
+                       ;; Utilities
+                       nous.arp
+                       nous.ivk
+                       nous.journal
                        nous.mod
                        nous.mod.graph
                        nous.morph
-                       nomos.maths.phasor
                        nous.random
-                       nous.sidecar
-                       nous.timing]
+                       nomos.maths.phasor]
           :source-uri "https://github.com/nomos-studio/nous/blob/{version}/{filepath}#L{line}"})

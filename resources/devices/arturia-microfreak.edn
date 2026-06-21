@@ -1,0 +1,244 @@
+;; SPDX-License-Identifier: EPL-2.0
+;;
+;; Arturia MicroFreak — nous device map
+;;
+;; Mono synthesizer with digital oscillator (11 algorithms, Braids-derived),
+;; analog Oberheim SEM-inspired state-variable filter, and a flat-pressure
+;; keyboard (no velocity, polyphonic aftertouch). 4-step arpeggiator/sequencer.
+;;
+;; Key nous use cases:
+;;   - MTS Scale Tuning: send-mts! retuning via SysEx for microtonal pieces
+;;   - Granular / live looper textures: MicroFreak → Microcosm → Aeros chain
+;;   - Oscillator algorithm changes via CC 9 as a performance macro
+;;
+;; Connectivity: USB-MIDI (class-compliant) + 3.5mm TRS MIDI (Type A)
+;;
+;; Source: Arturia MicroFreak MIDI Implementation Chart (firmware 5.x)
+;;         Arturia MicroFreak User Manual — arturia.com
+;; Confidence: High for CC 1, 9, 71, 74 (standard / explicitly documented).
+;;             Medium-High for envelope / LFO / osc CCs — from published chart;
+;;             verify against current firmware. Arturia has revised assignments
+;;             across firmware versions.
+
+{:device/id           :arturia/microfreak
+ :device/name         "Arturia MicroFreak"
+ :device/manufacturer "Arturia"
+ :device/type         :synth
+ :device/voices       1             ; strictly monophonic (last note priority)
+ :device/role         :target
+ :device/connectivity [:usb-midi    ; class-compliant USB-B; also powers the unit
+                        :trs-midi]  ; 3.5mm TRS Type A (DIN pin-compatible adaptor needed)
+
+ ;; -------------------------------------------------------------------------
+ ;; MIDI channel
+ ;; -------------------------------------------------------------------------
+ :midi/channel        1             ; default; configurable on device
+
+ ;; -------------------------------------------------------------------------
+ ;; Notes
+ ;; -------------------------------------------------------------------------
+ :midi/notes
+ {:range     [36 96]                ; C2–C7 physical range; velocity ignored
+  :velocity  {:note-on false        ; keyboard has no velocity sensitivity
+               :note-off false      ; sends fixed velocity 64
+               :note "All notes transmitted at velocity 64; incoming velocity is accepted
+                      and routed internally as a modulation source if assigned in the matrix"}
+  :aftertouch {:poly-key-pressure true  ; flat keyboard: poly-AT on each key cell
+                :channel-pressure true}  ; can also send channel pressure
+  :portamento {:cc 65 :cc-type :switch   ; portamento on/off
+               :time-cc 5}}             ; CC 5 = portamento time (MSB)
+
+ ;; -------------------------------------------------------------------------
+ ;; Program Change
+ ;; -------------------------------------------------------------------------
+ :midi/program-change
+ {:supported true
+  :range     [0 127]                ; selects preset; MicroFreak v5+ has 384+ presets
+  :banks     {:msb-cc 0 :lsb-cc 32}; standard bank select for presets > 128
+  :note      "PC 0-127 selects within the current bank; use bank MSB/LSB for higher banks"}
+
+ ;; -------------------------------------------------------------------------
+ ;; Pitch bend
+ ;; -------------------------------------------------------------------------
+ :midi/pitch-bend
+ {:range-semitones 12               ; ±12 semitones default; configurable
+  :configurable    true
+  :note            "Pitch bend range configurable on device or via SysEx"}
+
+ ;; -------------------------------------------------------------------------
+ ;; MTS — Micro-Tuning Support
+ ;; -------------------------------------------------------------------------
+ :midi/mts
+ {:supported     true
+  :type          :scale-tuning-bulk-dump  ; 128-note bulk retune SysEx (F0 7F ... F7)
+  :sysex-id      [0x7F 0x7F 0x08 0x01]   ; Universal Real-Time, all devices, Bulk Dump
+  :nous-fn       'nous.mts/send-mts!
+  :note          "MicroFreak accepts MTS Scale Octave Tuning (Bulk) on channel 1 by default.
+                  send-mts! generates the correct 408-byte SysEx. Retune takes effect
+                  immediately with no audio glitch. Ideal for retune-arc! sweeps."}
+
+ ;; -------------------------------------------------------------------------
+ ;; CC map — oscillator
+ ;; -------------------------------------------------------------------------
+ :midi/cc
+
+ [;; Modulation wheel (standard)
+  {:cc 1   :path [:osc :mod-wheel]        :range [0 127] :default 0
+   :cc-type :standard :confidence :high
+   :note "Internal routing to modulation matrix destination (configurable on device)"}
+
+  ;; Oscillator type / algorithm (0=Basic Waves, 1=Wavetable, 2=WTspread,
+  ;; 3=Superwave, 4=Harmonic OSC, 5=KarplusS, 6=Vocal Frm, 7=CHORDS,
+  ;; 8=Granular, 9=Speech Synth, 10=Modal Res — 11 types total)
+  {:cc 9   :path [:osc :type]             :range [0 127] :default 0
+   :cc-type :standard :confidence :high
+   :note "Selects oscillator algorithm; 0-127 quantised to 11 types.
+          Tip: change type mid-performance for dramatic timbral shifts."}
+
+  {:cc 12  :path [:osc :wave]             :range [0 127] :default 0
+   :cc-type :standard :confidence :high
+   :note "Algorithm-specific Wave parameter (wavetable position, harmonic ratio, etc.)"}
+
+  {:cc 13  :path [:osc :timbre]           :range [0 127] :default 64
+   :cc-type :standard :confidence :high
+   :note "Algorithm-specific Timbre parameter"}
+
+  {:cc 14  :path [:osc :shape]            :range [0 127] :default 64
+   :cc-type :standard :confidence :high
+   :note "Algorithm-specific Shape parameter; maps to waveform morph / crush / etc."}
+
+  ;; Glide
+  {:cc 5   :path [:osc :portamento-time]  :range [0 127] :default 0
+   :cc-type :standard :confidence :high}
+
+  ;; -------------------------------------------------------------------------
+  ;; CC map — filter (SEM-style 12dB state-variable)
+  ;; -------------------------------------------------------------------------
+  {:cc 74  :path [:filter :cutoff]        :range [0 127] :default 64
+   :cc-type :standard :confidence :high
+   :note "Cutoff frequency; standard CC 74 per MIDI spec"}
+
+  {:cc 71  :path [:filter :resonance]     :range [0 127] :default 0
+   :cc-type :standard :confidence :high
+   :note "Resonance; standard CC 71"}
+
+  {:cc 23  :path [:filter :env-amount]    :range [0 127] :default 64
+   :cc-type :standard :confidence :medium-high
+   :note "Filter envelope amount; bipolar (64=centre=zero modulation)"}
+
+  ;; Filter routing (LP/BP/HP/notch) is not CC-addressable in real time —
+  ;; it is stored in the preset or configurable on device only.
+
+  ;; -------------------------------------------------------------------------
+  ;; CC map — envelope (Cycling ENV — single shared envelope)
+  ;; -------------------------------------------------------------------------
+  {:cc 20  :path [:env :attack]           :range [0 127] :default 0
+   :cc-type :standard :confidence :high}
+
+  {:cc 21  :path [:env :decay-fall]       :range [0 127] :default 64
+   :cc-type :standard :confidence :high
+   :note "Decay / Fall (MicroFreak uses decay as slope when sustain is off)"}
+
+  {:cc 22  :path [:env :sustain-hold]     :range [0 127] :default 64
+   :cc-type :standard :confidence :medium-high
+   :note "Sustain / Hold time; the MicroFreak ENV has a Hold stage rather than
+          a true sustain level — when cycling is on this drives the duty cycle"}
+
+  {:cc 23  :path [:env :release]          :range [0 127] :default 0
+   :cc-type :standard :confidence :medium-high}
+
+  {:cc 80  :path [:env :cycling]          :range [0 127] :default 0
+   :cc-type :standard :confidence :medium
+   :note "ENV Cycling mode toggle (≥64 = on); turns envelope into a free-running LFO"}
+
+  ;; -------------------------------------------------------------------------
+  ;; CC map — LFO
+  ;; -------------------------------------------------------------------------
+  {:cc 16  :path [:lfo :rate]             :range [0 127] :default 64
+   :cc-type :standard :confidence :high}
+
+  {:cc 17  :path [:lfo :shape]            :range [0 127] :default 0
+   :cc-type :standard :confidence :medium-high
+   :note "LFO waveform: 0=sine, 21=tri, 42=rising saw, 64=falling saw, 85=square, 106=random (S&H)"}
+
+  {:cc 18  :path [:lfo :destination]      :range [0 127] :default 0
+   :cc-type :standard :confidence :medium
+   :note "LFO primary destination (quantised to routing matrix slots); prefer preset-based routing"}
+
+  {:cc 76  :path [:lfo :amount]           :range [0 127] :default 0
+   :cc-type :standard :confidence :medium-high}
+
+  ;; -------------------------------------------------------------------------
+  ;; CC map — arp / sequencer
+  ;; -------------------------------------------------------------------------
+  {:cc 28  :path [:arp :spice]            :range [0 127] :default 0
+   :cc-type :standard :confidence :high
+   :note "Spice — arpeggio randomisation amount; introduces note probability/variation"}
+
+  {:cc 29  :path [:arp :dice]             :range [0 127] :default 0
+   :cc-type :standard :confidence :high
+   :note "Dice — triggers a randomisation of the current arp/seq pattern"}
+
+  ;; -------------------------------------------------------------------------
+  ;; CC map — utility
+  ;; -------------------------------------------------------------------------
+  {:cc 64  :path [:utility :sustain]      :range [0 127] :default 0
+   :cc-type :standard :confidence :high
+   :note "Standard sustain pedal CC; latches notes"}
+
+  {:cc 120 :path [:utility :all-sound-off] :range [0 127] :default 0
+   :cc-type :channel-mode :confidence :high}
+
+  {:cc 123 :path [:utility :all-notes-off] :range [0 127] :default 0
+   :cc-type :channel-mode :confidence :high}]
+
+ ;; -------------------------------------------------------------------------
+ ;; SysEx
+ ;; -------------------------------------------------------------------------
+ :midi/sysex
+ {:manufacturer-id [0x00 0x20 0x6B]  ; Arturia
+  :model-id        [0x02 0x0A]        ; MicroFreak family (verify with device)
+  :purpose         [:global-config :preset-dump :mts-scale-tuning
+                    :midi-control-center-communication]}
+
+ ;; -------------------------------------------------------------------------
+ ;; nous binding hints
+ ;; -------------------------------------------------------------------------
+ :nous/bind-sources
+ {:aftertouch {:source :poly-key-pressure :yields :pressure-0-127
+               :note   "Poly AT from each key cell; aggregate via max() for typical use"}
+  :mod-wheel  {:source :cc-1  :yields :value-0-127}}
+
+ :nous/bind-targets
+ {:filter-cutoff  {:target :cc-74 :yields :value-0-127}
+  :filter-res     {:target :cc-71 :yields :value-0-127}
+  :osc-type       {:target :cc-9  :yields :value-0-127
+                   :note   "Change osc algorithm mid-performance; 11 types quantised across 0-127"}
+  :lfo-rate       {:target :cc-16 :yields :value-0-127}
+  :env-attack     {:target :cc-20 :yields :value-0-127}
+  :env-decay      {:target :cc-21 :yields :value-0-127}}
+
+ ;; -------------------------------------------------------------------------
+ ;; Ecosystem notes
+ ;; -------------------------------------------------------------------------
+ :device/notes
+ {:mts-workflow    "Use nous.mts/send-mts! for scale tuning. Use nous.mts/retune-arc! to
+                    interpolate between two tuning systems over a user-defined number of
+                    bars (e.g. Partch 43-tone JI → 12-TET). MicroFreak accepts bulk dumps
+                    mid-performance."
+  :looper-chain    "For granular texture work: MicroFreak → Microcosm (granular FX) →
+                    Aeros Loop Studio. nous drives MicroFreak melody/retune and sends CC
+                    to Microcosm and Aeros for looper capture and texture sculpting."
+  :velocity-quirk  "The flat-key keyboard sends no velocity. Incoming velocity from nous
+                    is accepted for internal routing but does not affect the keyboard feel.
+                    Use CC modulation for dynamic expression."
+  :firmware-note   "CC assignments have been revised across firmware versions. This map
+                    reflects firmware 5.x. Medium-confidence entries should be verified
+                    against the MIDI implementation chart bundled with the installed firmware."}
+
+ :device/map-source   "Arturia MicroFreak MIDI Implementation Chart (firmware 5.x) — arturia.com"
+ :device/map-version  "2026-06-21"
+ :device/map-confidence {:high [:cc-1 :cc-5 :cc-9 :cc-12 :cc-13 :cc-14 :cc-16 :cc-20
+                                 :cc-21 :cc-28 :cc-29 :cc-64 :cc-71 :cc-74 :mts]
+                          :medium-high [:cc-17 :cc-22 :cc-23 :cc-76]
+                          :medium [:cc-18 :cc-80]}}

@@ -27,7 +27,8 @@ Version 0.18.0 · June 2026
 19. [Ensemble Improvisation Agent](#19-ensemble-improvisation-agent)
 20. [Peer Discovery](#20-peer-discovery)
 21. [Note Transformers](#21-note-transformers)
-22. [Bach Corpus (Music21)](#22-bach-corpus-music21)
+22. [Score Corpus (`nous.m21`)](#22-score-corpus-nousm21)
+22a. [Freesound Sample Library (`nous.freesound`)](#22a-freesound-sample-library-nousfreesound)
 23. [SuperCollider Integration](#23-supercollider-integration)
 24. [Spatial Field](#24-spatial-field)
 25. [Sample Player and Freesound](#25-sample-player-and-freesound)
@@ -54,6 +55,8 @@ Version 0.18.0 · June 2026
 46. [Berlin School Vocabulary (`nous.berlin`)](#46-berlin-school-vocabulary-nousberlin)
 47. [Harmonic Excursion Arc (`nous.excursion`)](#47-harmonic-excursion-arc-nousexcursion)
 48. [Journey Conductor (`nous.journey`)](#48-journey-conductor-nousjourney)
+49. [Terrain Sequencer (`nous.terrain`)](#49-terrain-sequencer-noustterrain)
+50. [Book of Sounds (`nous.book`)](#50-book-of-sounds-nousbook)
 
 ---
 
@@ -1972,23 +1975,30 @@ You can define custom transformers:
 
 ---
 
-## 22. Bach Corpus (Music21)
+## 22. Score Corpus (`nous.m21`)
 
-
-nous integrates with [Music21](https://web.mit.edu/music21/) for the Bach
-chorale corpus. Requires Python 3.x with `music21` installed:
+nous integrates with [Music21](https://web.mit.edu/music21/) to access its
+entire score corpus — not just Bach chorales but Renaissance polyphony
+(Palestrina, Josquin, Lassus), ABC tunebooks, MusicXML archives, and any
+file the Music21 corpus index can locate. Requires Python 3.x:
 
 ```bash
 pip install music21
 ```
 
+The first call to any `m21/` function starts a persistent Python server. It
+stays alive for the JVM session. Results are cached in memory (two-level:
+server-side and disk at `~/.local/share/nous/corpora/m21/`).
+
+### Bach chorales (BWV convenience functions)
+
 ```clojure
 (require '[nous.m21 :as m21])
 
-;; List available chorales (BWV numbers)
+;; List available BWV numbers
 (m21/list-chorales)   ; => [1 2 3 ... 371 ...]
 
-;; Play BWV 371 — all voices on one channel (server starts automatically)
+;; Play BWV 371 — all voices on one channel
 (m21/play-chorale! 371)
 
 ;; Play with separate MIDI channels per voice (SATB)
@@ -1996,17 +2006,143 @@ pip install music21
 (m21/play-chorale-parts! 371 {:dur-mult 0.8
                                :channels {:soprano 1 :alto 2 :tenor 3 :bass 4}})
 
-;; Load the raw data for your own processing
+;; Load chord vectors for analysis
 (def chords (m21/load-chorale 371))
 ;; => [{:pitches [48 55 62 67] :dur/beats 1.0} ...]
-
-;; Stop the Python server when done
-(m21/stop-server!)
 ```
 
-The first call starts a persistent Python server that stays alive for the JVM
-session. Repeat calls are instant (in-memory cache). Results are also cached
-to disk in `~/.local/share/nous/corpora/m21/`.
+### Searching the full corpus
+
+`search-corpus` queries the full Music21 corpus index. Results are file paths
+within the corpus that can be passed to `load-work`.
+
+```clojure
+;; Find all Palestrina works
+(m21/search-corpus {:composer "palestrina"})
+;; => ["palestrina/Palestrina_Missa_Brevis_Kyrie.xml"
+;;     "palestrina/Palestrina_Missa_Brevis_Gloria.xml" ...]
+
+;; Find by file extension
+(m21/search-corpus {:extension "abc"})
+;; => ["abc/..." ...]
+
+;; Find by title keyword (case-insensitive)
+(m21/search-corpus {:title "kyrie"})
+
+;; Combine predicates (all must match)
+(m21/search-corpus {:composer "josquin" :extension "xml"})
+```
+
+### Loading any corpus work
+
+`load-work` accepts any corpus path from `search-corpus` and returns the
+score in one of three modes:
+
+```clojure
+;; :parts — per-voice step vectors (default)
+(def score (m21/load-work "palestrina/Palestrina_Missa_Brevis_Kyrie.xml"
+                           :mode :parts))
+;; => {:soprano [{:pitch/midi 64 :dur/beats 1.0} ...]
+;;     :alto    [...] :tenor [...] :bass [...]}
+
+;; :chords — vertical slices, like load-chorale
+(def chords (m21/load-work "josquin/josquin_mass.xml" :mode :chords))
+;; => [{:pitches [52 57 62 67] :dur/beats 1.0} ...]
+
+;; :intervals — interval vectors between adjacent voices (analysis use)
+(def ivs (m21/load-work "palestrina/..." :mode :intervals))
+;; => [{:soprano-alto 5 :alto-tenor 3 :tenor-bass 7} ...]
+```
+
+### Playing a Palestrina Kyrie live
+
+```clojure
+(require '[nous.m21 :as m21]
+         '[nous.loop :refer [deflive-loop sleep!]]
+         '[nous.dsl :refer [play!]])
+
+(def kyrie (m21/load-work "palestrina/Palestrina_Missa_Brevis_Kyrie.xml"
+                           :mode :parts))
+
+(let [soprano (cycle (:soprano kyrie))
+      soprano-state (atom soprano)]
+  (deflive-loop :kyrie-soprano {:midi-channel 1}
+    (let [step (first @soprano-state)]
+      (reset! soprano-state (rest @soprano-state))
+      (play! step)
+      (sleep! (:dur/beats step)))))
+```
+
+### Server lifecycle
+
+```clojure
+(m21/stop-server!)   ; stop the Python bridge; clears the in-memory cache
+```
+
+The disk cache persists across sessions; delete
+`~/.local/share/nous/corpora/m21/` to force a re-parse.
+
+---
+
+## 22a. Freesound Sample Library (`nous.freesound`)
+
+`nous.freesound` is an API v2 client for [Freesound.org](https://freesound.org/)
+— a Creative Commons audio sample database. It integrates with `nous.sample`
+so that downloaded samples are immediately available for granular playback and
+live-loop dispatch.
+
+Requires a free API key (create at freesound.org → API → Apply for key):
+
+```bash
+export FREESOUND_API_KEY=<your-key>
+```
+
+### Searching and downloading
+
+```clojure
+(require '[nous.freesound :as fs])
+
+;; Search by keyword — returns a vector of result maps
+(fs/search-freesound "tabla drone")
+;; => [{:id 12345 :name "Tabla drone C2.wav" :duration 4.2 :license "CC0" ...} ...]
+
+;; Download and register with the sample buffer registry
+(fs/fetch-and-load! 12345)
+;; => :freesound/12345   (key for use in play! step maps)
+
+;; Play immediately
+(play! {:sample :freesound/12345 :rate 1.0 :amp 0.7})
+```
+
+### Essentials catalog
+
+The essentials catalog is a curated offline-ready subset of Freesound content.
+`load-essentials!` downloads the catalog once; subsequent sessions use the disk
+cache at `~/.local/share/nous/corpora/freesound/`.
+
+```clojure
+;; Prime the catalog (downloads on first call, ~200 MB)
+(fs/load-essentials!)
+
+;; Inspect the catalog
+(fs/essentials)
+;; => [{:id 12345 :name "..." :tags ["drone" "tabla"] :cached? true} ...]
+
+;; Use a specific sample from the catalog by name pattern
+(fs/fetch-and-load! (-> (fs/essentials) (filter #(re-find #"tabla" (:name %))) first :id))
+```
+
+### Curating the essentials
+
+`curate-essentials!` rebuilds the catalog from a query list. Use this to
+customise the offline library for a particular project or instrument focus:
+
+```clojure
+(fs/curate-essentials!
+  [{:query "tabla drone" :count 10}
+   {:query "sitar harmonics" :count 5}
+   {:query "tanpura" :count 5}])
+```
 
 ---
 
@@ -4956,6 +5092,170 @@ Apply analogue sequencer micro-timing and velocity variance to a step:
   (play! (journey/humanise (berlin/next-step! ost)))
   (sleep! 1/8))
 ```
+
+---
+
+## 49. Terrain Sequencer (`nous.terrain`)
+
+`nous.terrain` lifts the `nous.fractal` 2D chain into a 3D space addressed
+by three continuous phasors. Where a fractal sequence is a 1D path through a
+transform tree, a terrain is a 2D cross-section through that tree that can be
+navigated live.
+
+```
+X ∈ [0,1) — position within the sequence (step index)
+Y ∈ [0,1) — depth into the transform tree (0 = trunk, 1 = max-depth)
+Z ∈ [0,1) — branch selection (decoded as base-N fraction)
+```
+
+Adjacent branches are linearly blended at each Z value, so moving Z
+continuously produces smooth timbral morphs rather than hard cuts.
+
+### Defining a terrain
+
+```clojure
+(require '[nous.terrain :as terrain])
+
+(defterrain seabed
+  :trunk  [{:pitch/midi 36 :dur/beats 1/2 :gate/on? true :gate/len 0.7}
+           {:pitch/midi 40 :dur/beats 1/4 :gate/on? true :gate/len 0.5}
+           {:pitch/midi 43 :dur/beats 1/4 :gate/on? true :gate/len 0.5}]
+  :transforms [:reverse :inverse :mutate]
+  :max-depth  4)
+```
+
+The `:trunk` is the base sequence (equivalent to the fractal trunk). `:transforms`
+are the available child operations at each tree node. `:max-depth` controls how
+deep the Y axis reaches.
+
+### Stepping
+
+```clojure
+;; Single step — reads Y and Z from ctrl tree (both default 0.0 = trunk)
+(terrain/next-terrain-step! seabed)
+;; => {:pitch/midi 36 :dur/beats 0.5 :gate/on? true ...}
+```
+
+### Navigating with the ctrl tree
+
+Y and Z are registered as ctrl-tree float nodes, so any ctrl binding,
+`trajectory` automation, or `ctrl/set!` call can drive them:
+
+```clojure
+(require '[nous.ctrl :as ctrl])
+
+;; Dive into the transform tree over 16 bars
+(ctrl/set! [:terrain :seabed :y] 0.0)
+(trajectory/run! [:terrain :seabed :y] {:to 0.8 :bars 16 :shape :smooth-step})
+
+;; Crossfade between branches
+(ctrl/set! [:terrain :seabed :z] 0.0)
+(trajectory/run! [:terrain :seabed :z] {:to 0.5 :bars 8 :shape :linear})
+```
+
+### Inside a live loop
+
+`make-terrain-seq` returns an `IStepSequencer`, so it composes with `run-step!`:
+
+```clojure
+(deflive-loop :depth {}
+  (run-step! (terrain/make-terrain-seq seabed))
+  (sleep! 1/8))
+```
+
+### Terrain as a higher-dimensional arpeggiator
+
+A terrain with `:max-depth 1` and no blending is equivalent to a 2D arpeggiator:
+X selects the step, Z selects the transform variant. As depth and blending increase,
+the space becomes a continuously morphable texture source.
+
+---
+
+## 50. Book of Sounds (`nous.book`)
+
+`nous.book` is a harmonic-series sequencer inspired by Hans Otte's
+*Das Buch der Klänge* (Book of Sounds, 1979–82). It treats the overtone
+series above a fundamental as the pitch vocabulary, organises pitches into
+named pages (harmonic regions), and navigates between them under
+gravity-weighted selection.
+
+This makes it a natural fit for JI performance: each harmonic is a pure
+ratio above the fundamental, and gravity pulls repeated visits toward
+lower-order (more consonant) harmonics.
+
+### Defining a book
+
+```clojure
+(require '[nous.book :as book])
+
+(defbook resonant-space
+  :fundamental :C2
+  :pages [{:name :ground   :harmonics [1 2 3 4]    :gravity 1.0}
+          {:name :outer    :harmonics [7 9 11 13]  :gravity 0.3
+           :selection {:mode :proximate}}]
+  :navigation {:initial :ground :mode :manual})
+```
+
+`:harmonics` lists partial numbers (1 = fundamental, 2 = octave, 3 = fifth
+above that, 7 = harmonic seventh, 11 = undecimal tritone, etc.).
+`:gravity` biases repeated selection toward lower-numbered harmonics within
+the page. `:selection :mode :proximate` picks the harmonic closest in
+frequency to the previous step rather than by gravity alone.
+
+### Stepping
+
+```clojure
+;; Advance to the next step in the current page
+(book/next-step! resonant-space)
+;; => {:pitch/voct 0.585 :pitch/midi 55 :dur/beats 4.0
+;;     :book/harmonic 3   :book/gravity 0.12 :gate/on? true}
+
+;; Jump to a different page (takes effect at the next call to next-step!)
+(book/go-page! resonant-space :outer)
+```
+
+### Inside a live loop
+
+```clojure
+(deflive-loop :harmonics {}
+  (run-step! (book/make-book-seq resonant-space))
+  (sleep! 1))
+```
+
+### Cell mode
+
+Cell mode commits a fixed-length motif from the current page and replays it
+with slow gravity-directed drift — the book evolves over time without sudden
+page changes:
+
+```clojure
+(defbook patient-cell
+  :fundamental :F#2
+  :output-mode :cell
+  :cell-len    4
+  :drift-prob  0.08     ; probability per step of drifting one harmonic
+  :drift-rate  :per-pass
+  :pages [{:name :ground :harmonics [1 2 3 4]   :gravity 1.0}
+          {:name :outer  :harmonics [7 11 13 15] :gravity 0.2}])
+```
+
+In cell mode, `next-step!` cycles through the committed motif. When drift
+fires, one step is replaced by a harmonically adjacent pitch, slowly steering
+the cell toward or away from the `:outer` page according to gravity.
+
+### Combining with excursion arcs
+
+`nous.book` and `nous.excursion` address JI space differently:
+
+- **`nous.book`** navigates the overtone series above a fixed fundamental;
+  gravity biases toward simpler ratios; the harmonic identity of each pitch
+  is explicit (partial number in step map)
+- **`nous.excursion`** navigates a 2D Tenney-distance field and explicitly
+  stages a five-phase dramatic arc (ground → departure → excursion → return →
+  resolution)
+
+For the SimSelections / Fate piece workflow, a book provides the note-level
+vocabulary while an excursion arc controls which harmonic region is current.
 
 ---
 
