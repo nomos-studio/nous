@@ -582,13 +582,27 @@ standard oscillators/filters. Polyphony generation requires explicit design.
 
 ## Deferred
 
-### Q50 — P2P control plane: peer discovery and remote tree composition
+### Q50 — P2P control plane: peer discovery and remote tree composition  ✓ RESOLVED
 
-**Status**: Deferred; `nous.peer` implements single-peer HTTP polling. Full P2P
-(mDNS discovery, distributed ctrl-tree merge, conductor pattern) deferred until the
-ctrl tree is stable and a multi-musician use case is concrete.
+**Resolution**: Two-tier peer model. `nous.peer` provides UDP multicast beacon
+discovery (239.255.43.99:7743) and `mount-peer!` (HTTP polling for read-only remote
+subtrees). v0.20.0 adds `connect-peer!` — a persistent nREPL-based peer relationship
+for bidirectional, push-native ctrl tree sharing. `nous.bitwig` is the first full peer
+of this type: bwosc owns `[:bitwig ...]` as a top-level ctrl tree namespace and pushes
+state to nous; nous dispatches writes back to bwosc via `eval-on-peer!`.
 
-**Design is not foreclosed**: OSC addresses are stable, tree serial number enables
-stale-snapshot detection, EDN serialisation allows peer state transmission. When the
-time comes: mDNS/Bonjour for discovery; discovered peers appear as device subtrees at
-`[:nous :peers <peer-id>]`.
+The distinction between the two peer types is intentional:
+- `mount-peer!` — lightweight read-only subtree from a polled HTTP peer (unchanged)
+- `connect-peer!` — full bidirectional peer; peer owns a named top-level namespace;
+  both sides push; peer is registered in the beacon as a known node
+
+**Implemented** (at v0.20.0):
+- `nous.bitwig` — ctrl tree adapter for bwosc; subscribes via OSC `/sub`; dispatches
+  writes via OSC `/val`; inbound state stream updates ctrl tree via `osc/on-msg!`
+- bwosc design: `doc/design-bwosc.md`
+
+**Remaining future work** (not blocking current use cases):
+- mDNS/Bonjour discovery (Phase 3 from `design-distributed-embedded.md`) — replaces
+  UDP multicast for cross-subnet/VPN setups
+- Multi-musician distributed ctrl-tree merge — conductor pattern; conflict resolution;
+  deferred until a multi-host live performance use case is concrete

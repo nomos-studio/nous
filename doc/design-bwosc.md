@@ -20,133 +20,131 @@ Key properties:
 
 - **Platform-native**: runs inside Bitwig's JVM on any platform Bitwig supports
   (macOS, Linux, Windows). No nous binary required on the Bitwig host.
-- **Full ctrl tree peer**: owns `[:bitwig ...]` as a top-level namespace; state is
-  push-live in both directions via nREPL, not polled.
-- **`nous.bitwig` companion namespace**: a thin adapter in nous that registers ctrl
-  tree watches on `[:bitwig ...]` writable paths and dispatches changes to bwosc via
-  `eval-on-peer!`. Consistent with the pattern established by `nous.kairos`.
+- **Full ctrl tree peer**: participates via the standard OSC peer subscription protocol
+  from `design-distributed-embedded.md` — the same mechanism any non-Clojure peer uses.
+  No nREPL, no Clojure knowledge required in bwosc.
+- **`nous.bitwig` companion namespace**: a thin adapter in nous that subscribes to
+  bwosc's ctrl tree subtree and dispatches writes back as OSC. Consistent with the
+  pattern established by `nous.kairos`.
 - **Standalone repo**: `github.com/nous/bwosc` — Java Maven project, separate from nous.
 
 ---
 
 ## Architecture
 
-Two nREPL connections carry all ctrl tree traffic. One HTTP server handles
-peer discovery and diagnostic inspection.
+OSC carries all ctrl tree traffic in both directions. One HTTP server handles
+diagnostics and the initial snapshot on connect.
 
 ```
 ┌────────────────────────────────────────────────────┐
 │  nous (Mac Mini / any host)                        │
 │                                                    │
-│  ctrl tree: [:bitwig :track 0 :volume] = 0.73     │
-│             [:bitwig :transport :playing] = true   │
+│  ctrl tree: [:bitwig :track :lead-synth :volume]   │
+│             [:bitwig :transport :playing]          │
 │             ...                                    │
 │                                                    │
-│  nous.bitwig — ctrl watch on [:bitwig ...]         │
-│    ctrl/watch! [:bitwig :track N :volume]    ──────┼──→ nREPL eval-on-peer! :bitwig
-│    ctrl/watch! [:bitwig :clip N M :launch!]  ──────┼──→ nREPL eval-on-peer! :bitwig
-│    ctrl/watch! [:bitwig :transport :play!]   ──────┼──→ nREPL eval-on-peer! :bitwig
+│  nous.bitwig                                       │
+│    connect!: OSC /nous/bitwig/sub [:bitwig] ───────┼──→ bwosc OSC port 7179
+│    watch dispatch: OSC /nous/bitwig/val <p> <v> ───┼──→ bwosc OSC port 7179
 │                                                    │
-│  nREPL server (port 7888) ←────────────────────────┼── bwosc pushes ctrl/set! here
+│  nous OSC listener (port 57120) ←─────────────────┼── bwosc /nous/bitwig/val <p> <v>
 └────────────────────────────────────────────────────┘
-           ↑ outbound nREPL (nous→bwosc)
-           ↓ inbound nREPL (bwosc→nous)
+              ↑↓  OSC UDP — both planes, same protocol
 ┌────────────────────────────────────────────────────┐
 │  bwosc (inside Bitwig's JVM)                       │
 │                                                    │
-│  Bitwig observer callbacks:                        │
+│  Bitwig observer callbacks → OSC push:             │
 │    volume.addValueObserver(v ->                    │
-│      nreplToNous.evalAsync(                        │
-│        "(ctrl/set! [:bitwig :track 0 :volume] v)") │
+│      osc.send(nousAddr, "/nous/bitwig/val",        │
+│               encodePath(...), v))                 │
 │                                                    │
-│  nREPL server (port 7889) ← nous eval-on-peer!     │
-│    (bwosc/set-volume! 0 0.8) → Host.scheduleTask() │
-│    (bwosc/launch-clip! 2 3)  → Host.scheduleTask() │
+│  OSC server (port 7179):                           │
+│    /nous/bitwig/sub <path> → register subscriber   │
+│    /nous/bitwig/val <path> <v> → Bitwig API call   │
+│                          via Host.scheduleTask()   │
 │                                                    │
 │  UDP beacon sender (239.255.43.99:7743)            │
 │  HTTP server (port 7178) — diagnostics + snapshot  │
 └────────────────────────────────────────────────────┘
 ```
 
+Both planes use the same OSC message convention from `design-distributed-embedded.md §5`:
+
+```
+/nous/<node-id>/sub <path-edn>           ; nous → bwosc: subscribe to subtree
+/nous/<node-id>/val <path-edn> <value>   ; bwosc → nous: push state change
+/nous/<node-id>/val <path-edn> <value>   ; nous → bwosc: write (command)
+```
+
+The `/val` message is uniform in both directions. The `/sub` message registers
+nous as a subscriber; bwosc records the source address and pushes all subsequent
+`[:bitwig ...]` changes to it.
+
 ### State plane: Bitwig → nous ctrl tree
 
-Bitwig's observer model provides push callbacks for every observable property
-(volume, mute state, clip playback state, device params, tempo, etc.). Each
-observer callback immediately evals a `ctrl/set!` call on the outbound nREPL
-connection to nous:
+Bitwig's observer model fires a callback for every observable property change.
+Each callback sends an OSC `/val` message to all registered subscribers:
 
 ```java
 volume.addValueObserver(v ->
-    nreplToNous.evalAsync(
-        String.format("(nous.ctrl/set! [:bitwig :track %d :volume] %.6f)", idx, v)
-    )
+    osc.send(subscriberAddr, "/nous/bitwig/val",
+             encodePath(":bitwig", ":track", trackKw, ":volume"), v)
 );
 ```
 
-`evalAsync` is non-blocking — bwosc queues the message and returns. The main nous
-ctrl tree at `[:bitwig :track N :volume]` is updated in real time, with the same
-latency as a local ctrl tree write.
+`encodePath` serialises the path as a space-separated EDN string
+(`":bitwig :track :lead-synth :volume"`) that nous.osc deserialises back to a
+Clojure vector. The nous OSC listener receives the message and applies it to the
+ctrl tree via `ctrl/set!`. No Clojure knowledge required in bwosc.
 
 ### Command plane: nous → Bitwig
 
-Writes to `[:bitwig ...]` paths flow through the `nous.bitwig` namespace, which
-registers ctrl watches on the writable subset:
+Writes to `[:bitwig ...]` paths flow through `nous.bitwig`, which registers ctrl
+watches on the writable subset. Each watch dispatch sends an OSC `/val` to bwosc:
 
 ```clojure
-;; nous.bitwig — registers on start
-(ctrl/watch! [:bitwig :track] bitwig-track-watch)
-(ctrl/watch! [:bitwig :scene] bitwig-scene-watch)
-(ctrl/watch! [:bitwig :transport] bitwig-transport-watch)
-
-;; watch dispatch
-(defn- bitwig-track-watch [path _old new]
-  (let [[_ _ track-idx key] path]
-    (remote/eval-on-peer! :bitwig
-      (format "(bwosc/handle-track! %d %s %s)" track-idx key (pr-str new)))))
+(defn- dispatch-write! [path value]
+  (osc/send! bwosc-addr "/nous/bitwig/val"
+             (osc-encode-path path) value))
 ```
 
-bwosc's nREPL server receives the eval, unmarshals the args, and queues a
-`Host.scheduleTask(Runnable, 0)` call — the standard Bitwig pattern for
-thread-safe API calls from background threads:
+bwosc's OSC server receives the `/val`, resolves the path keyword back to a Bitwig
+entity via `NameNorm`, and queues the API call on the controller thread:
 
 ```java
-// bwosc/handle-track! implementation (Clojure interop or Java)
-public static void handleTrack(int trackIdx, String key, Object value) {
+oscServer.addHandler("/nous/bitwig/val", (path, value) ->
     host.scheduleTask(() -> {
-        Track track = trackBank.getChannel(trackIdx);
-        switch (key) {
-            case ":volume" -> track.getVolume().set(((Number) value).doubleValue());
-            case ":muted"  -> track.getMute().set(((Boolean) value));
-            // ...
-        }
-    }, 0);
-}
+        String[] parts = decodePath(path);  // [":bitwig", ":track", ":lead-synth", ":volume"]
+        resolveAndSet(parts, value);
+    }, 0)
+);
 ```
 
-The programmer-facing API is therefore identical for local and remote targets:
+The programmer-facing API is identical for local and remote targets:
 
 ```clojure
-;; These all go through ctrl tree → nous.bitwig watch → bwosc nREPL → Bitwig API
-(ctrl/set! [:bitwig :track 2 :volume] 0.8)
-(ctrl/set! [:bitwig :scene 3 :launch!] true)
+;; These all go through ctrl tree → nous.bitwig watch → OSC → bwosc → Bitwig API
+(ctrl/set! [:bitwig :track :lead-synth :volume] 0.8)
+(ctrl/set! [:bitwig :scene :drop :launch!] true)
 (ctrl/set! [:bitwig :transport :play!] true)
-(ctrl/set! [:bitwig :track 0 :device 1 :param 3 :value] 0.65)
+(ctrl/set! [:bitwig :track :lead-synth :device :surge-xt :param :filter-cutoff :value] 0.65)
 ```
 
-No special Bitwig API knowledge required in compositional code. Bitwig is just a
-device whose parameters happen to live at `[:bitwig ...]`.
+### Echo suppression
+
+When nous writes a value via OSC, Bitwig fires the observer, which would push the
+same value back to nous — a feedback loop. bwosc tracks the last value it received
+*from nous* per path and skips the push if the observer fires with the same value
+within a short window (default 50ms). This is the standard technique for any
+bidirectional parameter binding.
 
 ### HTTP server role
 
-The HTTP server (port 7178) has two narrow purposes:
-
-1. **Peer discovery response**: nous.peer reads `/ctrl/<path>` to confirm bwosc is
-   alive and to fetch the initial tree snapshot on connect. One GET at startup, not
-   a polling loop.
-2. **Diagnostic inspection**: ad-hoc `GET /ctrl/bitwig/track/0/volume` from a browser
-   or curl during development. Not part of the normal operating path.
-
-The HTTP server is NOT the primary data path. Normal operation is entirely nREPL.
+1. **Initial snapshot**: `GET /snapshot` returns the full `[:bitwig ...]` subtree
+   as EDN. `nous.bitwig/connect!` fetches this once on startup to populate the ctrl
+   tree before the OSC subscription stream fills it in incrementally.
+2. **Diagnostic inspection**: ad-hoc `GET /ctrl/bitwig/track/lead-synth/volume`
+   from a browser or curl. Not part of the normal operating path.
 
 ### UDP beacon
 
@@ -155,18 +153,16 @@ bwosc broadcasts a standard nous peer beacon:
 ```edn
 {:node-id      :bitwig
  :role         :daw
+ :osc-port     7179
  :http-port    7178
- :nrepl-port   7889
  :version      "0.1.0"
- :backends     {:bitwig {:host "127.0.0.1"}}
  :timestamp-ms 1750000000000}
 ```
 
-The main nous node discovers bwosc via `peer/start-discovery!`. bwosc appears in
-`(peer/peers)` and can be connected via `peer/connect-peer!` (which establishes
-the nREPL connection, not just HTTP polling). `peer/mount-peer!` is NOT used —
-that's the HTTP polling path. A new `peer/connect-peer!` function establishes the
-full bidirectional nREPL peer relationship.
+The main nous node discovers bwosc via `peer/start-discovery!`. `nous.bitwig/connect!`
+reads `:osc-port` from the peer registry, sends `/sub`, fetches the HTTP snapshot,
+and the subscription stream takes over. No new peer primitive needed beyond what
+`peer/peer-info` already provides.
 
 ---
 
@@ -175,34 +171,36 @@ full bidirectional nREPL peer relationship.
 `nous.bitwig` is the ctrl tree adapter for bwosc — the same pattern as `nous.kairos`
 for kairos. It lives in nous (not bwosc) and handles:
 
-1. Registering ctrl tree watches on writable `[:bitwig ...]` paths on startup
-2. Dispatching ctrl tree changes to bwosc via `remote/eval-on-peer!`
-3. High-level compositional API that reads naturally in session code
+1. Subscribing to bwosc's `[:bitwig ...]` subtree via OSC `/sub` on startup
+2. Fetching an initial snapshot via HTTP and bulk-applying it to the ctrl tree
+3. Registering ctrl tree watches on writable paths and dispatching changes to bwosc via OSC
+4. High-level compositional API that reads naturally in session code
 
 ```clojure
 (ns nous.bitwig
   "Ctrl tree adapter for bwosc — Bitwig Studio peer.
-  Registers watches on [:bitwig ...] write paths and dispatches to bwosc.
-  Start with (bitwig/connect! host nrepl-port) after bwosc is discovered."
-  (:require [nous.ctrl   :as ctrl]
-            [nous.remote :as remote]
-            [nous.peer   :as peer]))
+  Subscribes to [:bitwig ...] over OSC and dispatches writes back to bwosc.
+  Start with (bitwig/connect!) after bwosc is discovered via peer/start-discovery!."
+  (:require [nous.ctrl :as ctrl]
+            [nous.osc  :as osc]
+            [nous.peer :as peer]))
 
 (defn connect!
-  "Establish bwosc peer connection and register ctrl tree watches.
-  Discovers bwosc via peer registry if no host/port given."
-  ([] (connect! (get-in (peer/peer-info :bitwig) [:host])
-                (get-in (peer/peer-info :bitwig) [:nrepl-port])))
-  ([host port]
-   (reset! *conn* (remote/connect! host port))
+  "Subscribe to bwosc, load initial snapshot, register write watches."
+  ([] (let [{:keys [host osc-port http-port]} (peer/peer-info :bitwig)]
+        (connect! host osc-port http-port)))
+  ([host osc-port http-port]
+   (reset! *bwosc-addr* {:host host :port osc-port})
+   (load-snapshot! host http-port)   ; bulk HTTP fetch → ctrl tree
+   (osc/send! @*bwosc-addr* "/nous/bitwig/sub" (osc-encode-path [:bitwig]))
    (register-watches!)
    nil))
 
-(defn- dispatch! [code]
-  (when-let [conn @*conn*]
-    (remote/remote-eval! conn code)))
+(defn- dispatch-write! [path value]
+  (when-let [addr @*bwosc-addr*]
+    (osc/send! addr "/nous/bitwig/val" (osc-encode-path path) value)))
 
-;; High-level API
+;; High-level API — all delegate to ctrl/set!, which triggers the watch dispatch
 (defn set-volume!   [track vol]  (ctrl/set! [:bitwig :track track :volume] vol))
 (defn mute!         [track]      (ctrl/set! [:bitwig :track track :muted] true))
 (defn unmute!       [track]      (ctrl/set! [:bitwig :track track :muted] false))
@@ -217,21 +215,19 @@ The watch dispatch is inside `register-watches!`:
 
 ```clojure
 (defn- register-watches! []
-  (ctrl/watch! [:bitwig :track]
+  (ctrl/watch! [:bitwig]
     (fn [path _ new]
-      (let [[_ _ idx key] path]
-        (dispatch! (format "(bwosc/handle-track! %d %s %s)"
-                           idx (pr-str key) (pr-str new))))))
-  (ctrl/watch! [:bitwig :scene]
-    (fn [path _ new]
-      (let [[_ _ idx key] path]
-        (dispatch! (format "(bwosc/handle-scene! %d %s %s)"
-                           idx (pr-str key) (pr-str new))))))
-  (ctrl/watch! [:bitwig :transport]
-    (fn [path _ new]
-      (let [[_ _ key] path]
-        (dispatch! (format "(bwosc/handle-transport! %s %s)"
-                           (pr-str key) (pr-str new)))))))
+      (dispatch-write! path new))))
+```
+
+The inbound OSC subscription stream (bwosc → nous) is handled by an OSC listener
+registered in `connect!`. Each `/nous/bitwig/val` message decodes to a path vector
+and a value, then calls `ctrl/set!` directly — no Clojure eval, no nREPL:
+
+```clojure
+(osc/on-msg! "/nous/bitwig/val"
+  (fn [path-str value]
+    (ctrl/set! (osc-decode-path path-str) value)))
 ```
 
 ---
@@ -240,6 +236,13 @@ The watch dispatch is inside `register-watches!`:
 
 bwosc owns all paths under `[:bitwig ...]`. Direction is relative to the ctrl tree:
 `read` = bwosc pushes into the tree; `write` = nous.bitwig dispatches to bwosc.
+
+**Paths are named at every level**, derived from labels the user has set in Bitwig.
+The path key is the canonical identity — it is also what a surface adapter uses as
+the scribble strip label. `:filter-cutoff` → "FLTR CUT" on a 7-char display;
+`:lead-synth` → "LEAD SYN". The `:display` sibling path provides the second
+scribble line ("3.2 kHz", "-6.0 dB"). No separate label lookup is needed; the
+path describes itself. See "Name normalisation" below for the derivation rules.
 
 ### Transport
 
@@ -254,71 +257,136 @@ bwosc owns all paths under `[:bitwig ...]`. Direction is relative to the ctrl tr
 | `[:bitwig :transport :stop!]` | trigger | write | stop transport |
 | `[:bitwig :transport :record!]` | trigger | write | engage recording |
 
-### Tracks
-
-`N` = 0-based index in track bank (bank size configurable, default 16).
+### Master track
 
 | Path | Type | Dir | Description |
 |------|------|-----|-------------|
-| `[:bitwig :track N :name]` | string | read | track name |
-| `[:bitwig :track N :color]` | [r g b] | read | track colour (0–255) |
-| `[:bitwig :track N :type]` | kw | read | `:instrument` `:audio` `:effect` `:group` |
-| `[:bitwig :track N :volume]` | float | read/write | fader 0.0–1.0 |
-| `[:bitwig :track N :pan]` | float | read/write | pan -1.0–1.0 |
-| `[:bitwig :track N :muted]` | bool | read/write | mute state |
-| `[:bitwig :track N :soloed]` | bool | read/write | solo state |
-| `[:bitwig :track N :armed]` | bool | read/write | record arm |
-| `[:bitwig :track N :send M :level]` | float | read/write | send M level |
+| `[:bitwig :master :volume]` | float | read/write | master fader 0.0–1.0 |
+| `[:bitwig :master :pan]` | float | read/write | master pan -1.0–1.0 |
+
+### Tracks
+
+`<track>` is a keyword derived from the Bitwig track name (see Name normalisation).
+
+| Path | Type | Dir | Description |
+|------|------|-----|-------------|
+| `[:bitwig :track <track> :volume]` | float | read/write | fader 0.0–1.0 |
+| `[:bitwig :track <track> :pan]` | float | read/write | pan -1.0–1.0 |
+| `[:bitwig :track <track> :muted]` | bool | read/write | mute state |
+| `[:bitwig :track <track> :soloed]` | bool | read/write | solo state |
+| `[:bitwig :track <track> :armed]` | bool | read/write | record arm |
+| `[:bitwig :track <track> :color]` | [r g b] | read | track colour 0–255 |
+| `[:bitwig :track <track> :type]` | kw | read | `:instrument` `:audio` `:effect` `:group` |
+| `[:bitwig :track <track> :send <return> :level]` | float | read/write | send to return track |
+
+### Return tracks
+
+`<return>` is derived from the Bitwig return track name.
+
+| Path | Type | Dir | Description |
+|------|------|-----|-------------|
+| `[:bitwig :return <return> :volume]` | float | read/write | return fader 0.0–1.0 |
+| `[:bitwig :return <return> :pan]` | float | read/write | return pan -1.0–1.0 |
+| `[:bitwig :return <return> :muted]` | bool | read/write | mute state |
 
 ### Devices and parameters
 
-bwosc observes the Remote Controls page (8 params) per device, per track. The Remote
-Controls page is the stable, user-curated exposure surface — do not attempt to expose
-full plugin parameter lists by index.
+`<device>` is derived from the device name as it appears in Bitwig (usually the
+plugin name, or a user-assigned rename). `<param>` is derived from the
+**Remote Controls page label** — the name the user has assigned in Bitwig's
+Remote Controls panel. This is the stable, user-curated surface; bwosc does not
+attempt to expose full plugin parameter lists by internal index.
+
+Grid patches expose their I/O ports as Remote Controls. A Grid patch is
+indistinguishable from any other device from the ctrl tree perspective.
 
 | Path | Type | Dir | Description |
 |------|------|-----|-------------|
-| `[:bitwig :track N :device M :name]` | string | read | device name |
-| `[:bitwig :track N :device M :enabled]` | bool | read/write | device on/off |
-| `[:bitwig :track N :device M :param K :name]` | string | read | parameter label |
-| `[:bitwig :track N :device M :param K :value]` | float | read/write | normalised 0.0–1.0 |
-| `[:bitwig :track N :device M :param K :display]` | string | read | formatted value |
-| `[:bitwig :track N :device M :param K :exists]` | bool | read | slot is occupied |
+| `[:bitwig :track <track> :device <device> :enabled]` | bool | read/write | device on/off |
+| `[:bitwig :track <track> :device <device> :param <param> :value]` | float | read/write | normalised 0.0–1.0 |
+| `[:bitwig :track <track> :device <device> :param <param> :display]` | string | read | formatted value string |
 
-Grid patches expose their I/O ports as Remote Controls. A Grid patch looks identical
-to any other device from the ctrl tree perspective.
+Where a device has multiple Remote Controls pages (user-defined), the page name
+adds an optional level. Omitting `:page` addresses the current/default page:
+
+| Path | Type | Dir | Description |
+|------|------|-----|-------------|
+| `[:bitwig :track <track> :device <device> :page <page> :param <param> :value]` | float | read/write | param on named page |
+| `[:bitwig :track <track> :device <device> :page <page> :param <param> :display]` | string | read | formatted value |
+
+### Macros
+
+Bitwig's macro knobs are user-named per track and can each map to multiple
+underlying plugin parameters. A single nous trajectory on a macro ripples through
+all its Bitwig mappings simultaneously.
+
+| Path | Type | Dir | Description |
+|------|------|-----|-------------|
+| `[:bitwig :track <track> :macro <macro> :value]` | float | read/write | normalised 0.0–1.0 |
+| `[:bitwig :track <track> :macro <macro> :display]` | string | read | formatted value |
 
 ### Clip launcher
 
-`N` = track index, `M` = slot/scene index.
+`<track>` and `<scene>` are both named keywords. Clips are addressed by their
+position at the intersection of a named track and named scene row — matching
+how a composer thinks about the session.
 
 | Path | Type | Dir | Description |
 |------|------|-----|-------------|
-| `[:bitwig :scene M :name]` | string | read | scene name |
-| `[:bitwig :scene M :launch!]` | trigger | write | launch scene |
-| `[:bitwig :clip N M :state]` | kw | read | `:empty` `:has-content` `:playing` `:recording` `:stopping` |
-| `[:bitwig :clip N M :name]` | string | read | clip name |
-| `[:bitwig :clip N M :launch!]` | trigger | write | launch clip |
-| `[:bitwig :clip N M :stop!]` | trigger | write | stop clip |
+| `[:bitwig :scene <scene> :launch!]` | trigger | write | launch scene row |
+| `[:bitwig :clip <track> <scene> :state]` | kw | read | `:empty` `:has-content` `:playing` `:recording` `:stopping` |
+| `[:bitwig :clip <track> <scene> :launch!]` | trigger | write | launch clip immediately |
+| `[:bitwig :clip <track> <scene> :queue!]` | trigger | write | queue clip for next quantize boundary |
+| `[:bitwig :clip <track> <scene> :stop!]` | trigger | write | stop clip |
+
+### Discovery index
+
+bwosc maintains these paths as sets of currently known name keywords. Session
+code can read them to introspect the session without hardcoding names.
+
+| Path | Type | Description |
+|------|------|-------------|
+| `[:bitwig :tracks]` | set of kw | all track name keywords |
+| `[:bitwig :scenes]` | set of kw | all scene name keywords |
+| `[:bitwig :returns]` | set of kw | all return track keywords |
+| `[:bitwig :track <track> :devices]` | set of kw | device keywords on this track |
+| `[:bitwig :track <track> :macros]` | set of kw | macro keywords on this track |
+| `[:bitwig :track <track> :device <device> :params]` | set of kw | param keywords on current page |
+| `[:bitwig :track <track> :device <device> :pages]` | set of kw | page keywords (when multiple exist) |
 
 ---
 
 ## Transport and Link integration
 
-Both nous and Bitwig join the same Ableton Link session. Tempo sync happens over Link
-automatically. bwosc publishes `[:bitwig :transport :tempo]` as an informational
-read — nous never writes it back. Tempo changes go through `nous.link/set-tempo!`
-which updates the Link session that all peers (Bitwig included) follow.
+### Clock topology
 
-Transport start/stop from a journey transition:
+In a studio with hardware word clock, Bitwig participates at two levels:
+
+- **Word clock** — Bitwig is slaved to the same master word clock as Kairos (typically
+  the RME Digiface USB). This governs audio buffer alignment and is handled entirely in
+  hardware / Bitwig's audio preferences. bwosc has no visibility into it.
+
+- **Ableton Link** — Bitwig joins the Link session as its own peer, alongside nous, Kairos,
+  and any other Link-capable nodes. Link provides beat/bar synchronisation and phase
+  alignment across the fabric. bwosc publishes `[:bitwig :transport :tempo]` as an
+  informational read — nous never writes it back. Tempo changes go through
+  `nous.link/set-tempo!` which updates the Link session; Bitwig follows automatically.
+
+The two clocks operate independently. Word clock ensures audio stays glitch-free at the
+sample level; Link ensures scene launches and parameter sweeps land on musical boundaries.
+For beat-accurate triggers, use OSC timetag bundles via the distributed protocol rather
+than relying on Link alone — Link tempo sync is continuous but transport start times can
+diverge by a quantum boundary.
+
+### Clip launch from a journey transition
 
 ```clojure
 ;; Bar-accurate clip launch in a journey conductor
 (defmethod on-transition :a-to-b [_]
   (schedule-at! (beats-until-next-bar)
     (fn []
-      (bitwig/launch-scene! 2)
-      (ctrl/set! [:bitwig :track 0 :device 0 :param 2 :value] 0.8))))
+      (bitwig/launch-scene! :drop)
+      (ctrl/set! [:bitwig :track :lead-synth :device :surge-xt :param :filter-cutoff :value] 0.8))))
 ```
 
 ---
@@ -329,53 +397,127 @@ Transport start/stop from a journey transition:
 ;; Connect bwosc on startup (after peer/start-discovery! has run)
 (bitwig/connect!)
 
-;; Animate a Bitwig device parameter over 8 bars
-(traj/animate! [:bitwig :track 2 :device 0 :param 3 :value]
+;; Introspect what's in the session — no hardcoded names needed
+(ctrl/get [:bitwig :tracks])
+;=> #{:kick :snare :bass :lead-synth :pad :reverb-sub}
+
+;; Animate a device parameter over 8 bars (named at every level)
+(traj/animate! [:bitwig :track :lead-synth :device :surge-xt :param :filter-cutoff :value]
                :from 0.2 :to 0.8 :over (bars 8))
 
 ;; Read current clip state
-(ctrl/get [:bitwig :clip 0 3 :state])   ;=> :playing
+(ctrl/get [:bitwig :clip :lead-synth :verse :state])   ;=> :playing
 
 ;; Conditional launch — don't re-launch a playing clip
-(when (not= :playing (ctrl/get [:bitwig :clip 0 3 :state]))
-  (bitwig/launch-clip! 0 3))
+(when (not= :playing (ctrl/get [:bitwig :clip :lead-synth :verse :state]))
+  (bitwig/launch-clip! :lead-synth :verse))
 
-;; Mute all but the kick track during a breakdown
-(doseq [t (range 1 16)] (bitwig/mute! t))
+;; High-level API uses the same named keywords
+(bitwig/set-volume! :lead-synth 0.75)
+(bitwig/mute! :pad)
+(bitwig/launch-scene! :drop)
+
+;; Macro sweep — ripples through all Bitwig mappings behind :texture
+(traj/animate! [:bitwig :track :pad :macro :texture :value]
+               :from 0.0 :to 1.0 :over (bars 4))
+
+;; Mute every track except kick during a breakdown
+(doseq [t (disj (ctrl/get [:bitwig :tracks]) :kick)]
+  (bitwig/mute! t))
+
+;; Master fadeout
+(traj/animate! [:bitwig :master :volume] :from 1.0 :to 0.0 :over (bars 8))
+
+;; Send level — lead synth into reverb-hall return
+(ctrl/set! [:bitwig :track :lead-synth :send :reverb-hall :level] 0.4)
 ```
 
 ---
 
-## nous.peer extension: `connect-peer!`
+## Name normalisation
 
-The existing `peer/mount-peer!` is a polling relationship — unsuitable for bwosc.
-A new `peer/connect-peer!` establishes a full bidirectional nREPL peer:
+bwosc converts every Bitwig label (track name, device name, Remote Controls page name,
+parameter name, scene name, macro name) to a Clojure keyword using the same algorithm.
+The keyword IS the ctrl tree path component — there is no separate label table.
 
-```clojure
-(defn connect-peer!
-  "Establish a full bidirectional nREPL peer relationship with `peer-node-id`.
+**Algorithm** (applied in order):
 
-  Unlike `mount-peer!` (which polls HTTP), `connect-peer!` opens a persistent
-  nREPL connection to the peer's nREPL server. The peer can push ctrl/set! calls
-  back to this node via its own outbound nREPL connection.
+1. Trim surrounding whitespace.
+2. Replace any run of characters that are not ASCII alphanumeric or `-` with a single `-`.
+3. Strip leading and trailing `-`.
+4. Lowercase.
+5. If the result starts with a digit, prefix with `track-` (tracks), `scene-` (scenes),
+   `return-` (return tracks), `device-` (devices), `page-` (RC pages), or `param-`
+   (parameters) — whichever scope applies.
+6. Deduplicate within scope: if two items normalise to the same keyword, append `-2`,
+   `-3`, etc. in order of appearance in Bitwig's bank.
 
-  Returns the nREPL connection map. Callers should pass this to the appropriate
-  companion namespace (e.g. `nous.bitwig/connect!`) which registers the ctrl
-  tree watches for the command plane.
+**Examples:**
 
-  Example:
-    (peer/connect-peer! :bitwig)
-    (bitwig/connect!)"
-  [peer-node-id]
-  (let [{:keys [host nrepl-port]} (peer-info peer-node-id)]
-    (when-not (and host nrepl-port)
-      (throw (ex-info "connect-peer!: peer not in registry"
-                      {:peer peer-node-id})))
-    (remote/connect! host nrepl-port)))
+| Bitwig label | Keyword |
+|---|---|
+| "Lead Synth" | `:lead-synth` |
+| "OB-6 Pad" | `:ob-6-pad` |
+| "Surge XT" | `:surge-xt` |
+| "Reverb Hall" | `:reverb-hall` |
+| "Filter Cutoff" | `:filter-cutoff` |
+| "Env. Attack" | `:env-attack` |
+| "FX #1" | `:fx-1` |
+| "1" (default Bitwig track name) | `:track-1` |
+| "Pad" (first), "Pad" (second) | `:pad`, `:pad-2` |
+
+**Track renames**: when a Bitwig track is renamed, bwosc removes the old keyword from
+`[:bitwig :tracks]` and inserts the new one. All paths under the old keyword stop
+delivering; any running trajectory or `ctrl/watch!` on the old path silently stops
+receiving updates. Session code that needs to survive renames should watch
+`[:bitwig :tracks]` and re-bind on change.
+
+---
+
+## Mapping customisation
+
+Most sessions work without any configuration if Bitwig track and device names are
+reasonable. For sessions where the raw normalised keywords are inconvenient — for
+example, a template session reused across projects, or a session with many default
+track names like "1", "2", "3" — an optional alias map provides stable keywords.
+
+Place the mapping under the `:bwosc/mapping` key in the studio topology EDN (or in a
+standalone file referenced by `:bwosc/mapping-file`):
+
+```edn
+;; In studio-topology.edn
+{...
+ :bwosc/mapping
+ {:tracks   {:ob-6-pad   :pad        ; normalised form → session alias
+             :track-1    :kick
+             :track-2    :snare
+             :track-3    :bass}
+  :scenes   {:section-a  :intro
+             :section-b  :verse
+             :section-c  :drop}
+  :returns  {:fx-return-1 :reverb
+             :fx-return-2 :delay}}}
 ```
 
-`peer/connect-peer!` is the one new function needed in nous. Everything else uses
-existing `nous.remote` and `nous.ctrl` infrastructure.
+Aliases are applied uniformly. `:pad` becomes the canonical ctrl tree keyword;
+`:ob-6-pad` no longer exists in the tree, in surface labels, or in nous.bitwig
+API calls. `[:bitwig :tracks]` returns `#{:kick :snare :bass :pad ...}`.
+
+The mapping file is loaded by bwosc at init via the peer connection topology path
+(same resolution as `NOUS_TOPOLOGY`). Mapping changes require bwosc restart.
+**Sessions that use descriptive Bitwig names need no mapping at all.**
+
+---
+
+## nous.peer: no new primitives needed
+
+bwosc participates via the standard OSC peer protocol. `nous.bitwig/connect!` reads
+the peer's OSC address from `peer/peer-info` directly — no new peer primitive is
+required. `peer/mount-peer!` (HTTP polling) is not used. The existing peer registry
+populated by `peer/start-discovery!` is sufficient.
+
+The earlier `connect-peer!` proposal (an nREPL connection to bwosc) is no longer
+needed. OSC-speaking peers register via the beacon and are addressed by host+port.
 
 ---
 
@@ -395,9 +537,8 @@ Background threads started in `init()`:
 | Thread | Purpose |
 |--------|---------|
 | `bwosc-beacon` | UDP multicast beacon, 5s interval |
-| `bwosc-nrepl-server` | inbound nREPL server (commands from nous) |
-| `bwosc-nrepl-client` | persistent outbound connection to nous nREPL |
-| `bwosc-http` | HTTP server — discovery response + diagnostics |
+| `bwosc-osc-server` | OSC server — subscription registration + command receives |
+| `bwosc-http` | HTTP server — initial snapshot + diagnostics |
 
 ---
 
@@ -434,14 +575,15 @@ bwosc extension settings (editable in Bitwig's Controller settings panel):
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `nous-host` | `127.0.0.1` | IP of the main nous nREPL server |
-| `nous-nrepl-port` | `7888` | nous nREPL port |
-| `bwosc-http-port` | `7178` | HTTP diagnostic/discovery port |
-| `bwosc-nrepl-port` | `7889` | bwosc nREPL server port |
-| `track-bank-size` | `16` | tracks in bank |
-| `scene-bank-size` | `32` | scenes in bank |
-| `devices-per-track` | `4` | device chain depth |
-| `params-per-device` | `8` | Remote Controls page size (Bitwig max) |
+| `nous-host` | `127.0.0.1` | IP of the nous OSC listener |
+| `nous-osc-port` | `57120` | nous OSC listener port |
+| `bwosc-osc-port` | `7179` | bwosc OSC server port |
+| `bwosc-http-port` | `7178` | HTTP snapshot/diagnostics port |
+| `mapping-file` | _(empty)_ | path to a `bwosc-mapping.edn` override file |
+
+Internal bank sizes (track bank 64, scene bank 64, device chain depth 8, Remote Controls
+8 params/page) are fixed constants not exposed to the user. They are chosen large enough
+that most live sessions never hit them. bwosc logs a warning if a session exceeds a limit.
 
 ---
 
@@ -449,26 +591,33 @@ bwosc extension settings (editable in Bitwig's Controller settings panel):
 
 ### bwosc (Java, `github.com/nous/bwosc`)
 - [ ] ControllerExtension skeleton + manifest
-- [ ] UDP multicast beacon thread
-- [ ] HTTP server: GET `/ctrl/<path>` (reads local state atom), `/snapshot` (full EDN)
-- [ ] nREPL server thread (inbound commands from nous)
-- [ ] Outbound nREPL client thread (state pushes to nous)
-- [ ] Local state atom — shadow of all observable Bitwig paths
-- [ ] Bitwig observer subscriptions: transport, track bank, device bank, clip launcher
-- [ ] Each observer: update local atom AND push `ctrl/set!` eval to nous nREPL
-- [ ] Inbound nREPL API: `bwosc/handle-track!`, `bwosc/handle-scene!`,
-  `bwosc/handle-transport!`, `bwosc/handle-device-param!`
-- [ ] Each handler: `Host.scheduleTask()` → Bitwig API call
+- [ ] UDP multicast beacon thread (advertises `:osc-port`, `:http-port`)
+- [ ] HTTP server: `GET /snapshot` (full EDN of current state atom)
+- [ ] OSC server thread (port 7179):
+  - [ ] `/nous/bitwig/sub <path>` — register subscriber (record source address + path prefix)
+  - [ ] `/nous/bitwig/val <path> <value>` — inbound write → resolve via NameNorm → `Host.scheduleTask()` → Bitwig API
+- [ ] Local state atom — shadow of all observable Bitwig paths (keyed by named paths)
+- [ ] **Name normalisation layer** — `NameNorm.toKeyword(String label, Scope scope)`;
+  dedup registry per scope; `NameNorm.fromKeyword(kw, scope)` → back to Bitwig entity
+- [ ] Mapping customisation loader — reads `:bwosc/mapping` from topology EDN at init;
+  applies alias table after normalisation
+- [ ] Echo suppression — per-path last-set-by-nous value + timestamp; skip push if observer fires same value within window
+- [ ] Discovery index maintenance — update `[:bitwig :tracks]` etc. as bank changes fire
+- [ ] Bitwig observer subscriptions: transport, master, track bank, return track bank,
+  device chain, remote controls pages, clip launcher, macro knobs
+- [ ] Each observer: update local atom AND push OSC `/nous/bitwig/val <path> <value>` to all subscribers
 
 ### nous (in `nous` repo)
-- [ ] `nous.peer/connect-peer!` — open nREPL connection to a peer
 - [ ] `nous.bitwig` namespace — ctrl tree adapter
-  - [ ] `connect!` — discover bwosc via peer registry, call `connect-peer!`, register watches
-  - [ ] `register-watches!` — ctrl/watch! on all writable `[:bitwig ...]` paths
-  - [ ] `disconnect!` — deregister watches, close nREPL connection
+  - [ ] `connect!` — read bwosc OSC/HTTP ports from peer registry; fetch snapshot; send `/sub`; register OSC listener; register write watches
+  - [ ] `load-snapshot!` — `GET /snapshot` → bulk `ctrl/set!` into `[:bitwig ...]`
+  - [ ] OSC listener — `osc/on-msg! "/nous/bitwig/val"` → `ctrl/set!`
+  - [ ] `register-watches!` — `ctrl/watch! [:bitwig]` → `osc/send!` dispatch writes
+  - [ ] `disconnect!` — deregister watches + OSC listener
   - [ ] High-level API: `set-volume!`, `mute!`, `unmute!`, `launch-scene!`, `launch-clip!`,
     `stop-clip!`, `play!`, `stop!`
-- [ ] `nous.ctrl/watch!` — if not already implemented; needed by `nous.bitwig`
+- [ ] `nous.ctrl/watch!` — confirm implemented; needed by `nous.bitwig`
+- [ ] `nous.osc/on-msg!` — confirm inbound OSC dispatch exists; needed by `nous.bitwig`
 - [ ] Export `nous.bitwig` from `nous.user`
 - [ ] User manual §N: bwosc / Bitwig integration
 
@@ -501,6 +650,15 @@ bwosc extension settings (editable in Bitwig's Controller settings panel):
    fire individually. bwosc's HTTP `/snapshot` endpoint returns the full local state
    atom as EDN. nous.bitwig reads this on connect and bulk-applies it to the ctrl tree
    before the observer stream starts filling it in.
+
+6. **Track rename during a running session**: when a track is renamed mid-session, the
+   old keyword disappears and the new one appears in `[:bitwig :tracks]`. Any active
+   trajectory targeting the old path silently becomes a no-op on the next tick. Options:
+   (a) bwosc pushes a `:renamed` event alongside the new keyword so nous.bitwig can
+   notify running trajectories; (b) session code watches `[:bitwig :tracks]` and handles
+   renames explicitly; (c) trajectories detect a missing target and log a warning. The
+   practical answer likely depends on how often sessions rename tracks mid-performance.
+   Defer until a real case surfaces.
 
 6. **Overbridge / Elektron**: Elektron Overbridge exposes Elektron device params to
    Bitwig as normal plugin parameters on Remote Controls pages. No special bwosc code
