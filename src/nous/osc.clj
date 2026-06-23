@@ -60,7 +60,14 @@
     ;; — wire: client sends /tree /ctrl/filter%2Fcutoff to this server's port
 
     ;; Cancel subscription
-    (osc/unsubscribe! [:filter/cutoff] \"192.168.1.42\" 9000)"
+    (osc/unsubscribe! [:filter/cutoff] \"192.168.1.42\" 9000)
+
+  ## Persistent handlers
+
+  Register a handler that fires on every matching inbound message until removed:
+
+    (osc/on-msg! \"/nous/bitwig/val\" (fn [args] ...))
+    (osc/off-msg! \"/nous/bitwig/val\")"
   (:require [clojure.string :as str]
             [nous.ctrl    :as ctrl]
             [nous.core    :as core])
@@ -81,6 +88,11 @@
 ;; One-shot handler registry — {address (fn [args])}
 ;; Each entry fires once then is removed. Used by sc-sync! and similar.
 (defonce ^:private one-shot-handlers (atom {}))
+
+;; Persistent handler registry — {address (fn [args])}
+;; Entries remain until explicitly removed via off-msg!.
+;; Used by protocol adapters (e.g. nous.bitwig) to handle sustained inbound streams.
+(defonce ^:private persistent-handlers (atom {}))
 
 (declare stop-osc-server! osc-send!)
 
@@ -120,7 +132,7 @@
 ;; Push watcher
 ;; ---------------------------------------------------------------------------
 
-(defn- coerce-for-osc
+(defn coerce-for-osc
   "Coerce `value` to a type that `osc-send!` accepts (Long, Double, or String)."
   [value]
   (cond
@@ -300,6 +312,25 @@
   [address f]
   (swap! one-shot-handlers assoc address f))
 
+(defn on-msg!
+  "Register a persistent OSC handler for `address`.
+  `f` is called with the message args vector on every matching inbound message.
+  Stays registered until removed with `off-msg!`. Re-registering the same
+  address replaces the previous handler. Thread-safe.
+
+  Example:
+    (osc/on-msg! \"/nous/bitwig/val\" (fn [args] (handle-val! args)))"
+  [address f]
+  (swap! persistent-handlers assoc address f))
+
+(defn off-msg!
+  "Remove the persistent OSC handler for `address`. No-op if not registered.
+
+  Example:
+    (osc/off-msg! \"/nous/bitwig/val\")"
+  [address]
+  (swap! persistent-handlers dissoc address))
+
 (defn- dispatch
   "Route a decoded OSC message to the appropriate handler.
   `sender-host` and `sender-port` are used by /tree to push the response."
@@ -311,6 +342,12 @@
          (catch Exception e
            (binding [*out* *err*]
              (println "[osc] one-shot handler error at" address ":" (.getMessage e))))))
+  ;; Persistent handlers fire next — kept until off-msg!.
+  (when-let [handler (get @persistent-handlers address)]
+    (try (handler args)
+         (catch Exception e
+           (binding [*out* *err*]
+             (println "[osc] persistent handler error at" address ":" (.getMessage e))))))
   (cond
     (= "/ping" address)
     (println "[osc] ping")

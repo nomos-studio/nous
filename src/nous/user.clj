@@ -87,7 +87,8 @@
             [nous.analysis.counterpoint :as cpt]
             [nous.lattice               :as lattice]
             [nous.mts             :as mts]
-            [nous.terrain         :as terr]))
+            [nous.terrain         :as terr]
+            [nous.bitwig          :as bitwig]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle
@@ -334,6 +335,14 @@
 (def remote-eval!     remote/remote-eval!)
 (def eval-on-peer!    remote/eval-on-peer!)
 (defmacro with-peer [conn & body] `(remote/with-peer ~conn ~@body))
+
+;; ---------------------------------------------------------------------------
+;; Bitwig Studio adapter (bwosc OSC peer)
+;; ---------------------------------------------------------------------------
+
+(def bitwig-connect!    bitwig/connect!)
+(def bitwig-disconnect! bitwig/disconnect!)
+(def bitwig-connected?  bitwig/connected?)
 
 ;; ---------------------------------------------------------------------------
 ;; Note transformers

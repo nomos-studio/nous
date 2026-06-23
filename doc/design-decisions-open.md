@@ -584,17 +584,13 @@ standard oscillators/filters. Polyphony generation requires explicit design.
 
 ### Q50 — P2P control plane: peer discovery and remote tree composition  ✓ RESOLVED
 
-**Resolution**: Two-tier peer model. `nous.peer` provides UDP multicast beacon
-discovery (239.255.43.99:7743) and `mount-peer!` (HTTP polling for read-only remote
-subtrees). v0.20.0 adds `connect-peer!` — a persistent nREPL-based peer relationship
-for bidirectional, push-native ctrl tree sharing. `nous.bitwig` is the first full peer
-of this type: bwosc owns `[:bitwig ...]` as a top-level ctrl tree namespace and pushes
-state to nous; nous dispatches writes back to bwosc via `eval-on-peer!`.
-
-The distinction between the two peer types is intentional:
-- `mount-peer!` — lightweight read-only subtree from a polled HTTP peer (unchanged)
-- `connect-peer!` — full bidirectional peer; peer owns a named top-level namespace;
-  both sides push; peer is registered in the beacon as a known node
+**Resolution**: Non-Clojure peers participate via the OSC subscription protocol from
+`design-distributed-embedded.md §5`. `nous.peer` provides UDP multicast beacon
+discovery (239.255.43.99:7743); `mount-peer!` (HTTP polling) remains for read-only
+subtrees. `nous.bitwig` is the first full OSC peer: bwosc owns `[:bitwig ...]` as a
+top-level ctrl tree namespace, pushes state to nous via OSC `/val`, and receives
+writes back the same way. No new peer primitive is needed in nous — `osc/send!`,
+`osc/register-handler!`, and `ctrl/watch!` are sufficient.
 
 **Implemented** (at v0.20.0):
 - `nous.bitwig` — ctrl tree adapter for bwosc; subscribes via OSC `/sub`; dispatches

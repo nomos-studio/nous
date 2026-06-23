@@ -32,6 +32,7 @@
                        ;; Control and connectivity
                        nous.ctrl
                        nous.device
+                       nous.bitwig
                        nous.learn
                        nous.link
                        nous.kairos
