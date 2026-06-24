@@ -537,31 +537,46 @@
 ;; MIDI port discovery
 ;; ---------------------------------------------------------------------------
 
+(defn- parse-midi-port-lines
+  "Parse kairos/aion stderr MIDI port lines into {:output [...] :input [...]}.
+  Recognises:
+    [midi] output ports (N):       → switch to :output
+    [midi] input ports (N):        → switch to :input
+      [0] Port Name                → entry under current direction"
+  [lines]
+  (let [[result _]
+        (reduce
+          (fn [[acc dir] line]
+            (cond
+              (re-find #"\[midi\] output ports" line) [acc :output]
+              (re-find #"\[midi\] input ports"  line) [acc :input]
+              (and dir (re-find #"^\s+\[(\d+)\]" line))
+              (let [[_ idx nm] (re-matches #"\s+\[(\d+)\]\s+(.*)" line)]
+                [(update acc dir (fnil conj [])
+                         {:index (Long/parseLong idx) :name (str/trim nm)})
+                 dir])
+              :else [acc dir]))
+          [{} nil]
+          lines)]
+    {:output (get result :output [])
+     :input  (get result :input  [])}))
+
 (defn list-midi-ports
-  "Return all available MIDI ports enumerated by the sidecar binary.
+  "Return available MIDI ports as {:output [{:index N :name s} ...] :input [...]}.
 
-  Returns a map with :output and :input keys, each a vector of
-  {:index N :name \"<port name>\"} maps.
-
-  Example:
-    (sidecar/list-midi-ports)
-    ;; => {:output [{:index 0 :name \"IAC Driver Bus 1\"}
-    ;;               {:index 1 :name \"Hydrasynth\"}]
-    ;;      :input  [{:index 0 :name \"IAC Driver Bus 1\"}
-    ;;               {:index 1 :name \"Hydrasynth\"}]}"
+  When kairos/aion is already running, reads from captured startup stderr
+  (no extra process spawn). When not connected, spawns the binary with
+  --no-audio to get the port list and exit."
   []
-  (let [bin  (find-binary)
-        proc (.start (ProcessBuilder. ^java.util.List [bin "--list-ports"]))
-        out  (slurp (java.io.InputStreamReader. (.getInputStream proc)))
-        _    (.waitFor proc)
-        lines  (str/split-lines (str/trim out))
-        parsed (keep (fn [line]
-                       (when-let [[_ dir idx nm] (re-matches #"(output|input) (\d+): (.*)" line)]
-                         {:dir (keyword dir) :index (Long/parseLong idx) :name nm}))
-                     lines)
-        grouped (group-by :dir parsed)]
-    {:output (mapv #(dissoc % :dir) (get grouped :output []))
-     :input  (mapv #(dissoc % :dir) (get grouped :input []))}))
+  (if (:running? @sidecar-state)
+    (parse-midi-port-lines (:stderr-lines @sidecar-state))
+    (let [bin  (find-binary)
+          pb   (doto (ProcessBuilder. ^java.util.List [bin "--list-ports" "--no-audio"])
+                 (.redirectErrorStream true))
+          proc (.start pb)
+          out  (slurp (java.io.InputStreamReader. (.getInputStream proc)))
+          _    (future (.waitFor proc))]
+      (parse-midi-port-lines (str/split-lines (str/trim out))))))
 
 (defn find-midi-port
   "Find a MIDI port index by name substring (case-insensitive).
