@@ -388,8 +388,9 @@
         (ctrl/set! ctrl-path value)))
 
     :else
-    (binding [*out* *err*]
-      (println "[osc] unhandled address:" address))))
+    (when-not (contains? @persistent-handlers address)
+      (binding [*out* *err*]
+        (println "[osc] unhandled address:" address)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Listener thread
