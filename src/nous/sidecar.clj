@@ -43,7 +43,13 @@
          :port          nil    ; long — TCP port the sidecar listens on
          :running?      false
          :stderr-lines  []
-         :push-handlers {}}))  ; lines captured from sidecar stderr
+         :push-handlers {}     ; lines captured from sidecar stderr
+         :binary        nil})) ; path of the binary that was started
+
+(defn set-binary!
+  "Record the binary path used to start the peer. Called by nous.user/start-sidecar!."
+  [path]
+  (swap! sidecar-state assoc :binary path))
 
 (defn connected?
   "Return true if a sidecar connection is active."
@@ -508,18 +514,24 @@
   (let [f (io/file path)] (and (.exists f) (.canExecute f))))
 
 (defn- find-binary
-  "Locate a nomos-rt peer binary: kairos first, then aion, then legacy paths."
+  "Locate a nomos-rt peer binary.
+  Checks in order: previously-started binary, standard bin dirs, build trees, legacy paths."
   []
-  (let [prefix     (System/getenv "PREFIX")
-        std-dirs   (cond-> ["/usr/local/bin" "/opt/homebrew/bin" "/usr/bin"]
-                     prefix (conj (str prefix "/bin")))
-        legacy     ["build/cpp/nous-sidecar/nous-sidecar" "./nous-sidecar"]
-        candidates (concat (map #(str % "/kairos") std-dirs)
-                           (map #(str % "/aion")   std-dirs)
-                           legacy)]
-    (or (first (filter executable? candidates))
-        (throw (ex-info "no kairos/aion binary found; install kairos or build the C++ sidecar"
-                        {:searched candidates})))))
+  (or (when-let [b (:binary @sidecar-state)] (when (executable? b) b))
+      (let [prefix     (System/getenv "PREFIX")
+            std-dirs   (cond-> ["/usr/local/bin" "/opt/homebrew/bin" "/usr/bin"]
+                         prefix (conj (str prefix "/bin")))
+            build-dirs ["../kairos/build" "../aion/build"
+                        "../../src/kairos/build" "../../src/aion/build"]
+            legacy     ["build/cpp/nous-sidecar/nous-sidecar" "./nous-sidecar"]
+            candidates (concat (map #(str % "/kairos") std-dirs)
+                               (map #(str % "/kairos") build-dirs)
+                               (map #(str % "/aion")   std-dirs)
+                               (map #(str % "/aion")   build-dirs)
+                               legacy)]
+        (or (first (filter executable? candidates))
+            (throw (ex-info "no kairos/aion binary found; install kairos or build the C++ sidecar"
+                            {:searched candidates}))))))
 
 ;; ---------------------------------------------------------------------------
 ;; MIDI port discovery

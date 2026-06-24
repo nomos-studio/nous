@@ -635,6 +635,7 @@
         sock          (or socket-path (if kairos? "/tmp/kairos.sock" "/tmp/aion.sock"))
         cli-args      (sidecar-cli-args sock kairos? opts)]
     (println (format "[sidecar] launching %s → %s" (if kairos? "kairos" "aion") bin))
+    (sidecar/set-binary! bin)
     (kairos/start-kairos! :binary      bin
                           :socket-path sock
                           :args        cli-args
