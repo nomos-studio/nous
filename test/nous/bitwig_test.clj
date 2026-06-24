@@ -43,10 +43,13 @@
                 bitwig/*http-get* (constantly nil)]
         (bitwig/connect! "127.0.0.1" 7179 7178)
         (is (bitwig/connected?))
-        ;; Should have sent /nous/bitwig/sub
+        ;; Should have sent /nous/bitwig/sub with path + nous listen port
         (is (= 1 (count @calls)))
-        (is (= "/nous/bitwig/sub" (:address (first @calls))))
-        (is (= ["[:bitwig]"] (:args (first @calls))))))))
+        (let [{:keys [address args]} (first @calls)]
+          (is (= "/nous/bitwig/sub" address))
+          (is (= "[:bitwig]" (first args)))
+          ;; port arg is nil when OSC server not started, a number when started
+          (is (or (nil? (second args)) (number? (second args)))))))))
 
 (deftest disconnect-clears-state-test
   (testing "disconnect! clears conn and sends /unsub"

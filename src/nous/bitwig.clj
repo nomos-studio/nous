@@ -171,12 +171,13 @@
      (connect! host osc-port http-port)))
   ([host osc-port http-port]
    (when @conn-atom (disconnect!))
-   (reset! conn-atom {:host host :port osc-port})
-   (load-snapshot! host http-port)
-   (send! host osc-port sub-address (encode-path [:bitwig]))
-   (osc/on-msg! val-address on-val!)
-   (register-watch!)
-   nil))
+   (let [nous-port (osc/osc-port)]
+     (reset! conn-atom {:host host :port osc-port :nous-port nous-port})
+     (load-snapshot! host http-port)
+     (send! host osc-port sub-address (encode-path [:bitwig]) nous-port)
+     (osc/on-msg! val-address on-val!)
+     (register-watch!)
+     nil)))
 
 (defn disconnect!
   "Disconnect from bwosc, send /unsub, and unregister all listeners.
@@ -184,8 +185,8 @@
   Example:
     (bitwig/disconnect!)"
   []
-  (when-let [{:keys [host port]} @conn-atom]
-    (try (send! host port unsub-address (encode-path [:bitwig]))
+  (when-let [{:keys [host port nous-port]} @conn-atom]
+    (try (send! host port unsub-address (encode-path [:bitwig]) nous-port)
          (catch Exception _ nil)))
   (ctrl/unwatch-global! watch-key)
   (osc/off-msg! val-address)
