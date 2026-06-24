@@ -16,7 +16,9 @@
   :test-paths   ["test"]
   :resource-paths ["resources"]
   :target-path "target/%s"
-  :repl-options {:timeout 120000}
+  :repl-options {:timeout  120000
+                 :init-ns  nous.user
+                 :init     (require 'nous.user)}
   :profiles {:uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}
              :dev {:dependencies []}}
