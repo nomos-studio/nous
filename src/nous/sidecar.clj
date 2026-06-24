@@ -504,13 +504,21 @@
   (with-open [s (ServerSocket. 0)]
     (.getLocalPort s)))
 
+(defn- executable? [^String path]
+  (let [f (io/file path)] (and (.exists f) (.canExecute f))))
+
 (defn- find-binary
-  "Locate the nous-sidecar binary in the build tree or current directory."
+  "Locate a nomos-rt peer binary: kairos first, then aion, then legacy paths."
   []
-  (let [candidates ["build/cpp/nous-sidecar/nous-sidecar"
-                    "./nous-sidecar"]]
-    (or (first (filter #(.exists (io/file %)) candidates))
-        (throw (ex-info "nous-sidecar binary not found; build the C++ sidecar first"
+  (let [prefix     (System/getenv "PREFIX")
+        std-dirs   (cond-> ["/usr/local/bin" "/opt/homebrew/bin" "/usr/bin"]
+                     prefix (conj (str prefix "/bin")))
+        legacy     ["build/cpp/nous-sidecar/nous-sidecar" "./nous-sidecar"]
+        candidates (concat (map #(str % "/kairos") std-dirs)
+                           (map #(str % "/aion")   std-dirs)
+                           legacy)]
+    (or (first (filter executable? candidates))
+        (throw (ex-info "no kairos/aion binary found; install kairos or build the C++ sidecar"
                         {:searched candidates})))))
 
 ;; ---------------------------------------------------------------------------

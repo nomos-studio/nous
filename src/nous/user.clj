@@ -79,6 +79,7 @@
             [nous.journal         :as journal]
             [nous.runtime         :as runtime]
             [nous.kairos          :as kairos]
+            [nous.sidecar         :as sidecar]
             [nous.session         :as session]
             [nous.alembic         :as nalembic]
             [nous.book            :as book]
@@ -671,6 +672,8 @@
   Delegates to stop-kairos! — process and connection state are shared."
   []
   (kairos/stop-kairos!))
+
+(def list-midi-ports sidecar/list-midi-ports)
 
 ;; ---------------------------------------------------------------------------
 ;; kairos (nous.kairos)
