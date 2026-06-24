@@ -571,11 +571,12 @@
   (if (:running? @sidecar-state)
     (parse-midi-port-lines (:stderr-lines @sidecar-state))
     (let [bin  (find-binary)
-          pb   (doto (ProcessBuilder. ^java.util.List [bin "--list-ports" "--no-audio"])
+          pb   (doto (ProcessBuilder. ^java.util.List [bin "--no-audio"])
                  (.redirectErrorStream true))
           proc (.start pb)
-          out  (slurp (java.io.InputStreamReader. (.getInputStream proc)))
-          _    (future (.waitFor proc))]
+          _    (future (Thread/sleep 3000) (.destroyForcibly proc))
+          out  (try (slurp (java.io.InputStreamReader. (.getInputStream proc)))
+                    (catch Exception _ ""))]
       (parse-midi-port-lines (str/split-lines (str/trim out))))))
 
 (defn find-midi-port
