@@ -64,9 +64,10 @@
              {:rest true :beats 1}]})"
   (:require [clojure.edn     :as edn]
             [clojure.java.io :as io]
-            [nous.core     :as core]
-            [nous.loop     :as loop-ns]
-            [nous.seq      :as sq]))
+            [nous.core      :as core]
+            [nous.loop      :as loop-ns]
+            [nous.modulator :as modulator]
+            [nous.seq       :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Pattern registry
@@ -165,13 +166,14 @@
 ;; ArpState record — implements IStepSequencer
 ;; ---------------------------------------------------------------------------
 
-(defrecord ArpState [pattern    ; resolved pattern map
-                     ptype      ; :chord or :phrase
-                     chord-midis ; vec of MIDI ints (chord mode) or nil
-                     root-midi  ; MIDI root (phrase mode) or nil
-                     rate       ; beat-duration multiplier
-                     vel        ; default velocity 0-127
-                     step-atom]) ; atom holding current step index
+(defrecord ArpState [pattern      ; resolved pattern map
+                     ptype        ; :chord or :phrase
+                     chord-midis  ; vec of MIDI ints (chord mode) or nil
+                     root-midi    ; MIDI root (phrase mode) or nil
+                     rate         ; beat-duration multiplier
+                     vel          ; default velocity 0-127
+                     mods-compiled ; nil or {step-key {:shape fn :lo d :hi d}}
+                     step-atom])  ; atom holding current step index
 
 (defn- resolve-pattern [pattern-kw]
   (if (map? pattern-kw)
@@ -207,14 +209,24 @@
     :vel   — default velocity 0–127 (default 100)
     :oct   — octave shift applied to all notes (default 0)
     :rate  — beat-duration multiplier (default 1.0)
+    :mods  — step-synchronous modulators: map from step-key to a modulator map
+             (with :modulator/type) or a pre-compiled shape function.
+             Phase = step-index / cycle-length; sampled each step and merged
+             into the event.  :modulator/range [lo hi] overrides the default.
+             :mod/velocity defaults to [0, 127]; all others to [0, 1].
+             Locks / phrase parameter locks take priority over :mods values.
 
   Returns an ArpState record. Use with run-cycle!, run-step!, or seq-loop!
   from nous.seq.
 
-  Example:
-    (def my-arp (make-arp-state :bounce (chord/chord :C 4 :maj7) :vel 90))
-    (deflive-loop :melody {} (run-cycle! my-arp))"
-  [pattern-kw chord-or-root & {:keys [vel oct rate]
+  Examples:
+    (make-arp-state :bounce (chord/chord :C 4 :maj7) :vel 90)
+
+    ;; Velocity crescendo over the cycle:
+    (make-arp-state :up [60 64 67]
+      :mods {:mod/velocity {:modulator/type :spline/catmull-rom
+                             :spline/knots [[0.0 0.3] [0.5 1.0] [1.0 0.3]]}})"
+  [pattern-kw chord-or-root & {:keys [vel oct rate mods]
                                 :or   {vel 100 oct 0 rate 1.0}}]
   (let [pattern (resolve-pattern pattern-kw)
         ptype   (:type pattern :phrase)]
@@ -224,6 +236,7 @@
                 (when (= ptype :phrase) (resolve-root-midi chord-or-root oct))
                 (double rate)
                 (long vel)
+                (modulator/compile-mods mods)
                 (atom 0))))
 
 (defn reset-chord!
@@ -260,7 +273,8 @@
 (extend-protocol sq/IStepSequencer
   ArpState
   (next-event [arp]
-    (let [{:keys [pattern ptype chord-midis root-midi rate vel step-atom]} arp]
+    (let [{:keys [pattern ptype chord-midis root-midi rate vel
+                  mods-compiled step-atom]} arp]
       (case ptype
         :chord
         (let [order    (derive-order (:order pattern) (count chord-midis))
@@ -269,6 +283,7 @@
               dur-frac (double (:dur pattern 3/4))
               n        (count order)
               idx      (mod @step-atom n)
+              phase    (/ (double idx) (double n))
               chord-i  (nth order idx)
               midi     (chord-note-at chord-midis chord-i)
               beats    (* (double (nth (vec rhythm) idx 1)) rate)
@@ -277,7 +292,8 @@
               event    (cond-> {:pitch/midi   midi
                                 :dur/beats    gate
                                 :mod/velocity vel}
-                         (seq lock) (merge lock))]
+                         mods-compiled (merge (modulator/sample-mods mods-compiled phase))
+                         (seq lock)    (merge lock))]
           (swap! step-atom #(mod (inc %) n))
           {:event event :beats beats})
 
@@ -286,6 +302,7 @@
               dur-frac (double (:dur pattern 3/4))
               n        (count steps)
               idx      (mod @step-atom n)
+              phase    (/ (double idx) (double n))
               step     (nth steps idx)
               beats    (* (double (:beats step 1)) rate)
               locks    (phrase-locks step)]
@@ -295,7 +312,8 @@
             (let [event (cond-> {:pitch/midi   (step-midi root-midi step)
                                  :dur/beats    (* beats dur-frac)
                                  :mod/velocity vel}
-                          (seq locks) (merge locks))]
+                          mods-compiled (merge (modulator/sample-mods mods-compiled phase))
+                          (seq locks)   (merge locks))]
               {:event event :beats beats}))))))
 
   (seq-cycle-length [arp]

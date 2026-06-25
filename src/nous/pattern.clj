@@ -296,42 +296,6 @@
 ;; MotifState — IStepSequencer implementation
 ;; ---------------------------------------------------------------------------
 
-(defn- default-mod-range
-  "Default [lo hi] range for a step-key modulator output.
-  :mod/velocity defaults to [0 127]; everything else to [0.0 1.0]."
-  [k]
-  (if (= k :mod/velocity) [0.0 127.0] [0.0 1.0]))
-
-(defn- compile-motif-mods
-  "Compile a {:step-key modulator-map-or-shape-fn} map into
-  {:step-key {:shape fn :lo double :hi double}}.
-  Modulator maps (with :modulator/type) are normalized and compiled.
-  Pre-compiled shape functions are accepted as-is (range defaults apply).
-  Returns nil when mods is nil or empty."
-  [mods]
-  (when (seq mods)
-    (reduce-kv
-      (fn [m k raw]
-        (let [[lo hi] (default-mod-range k)]
-          (if (and (map? raw) (:modulator/type raw))
-            (let [[rlo rhi] (get raw :modulator/range [lo hi])
-                  m*        (modulator/normalize-modulator (dissoc raw :modulator/range))
-                  shape     (modulator/modulator->shape-fn m*)]
-              (assoc m k {:shape shape :lo (double rlo) :hi (double rhi)}))
-            (assoc m k {:shape raw :lo (double lo) :hi (double hi)}))))
-      {}
-      mods)))
-
-(defn- apply-motif-mods
-  "Sample each compiled mod at `phase` and return a map of {key value}.
-  Scales output from [0,1] to [lo,hi]; casts :mod/velocity to long."
-  [mods-compiled phase]
-  (reduce-kv
-    (fn [m k {:keys [shape lo hi]}]
-      (let [v (+ lo (* (double (shape phase)) (- hi lo)))]
-        (assoc m k (if (= k :mod/velocity) (long (Math/round v)) v))))
-    {}
-    mods-compiled))
 
 (defn make-motif-state
   "Create a MotifState that implements IStepSequencer.
@@ -371,7 +335,7 @@
                :or   {clock-div 1/8 gate 0.9 probability 1.0}}]
   (->MotifState pat rhy locks
                 (double clock-div) (double gate) (double probability)
-                channel (compile-motif-mods mods) (atom 0)))
+                channel (modulator/compile-mods mods) (atom 0)))
 
 (defn- motif-cycle-length
   "Three-way lcm: lcm(pat-len, rhy-len[, locks-len])."
@@ -409,7 +373,7 @@
                              :dur/beats    (* beats gate)
                              :mod/velocity (long vel)}
                       channel       (assoc :midi/channel (long channel))
-                      mods-compiled (merge (apply-motif-mods mods-compiled phase))
+                      mods-compiled (merge (modulator/sample-mods mods-compiled phase))
                       lock          (merge lock))]
           {:event event :beats beats}))))
 

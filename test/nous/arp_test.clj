@@ -261,3 +261,79 @@
             p     (arp/get-pattern kw)
             total (reduce + (map #(double (:beats % 0)) (:steps p)))]
         (is (pos? total) (str kw " has zero total beats"))))))
+
+;; ---------------------------------------------------------------------------
+;; ArpState :mods — step-synchronous modulator integration
+;; ---------------------------------------------------------------------------
+
+(deftest make-arp-state-mods-nil-test
+  (testing "make-arp-state with no :mods has nil mods-compiled"
+    (let [state (arp/make-arp-state :up [60 64 67])]
+      (is (nil? (:mods-compiled state))))))
+
+(deftest arp-chord-mods-velocity-test
+  (testing ":mods :mod/velocity shapes velocity across chord cycle"
+    ;; :up pattern = [0 1 2] (3 notes), step/hold [0.0 0.5 1.0]
+    ;; phase: 0/3=0.0→vel 0, 1/3=0.333→vel 64, 2/3=0.667→vel 127 (step/hold steps at boundaries)
+    (let [state (arp/make-arp-state :up [60 64 67]
+                  :mods {:mod/velocity {:modulator/type :step/hold
+                                        :step/values    [0.0 0.5 1.0]}})
+          v0 (get-in (sq/next-event state) [:event :mod/velocity])
+          v1 (get-in (sq/next-event state) [:event :mod/velocity])
+          v2 (get-in (sq/next-event state) [:event :mod/velocity])]
+      (is (= 0   v0) "step 0: phase=0.00 → 0.0 → vel 0")
+      (is (= 64  v1) "step 1: phase=0.33 → 0.5 → vel 64")
+      (is (= 127 v2) "step 2: phase=0.67 → 1.0 → vel 127"))))
+
+(deftest arp-chord-mods-lock-priority-test
+  (testing "chord :params lock takes priority over :mods"
+    ;; pattern with explicit params lock at idx 0 → vel 42
+    (arp/register! ::lock-test
+      {:type   :chord
+       :order  [0 1]
+       :rhythm [1 1]
+       :dur    1.0
+       :params [{:mod/velocity 42} {}]})
+    (let [state (arp/make-arp-state ::lock-test [60 64]
+                  :mods {:mod/velocity {:modulator/type :step/hold
+                                        :step/values    [1.0 0.0]}})
+          v0 (get-in (sq/next-event state) [:event :mod/velocity])
+          v1 (get-in (sq/next-event state) [:event :mod/velocity])]
+      (is (= 42  v0) "lock at step 0 overrides mod")
+      (is (= 0   v1) "mod value at step 1 (no lock): 0.0 → vel 0"))))
+
+(deftest arp-phrase-mods-velocity-test
+  (testing ":mods :mod/velocity shapes velocity across phrase cycle"
+    (arp/register! ::phrase-mod-test
+      {:type  :phrase
+       :steps [{:semi 0 :beats 1}
+               {:semi 4 :beats 1}
+               {:semi 7 :beats 1}
+               {:semi 12 :beats 1}]})
+    ;; 4 steps, step/hold with 4 values → one segment per step
+    ;; phase 0/4=0.0→seg0→0.0→vel 0, 1/4=0.25→seg1→0.33→vel 42,
+    ;;       2/4=0.5→seg2→0.67→vel 85, 3/4=0.75→seg3→1.0→vel 127
+    (let [state (arp/make-arp-state ::phrase-mod-test {:root 60}
+                  :mods {:mod/velocity {:modulator/type :step/hold
+                                        :step/values    [0.0 0.33 0.67 1.0]}})
+          vs (mapv (fn [_] (get-in (sq/next-event state) [:event :mod/velocity]))
+                   (range 4))]
+      (is (= 0   (vs 0)) "step 0: phase=0.00 → 0.0 → vel 0")
+      (is (< (vs 0) (vs 1)) "step 1 > step 0")
+      (is (< (vs 1) (vs 2)) "step 2 > step 1")
+      (is (< (vs 2) (vs 3)) "step 3 > step 2")
+      (is (= 127 (vs 3)) "step 3: phase=0.75 → 1.0 → vel 127"))))
+
+(deftest arp-phrase-mods-lock-priority-test
+  (testing "phrase parameter locks take priority over :mods"
+    (arp/register! ::phrase-lock-test
+      {:type  :phrase
+       :steps [{:semi 0 :beats 1 :mod/velocity 99}
+               {:semi 4 :beats 1}]})
+    (let [state (arp/make-arp-state ::phrase-lock-test {:root 60}
+                  :mods {:mod/velocity {:modulator/type :step/hold
+                                        :step/values    [0.0 1.0]}})
+          v0 (get-in (sq/next-event state) [:event :mod/velocity])
+          v1 (get-in (sq/next-event state) [:event :mod/velocity])]
+      (is (= 99  v0) "phrase lock at step 0 overrides mod")
+      (is (= 127 v1) "mod value at step 1 (no lock): 1.0 → vel 127"))))

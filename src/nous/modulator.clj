@@ -432,3 +432,48 @@
   (let [bps (env->breakpoints m gate-duration)
         n   (dec (count bps))]
     (multi-stage-fn bps (vec (repeat n :linear)))))
+
+;; ---------------------------------------------------------------------------
+;; Step-synchronous mod compilation — shared by MotifState, ArpState, etc.
+;; ---------------------------------------------------------------------------
+
+(defn- default-mod-range
+  "Default [lo hi] output range for a step-key.
+  :mod/velocity → [0.0 127.0]; all others → [0.0 1.0]."
+  [k]
+  (if (= k :mod/velocity) [0.0 127.0] [0.0 1.0]))
+
+(defn compile-mods
+  "Compile a {step-key modulator-map-or-shape-fn} map to
+  {step-key {:shape fn :lo double :hi double}}.
+
+  Modulator maps (with :modulator/type) are normalized and compiled to a
+  shape function.  :modulator/range [lo hi] overrides the default range.
+  :mod/velocity defaults to [0, 127]; all other keys default to [0, 1].
+  Pre-compiled shape functions are accepted as-is (default range applies).
+  Returns nil when `mods` is nil or empty."
+  [mods]
+  (when (seq mods)
+    (reduce-kv
+      (fn [m k raw]
+        (let [[lo hi] (default-mod-range k)]
+          (if (and (map? raw) (:modulator/type raw))
+            (let [[rlo rhi] (get raw :modulator/range [lo hi])
+                  m*        (normalize-modulator (dissoc raw :modulator/range))
+                  shape     (modulator->shape-fn m*)]
+              (assoc m k {:shape shape :lo (double rlo) :hi (double rhi)}))
+            (assoc m k {:shape raw :lo (double lo) :hi (double hi)}))))
+      {}
+      mods)))
+
+(defn sample-mods
+  "Sample each compiled mod entry at `phase` → {step-key value}.
+  Linearly maps shape output [0,1] to [lo, hi].
+  :mod/velocity values are cast to long."
+  [mods-compiled phase]
+  (reduce-kv
+    (fn [m k {:keys [shape lo hi]}]
+      (let [v (+ lo (* (double (shape phase)) (- hi lo)))]
+        (assoc m k (if (= k :mod/velocity) (long (Math/round v)) v))))
+    {}
+    mods-compiled))
