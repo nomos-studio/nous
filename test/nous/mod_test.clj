@@ -6,8 +6,10 @@
             [nous.core   :as core]
             [nous.ctrl   :as ctrl]
             [nous.mod    :as mod]
-            [nomos.maths.phasor :as phasor])
-)
+            [nomos.maths.phasor :as phasor]))
+
+(def ^:private eps 1e-6)
+(defn- ≈ [a b] (< (Math/abs (- (double a) (double b))) eps))
 
 ;; ---------------------------------------------------------------------------
 ;; Lfo — sample and next-edge via shape fn
@@ -177,6 +179,91 @@
       (is (empty? (mod/mod-routes)) "all routes cleared")
       (finally
         (core/stop!)))))
+
+;; ---------------------------------------------------------------------------
+;; ModulatorLfo — portable modulator map → ITemporalValue
+;; ---------------------------------------------------------------------------
+
+(deftest modulator-lfo-implements-itv-test
+  (testing "modulator-lfo satisfies ITemporalValue"
+    (let [m (mod/modulator-lfo (clock/->Phasor 1 0)
+                               {:modulator/type :step/hold
+                                :step/values    [0.2 0.8]})]
+      (is (satisfies? clock/ITemporalValue m)))))
+
+(deftest modulator-lfo-preserves-modulator-map-test
+  (testing ":modulator field holds the normalized source map"
+    (let [raw {:modulator/type :step/hold :step/values [0.2 0.8]}
+          m   (mod/modulator-lfo (clock/->Phasor 1 0) raw)]
+      (is (= :step/hold (get-in m [:modulator :modulator/type])))
+      (is (= :clamp     (get-in m [:modulator :modulator/loop]))
+          "map is normalized — :modulator/loop default applied"))))
+
+(deftest modulator-lfo-sample-delegates-to-shape-test
+  (testing "modulator-lfo samples via the compiled shape function"
+    ;; Phasor rate=1/4 cycles/beat → period=4 beats.
+    ;; At beat 1.0 phase = 1/4 = 0.25.
+    ;; step/hold with [0.0 0.5 1.0 0.75] (4 values, 4 segments each 0.25 wide).
+    ;; Phase 0.25 = start of segment 1 → value 0.5.
+    (let [m (mod/modulator-lfo (clock/->Phasor (/ 1 4) 0)
+                               {:modulator/type :step/hold
+                                :step/values    [0.0 0.5 1.0 0.75]})]
+      (is (≈ 0.0  (clock/sample m 0.0)))
+      (is (≈ 0.5  (clock/sample m 1.0)))
+      (is (≈ 1.0  (clock/sample m 2.0)))
+      (is (≈ 0.75 (clock/sample m 3.0))))))
+
+(deftest modulator-lfo-next-edge-delegates-to-phasor-test
+  (testing "modulator-lfo next-edge matches phasor next-edge"
+    (let [ph (clock/->Phasor 1 0)
+          m  (mod/modulator-lfo ph {:modulator/type :lfo/sine})]
+      (is (= (clock/next-edge ph 0.0) (clock/next-edge m 0.0)))
+      (is (= (clock/next-edge ph 0.5) (clock/next-edge m 0.5))))))
+
+(deftest modulator-lfo-catmull-rom-sample-test
+  (testing "modulator-lfo with catmull-rom passes through interior knot values"
+    ;; Phasor rate=1/10 → period=10 beats; beat b → phase b/10.
+    ;; Skip last knot [1.0 0.6]: phase 1.0 wraps to 0.0 in the phasor.
+    (let [knots [[0.0 0.2] [0.25 0.8] [0.75 0.4] [1.0 0.6]]
+          m     (mod/modulator-lfo (clock/->Phasor (/ 1 10) 0)
+                                   {:modulator/type :spline/catmull-rom
+                                    :spline/knots   knots})]
+      (doseq [[p v] (butlast knots)]
+        (is (≈ v (clock/sample m (* p 10))) (str "at beat " (* p 10)))))))
+
+;; ---------------------------------------------------------------------------
+;; modulator-one-shot — env map → one-shot ITemporalValue
+;; ---------------------------------------------------------------------------
+
+(deftest modulator-one-shot-ar-sample-test
+  (testing "modulator-one-shot :env/ar samples match expected envelope shape"
+    ;; AR: attack=1 beat, release=1 beat, gate-duration=2 beats.
+    ;; total-time = gate-duration + release = 3 beats.
+    ;; Phasor rate=1/3 cycles/beat → period=3 beats.
+    ;; phase = beat/3, time = phase * 3 = beat.
+    ;; Breakpoints: t=0→0, t=1→1.0, t=2→1.0, t=3→0.0
+    (let [m (mod/modulator-one-shot
+             (clock/->Phasor (/ 1 3) 0)
+             {:modulator/type :env/ar :modulator/time-unit :beats
+              :env/attack 1.0 :env/release 1.0}
+             2.0   ; gate-duration
+             0.0)] ; start-beat
+      (is (≈ 0.0 (clock/sample m 0.0))   "t=0: silent")
+      (is (≈ 1.0 (clock/sample m 1.0))   "t=1: attack peak")
+      (is (≈ 1.0 (clock/sample m 1.5))   "t=1.5: held during gate")
+      (is (≈ 0.5 (clock/sample m 2.5))   "t=2.5: mid-release")
+      (is (≈ 0.0 (clock/sample m 3.0)))))) ; t=3: silent after release
+
+(deftest modulator-one-shot-next-edge-inf-after-cycle-test
+  (testing "modulator-one-shot next-edge returns ##Inf after one phasor cycle"
+    (let [m (mod/modulator-one-shot
+             (clock/->Phasor (/ 1 3) 0)
+             {:modulator/type :env/ar :modulator/time-unit :beats
+              :env/attack 1.0 :env/release 1.0}
+             2.0 0.0)]
+      (is (< (clock/next-edge m 0.5) ##Inf) "finite during cycle")
+      (is (= ##Inf (clock/next-edge m 3.0)) "##Inf at end of cycle")
+      (is (= ##Inf (clock/next-edge m 5.0)) "##Inf past end"))))
 
 (deftest one-shot-runner-auto-stops-test
   (testing "runner auto-stops and removes route when one-shot next-edge returns ##Inf"

@@ -83,6 +83,7 @@
 (def ^:private MSG-TICK              (unchecked-byte 0x50))
 (def ^:private MSG-MIDI-EVENT        (unchecked-byte 0x51))
 (def ^:private MSG-ROUTE-SET         (unchecked-byte 0x52))
+(def ^:private MSG-GRAPH-LOAD-ACK    (unchecked-byte 0x53))
 
 ;; ---------------------------------------------------------------------------
 ;; Frame serialization
@@ -311,7 +312,7 @@
     (binding [kairos/*process-launcher* (fn [& _] my-mock-process)] ...)"
   (fn [& cmd]
     (-> (ProcessBuilder. ^java.util.List (vec cmd))
-        (.redirectErrorStream false)
+        (.redirectError java.lang.ProcessBuilder$Redirect/INHERIT)
         .start)))
 
 (defn start-kairos!
@@ -421,6 +422,18 @@
 ;; Graph management
 ;; ---------------------------------------------------------------------------
 
+;; Built-in plugin IDs
+(def midi-passthrough-plugin-id
+  "CLAP plugin ID for the kairos built-in MIDI passthrough.
+  Forwards NOTE_ON, NOTE_OFF, and MIDI events from IPC input to MIDI output."
+  "org.nomos-studio.kairos.midi-passthrough")
+
+(def midi-passthrough-graph
+  "Minimal plugin graph that routes IPC note events to hardware MIDI output.
+  Load with (send-graph-load! kairos/midi-passthrough-graph)."
+  {:graph/nodes [{:id :pt :plugin "org.nomos-studio.kairos.midi-passthrough"}]
+   :graph/edges []})
+
 (defn send-graph-load!
   "Load a plugin graph into kairos.
 
@@ -431,7 +444,10 @@
   Ports follow the convention :out-N / :in-N (e.g. :out-0, :in-0).
   Use :host as to-node to mark a node's output as the hardware output.
 
+  Use midi-passthrough-graph to route direct IPC notes to hardware MIDI output.
+
   Example:
+    (kairos/send-graph-load! kairos/midi-passthrough-graph)
     (kairos/send-graph-load!
       {:graph/nodes [{:id :synth/a :plugin \"com.example.MySynth\"}]
        :graph/edges [[:synth/a :out-0 :host :audio-out]]})"
@@ -442,6 +458,16 @@
   "Tear down the current plugin graph."
   []
   (send-frame! (make-frame MSG-GRAPH-RESET (byte-array 0))))
+
+;; Graph-load ack — kairos pushes {:nodes N} after a successful GRAPH-LOAD.
+;; Printed to *err* so it's visible in the REPL even when C++ stderr is not.
+(def ^:private _graph-load-ack-handler
+  (register-push-handler!
+   0x53
+   (fn [^bytes payload]
+     (let [info (edn/read-string (String. payload "UTF-8"))]
+       (binding [*out* *err*]
+         (println "[kairos] graph loaded:" info))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Plugin listing

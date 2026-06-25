@@ -3,18 +3,33 @@
   "nous modulation subsystem — LFOs, envelopes, and one-shot signals.
 
   All modulators are `ITemporalValue` instances produced by composing a
-  `Phasor` with a shape function from `nomos.maths.phasor`.
+  `Phasor` with a shape function from `nomos.maths.phasor` or a portable
+  modulator map from `nous.modulator`.
 
-  ## LFO
+  ## LFO from phasor shape
     (lfo (->Phasor 1/16 0) phasor/sine-uni)    ; slow sine, unipolar [0,1]
     (lfo (->Phasor 1/8  0) phasor/triangle)    ; triangle, same rate family
     (lfo (->Phasor 1/4  0) (phasor/square 0.3)) ; 30% duty-cycle square
+
+  ## LFO from portable modulator map
+    (modulator-lfo (->Phasor 1/4 0)
+                   {:modulator/type :spline/catmull-rom
+                    :spline/knots   [[0.0 0.0] [0.33 1.0] [0.66 0.2] [1.0 0.0]]})
 
   ## Envelope (looping)
     (def adsr (envelope [[0.0 0.0] [0.1 1.0] [0.3 0.7] [0.8 0.7] [1.0 0.0]]))
     (lfo (->Phasor 1/4 0) adsr)   ; 4-beat looping envelope
 
-  ## One-shot envelope
+  ## One-shot from portable env map
+    ;; Phasor period must equal gate-duration + release in :modulator/time-unit.
+    ;; For time-unit :beats, period in beats = gate-duration + release directly.
+    (modulator-one-shot (->Phasor 3 0)
+                        {:modulator/type :env/ar :modulator/time-unit :beats
+                         :env/attack 1.0 :env/release 1.0}
+                        2.0   ; gate-duration (beats)
+                        (now))
+
+  ## One-shot envelope (phasor shape)
     (one-shot (->Phasor 1/4 0) adsr start-beat)
 
   ## Routing to ctrl
@@ -29,9 +44,10 @@
   When a one-shot's `next-edge` returns ##Inf the runner auto-stops.
 
   Key design decisions: R&R §28.7, Q30 (LFO rate — empirical during impl)."
-  (:require [nous.clock  :as clock]
-            [nous.ctrl   :as ctrl]
-            [nous.loop   :as loop-ns]
+  (:require [nous.clock      :as clock]
+            [nous.ctrl       :as ctrl]
+            [nous.loop       :as loop-ns]
+            [nous.modulator  :as modulator]
             [nomos.maths.phasor :as phasor])
   (:import  [java.util.concurrent.locks LockSupport]))
 
@@ -155,6 +171,78 @@
     (one-shot (->Phasor 1/4 0) adsr (now))   ; 4-beat one-shot attack"
   [ph shape-fn start-beat]
   (->OneShot ph shape-fn (double start-beat)))
+
+;; ---------------------------------------------------------------------------
+;; ModulatorLfo — Phasor + portable modulator map → ITemporalValue
+;; ---------------------------------------------------------------------------
+
+(defrecord ModulatorLfo [ph modulator shape-fn]
+  clock/ITemporalValue
+  (sample    [_ beat] (shape-fn (clock/sample ph beat)))
+  (next-edge [_ beat] (clock/next-edge ph beat)))
+
+(defn modulator-lfo
+  "Construct a phase-based LFO from a Phasor and a portable modulator map.
+
+  `ph` — a Phasor (from nous.clock) controlling rate and phase offset
+  `m`  — a modulator map (:step/*, :spline/*, :lfo/*)
+
+  The modulator is normalized and compiled to a shape function at construction
+  time.  The original map is retained in `:modulator` for inspection and
+  serialization.  Compatible with mod-route!, one-shot, and anywhere a plain
+  `lfo` is accepted.
+
+  Examples:
+    (modulator-lfo (->Phasor 1/4 0)
+                   {:modulator/type :spline/catmull-rom
+                    :spline/knots   [[0.0 0.0] [0.33 1.0] [0.66 0.2] [1.0 0.0]]})
+
+    (modulator-lfo (->Phasor 1/8 0)
+                   {:modulator/type :step/smooth
+                    :modulator/loop :loop
+                    :step/values    [0.0 0.25 1.0 0.5 0.75]})"
+  [ph m]
+  (let [m* (modulator/normalize-modulator m)]
+    (->ModulatorLfo ph m* (modulator/modulator->shape-fn m*))))
+
+(defn- env-total-time
+  "Total time span of a normalized env modulator in :modulator/time-unit.
+  For gated types: gate-duration + release (attack/decay/hold are within the gate)."
+  [m gate-duration]
+  (if (= :env/multi-stage (:modulator/type m))
+    (double (first (last (:env/breakpoints m))))
+    (+ (double gate-duration) (double (get m :env/release 0.0)))))
+
+(defn modulator-one-shot
+  "Construct a one-shot envelope from a Phasor and a portable env modulator map.
+
+  `ph`           — a Phasor whose period should equal gate-duration + :env/release
+                   (in :modulator/time-unit); for :env/multi-stage, equal to the
+                   final breakpoint time
+  `m`            — an env modulator map (:env/ar, :env/adsr, :env/ahdsr,
+                   :env/multi-stage)
+  `gate-duration` — time from t=0 to gate-off, in :modulator/time-unit
+                    (ignored for :env/multi-stage)
+  `start-beat`   — the beat at which the envelope starts
+
+  Phase [0,1] from the Phasor maps linearly to the envelope's time span.
+  When :modulator/time-unit is :beats the Phasor period = gate-duration + release
+  directly.  For :seconds, convert total seconds to beats before constructing
+  the Phasor.
+
+  Example (AR in beats, total = gate 2 + release 1 = 3 beats):
+    (modulator-one-shot (->Phasor 3 0)
+                        {:modulator/type :env/ar :modulator/time-unit :beats
+                         :env/attack 1.0 :env/release 1.0}
+                        2.0 (now))"
+  [ph m gate-duration start-beat]
+  (let [m*         (modulator/normalize-modulator m)
+        total-time (env-total-time m* gate-duration)
+        shape-t    (if (= :env/multi-stage (:modulator/type m*))
+                     (modulator/modulator->shape-fn m*)
+                     (modulator/env->shape-fn m* gate-duration))
+        shape-ph   (fn [phase] (shape-t (* (double phase) total-time)))]
+    (one-shot ph shape-ph start-beat)))
 
 ;; ---------------------------------------------------------------------------
 ;; Runner thread

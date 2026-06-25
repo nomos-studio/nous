@@ -43,6 +43,7 @@
             [nous.learn      :as learn]
             [nous.loop       :as loop-ns]
             [nous.mod        :as mod]
+            [nous.modulator  :as modulator]
             [nous.pattern    :as pat]
             [nous.scala      :as scala]
             [nous.scale      :as scale]
@@ -199,8 +200,14 @@
 (def tension-peak     traj/tension-peak)
 (def arc-merge        traj/arc-merge)
 (def time-warp        traj/time-warp)
-(def mod-route!    mod/mod-route!)
-(def mod-unroute!  mod/mod-unroute!)
+(def mod-route!          mod/mod-route!)
+(def mod-unroute!        mod/mod-unroute!)
+(def modulator-lfo       mod/modulator-lfo)
+(def modulator-one-shot  mod/modulator-one-shot)
+(def normalize-modulator    modulator/normalize-modulator)
+(def bezier->path          modulator/bezier->path)
+(def modulator->shape-fn   modulator/modulator->shape-fn)
+(def env->shape-fn         modulator/env->shape-fn)
 (def arc-bind!        arc/arc-bind!)
 (def arc-unbind!      arc/arc-unbind!)
 (def arc-send!        arc/arc-send!)
@@ -582,8 +589,8 @@
   (cond-> ["--socket" sock]
     bpm                        (conj "--bpm"          (str bpm))
     db                         (conj "--db"           db)
-    midi-port                  (conj "--midi-port"    midi-port)
-    midi-in-port               (conj "--midi-in-port" midi-in-port)
+    midi-port                  (conj "--midi-port"    (str midi-port))
+    midi-in-port               (conj "--midi-in-port" (str midi-in-port))
     osc-port                   (conj "--osc-port"     (str osc-port))
     audio-device               (conj "--audio-device" audio-device)
     no-audio                   (conj "--no-audio")
@@ -691,8 +698,10 @@
 ;; Supervisor integration
 (def register-kairos!        supervisor/register-kairos!)
 ;; Graph management
-(def send-graph-load!        kairos/send-graph-load!)
-(def send-graph-reset!       kairos/send-graph-reset!)
+(def midi-passthrough-plugin-id kairos/midi-passthrough-plugin-id)
+(def midi-passthrough-graph     kairos/midi-passthrough-graph)
+(def send-graph-load!           kairos/send-graph-load!)
+(def send-graph-reset!          kairos/send-graph-reset!)
 ;; Plugin discovery
 (def list-plugins!           kairos/list-plugins!)
 (def plugin-registry         kairos/plugin-registry)
