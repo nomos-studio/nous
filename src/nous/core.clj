@@ -602,7 +602,7 @@
                step           (if (map? note) note {:pitch/midi midi :dur/beats beats})]
            (if (and (mpe/mpe-enabled?) (mpe/mpe-step? step))
              (mpe/play-mpe! step now-beat tl)
-             (let [channel  (or (and (map? note) (:midi/channel note)) 1)
+             (let [channel  (dec (long (or (and (map? note) (:midi/channel note)) 1)))
                    velocity (or (and (map? note) (:mod/velocity note)) 64)
                    on-beat  (+ now-beat t-beat-offset)
                    off-beat (+ now-beat (double beats) t-beat-offset)]

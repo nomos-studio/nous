@@ -215,3 +215,23 @@
         ;; CC11 (bound to [:step-mod/vel]) should NOT have been sent
         (is (empty? @cc11-calls) "keyword step-mod does not trigger CC on [:step-mod/vel]"))
       (finally (core/stop!)))))
+
+(deftest play-midi-channel-1-indexed-to-0-indexed-test
+  (testing "play! converts :midi/channel 1–16 to kairos 0–15"
+    (core/start! :bpm 120)
+    (let [note-on-calls (atom [])]
+      (try
+        (with-redefs [nous.kairos/connected?    (constantly true)
+                      nous.kairos/send-note-on! (fn [_key _vel & kwargs]
+                                                  (let [ch (get (apply hash-map kwargs) :channel 0)]
+                                                    (swap! note-on-calls conj ch)))
+                      nous.kairos/send-note-off! (fn [& _])]
+          (binding [loop-ns/*virtual-time* 0.0]
+            (core/play! {:pitch/midi 60 :dur/beats 1/4 :midi/channel 1})
+            (core/play! {:pitch/midi 61 :dur/beats 1/4 :midi/channel 3})
+            (core/play! {:pitch/midi 62 :dur/beats 1/4 :midi/channel 16})))
+        (finally (core/stop!)))
+      (let [chs @note-on-calls]
+        (is (= 0  (nth chs 0)) ":midi/channel 1  → kairos channel 0")
+        (is (= 2  (nth chs 1)) ":midi/channel 3  → kairos channel 2")
+        (is (= 15 (nth chs 2)) ":midi/channel 16 → kairos channel 15")))))
