@@ -191,7 +191,8 @@
         in-pat   (when input (resolve-input-port input))
         args     (cond-> ["--midi-port" out-pat]
                    in-pat (conj "--midi-in-port" in-pat))]
-    (kairos/start-kairos! :binary binary :socket-path socket-path :args args)))
+    (kairos/start-kairos! :binary binary :socket-path socket-path :args args)
+    (kairos/send-graph-load! kairos/midi-passthrough-graph)))
 
 (defn start-sidecar!
   "Deprecated. Delegates to start-kairos! — the sidecar is retired."
