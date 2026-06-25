@@ -310,3 +310,41 @@
       (is (some? out))
       (is (satisfies? clock/ITemporalValue (get out :mod/velocity)))
       (is (instance? nous.mod.ModulatorLfo (get out :mod/velocity))))))
+
+;; ---------------------------------------------------------------------------
+;; mod-route! 3-arity — (mod-route! path modulator-map phasor)
+;; ---------------------------------------------------------------------------
+
+(deftest mod-route-3-arity-creates-modulator-lfo-test
+  (testing "3-arity mod-route! wraps raw map + phasor into a ModulatorLfo route"
+    (core/start! :bpm 60000)
+    (try
+      (ctrl/defnode! [:mod/three-arity] :type :float :meta {:range [0.0 1.0]} :value 0.0)
+      (mod/mod-route! [:mod/three-arity]
+                      {:modulator/type :lfo/sine}
+                      (clock/->Phasor 1 0))
+      (is (instance? nous.mod.ModulatorLfo
+                     (get (mod/mod-routes) [:mod/three-arity]))
+          "route holds a ModulatorLfo")
+      (finally
+        (mod/mod-unroute! [:mod/three-arity])
+        (core/stop!)))))
+
+(deftest mod-route-3-arity-hot-swap-test
+  (testing "3-arity mod-route! hot-swaps existing route without restarting thread"
+    (core/start! :bpm 60000)
+    (try
+      (ctrl/defnode! [:mod/three-swap] :type :float :meta {:range [0.0 1.0]} :value 0.0)
+      (mod/mod-route! [:mod/three-swap]
+                      {:modulator/type :lfo/sine}
+                      (clock/->Phasor 1 0))
+      (let [first-lfo (get (mod/mod-routes) [:mod/three-swap])]
+        (mod/mod-route! [:mod/three-swap]
+                        {:modulator/type :step/hold :step/values [0.2 0.8]}
+                        (clock/->Phasor (/ 1 2) 0))
+        (let [second-lfo (get (mod/mod-routes) [:mod/three-swap])]
+          (is (not= first-lfo second-lfo) "mod was replaced")
+          (is (instance? nous.mod.ModulatorLfo second-lfo) "still a ModulatorLfo")))
+      (finally
+        (mod/mod-unroute! [:mod/three-swap])
+        (core/stop!)))))

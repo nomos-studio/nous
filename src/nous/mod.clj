@@ -318,8 +318,16 @@
   "Connect a modulator to a ctrl path. Starts a runner thread that samples
   the modulator at its natural `next-edge` rate and dispatches via `ctrl/send!`.
 
-  `path` — ctrl tree path vector, e.g. [:filter/cutoff]
-  `mod`  — any ITemporalValue (lfo, one-shot, swing, etc.)
+  Two arities:
+
+    (mod-route! path mod)
+      `path` — ctrl tree path vector, e.g. [:filter/cutoff]
+      `mod`  — any ITemporalValue (lfo, one-shot, modulator-lfo, etc.)
+
+    (mod-route! path modulator-map phasor)
+      `modulator-map` — a portable modulator map (with :modulator/type)
+      `phasor`        — a Phasor controlling rate and phase offset
+      Equivalent to (mod-route! path (modulator-lfo phasor modulator-map)).
 
   The raw sampled value is passed directly to `ctrl/send!`. Set the ctrl
   binding's `:range` to match the modulator's output domain — typically
@@ -327,19 +335,30 @@
 
   Re-evaluating with the same path hot-swaps the modulator without restarting
   the runner thread. When a one-shot's `next-edge` returns ##Inf the runner
-  auto-stops."
-  [path mod]
-  (if (get @routes path)
-    (swap! routes assoc-in [path :mod] mod)
-    (let [running? (atom true)]
-      (swap! routes assoc path {:mod mod :running? running? :thread nil})
-      (let [t (Thread.
-               (fn [] (runner-loop path running?)))]
-        (.setDaemon t true)
-        (.setName t (str "nous-mod-" (clojure.string/join "/" (map name path))))
-        (swap! routes assoc-in [path :thread] t)
-        (.start t))))
-  path)
+  auto-stops.
+
+  Examples:
+    (mod-route! [:filter/cutoff] (modulator-lfo (clock-div 4) {:modulator/type :lfo/sine}))
+
+    ;; shorthand — map + phasor directly:
+    (mod-route! [:filter/cutoff]
+                {:modulator/type :spline/catmull-rom
+                 :spline/knots   [[0.0 0.1] [0.5 0.9] [1.0 0.1]]}
+                (clock-div 8))"
+  ([path mod]
+   (if (get @routes path)
+     (swap! routes assoc-in [path :mod] mod)
+     (let [running? (atom true)]
+       (swap! routes assoc path {:mod mod :running? running? :thread nil})
+       (let [t (Thread.
+                (fn [] (runner-loop path running?)))]
+         (.setDaemon t true)
+         (.setName t (str "nous-mod-" (clojure.string/join "/" (map name path))))
+         (swap! routes assoc-in [path :thread] t)
+         (.start t))))
+   path)
+  ([path modulator-map phasor]
+   (mod-route! path (modulator-lfo phasor modulator-map))))
 
 (defn mod-unroute!
   "Stop the mod runner for `path` and remove the route.
