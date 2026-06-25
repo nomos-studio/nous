@@ -60,6 +60,7 @@
   (:require [nomos.maths.harmonic :as h]
             [nomos.maths.lattice  :as l]
             [nous.ctrl            :as ctrl]
+            [nous.modulator       :as modulator]
             [nous.seq             :as sq]))
 
 ;; ---------------------------------------------------------------------------
@@ -511,32 +512,58 @@
   nil)
 
 ;; ---------------------------------------------------------------------------
+;; Arc progress phase (for mods)
+;; ---------------------------------------------------------------------------
+
+(defn- arc-progress-phase
+  "Return a [0,1] global arc progress value for the current step.
+  Computed as (completed-steps + current-phase-step) / total-arc-steps,
+  where completed-steps is the sum of :steps for all phases before `phase`."
+  [arc excursion-phase excursion-step]
+  (let [order     PHASE-ORDER
+        total     (double (reduce + (map #(get-in arc [% :steps] 8) order)))
+        completed (double (reduce + (map #(get-in arc [% :steps] 8)
+                                         (take-while #(not= % excursion-phase) order))))
+        current   (double excursion-step)]
+    (min 1.0 (/ (+ completed current) (max 1.0 total)))))
+
+;; ---------------------------------------------------------------------------
 ;; IStepSequencer wrapper
 ;; ---------------------------------------------------------------------------
 
-(defrecord ExcursionSeq [ctx-atom vel])
+(defrecord ExcursionSeq [ctx-atom vel mods-compiled])
 
 (defn make-excursion-seq
   "Wrap an excursion context atom as an IStepSequencer for use with run-step!.
 
   Options:
-    :vel — default velocity 0–127 (default 100)
+    :vel  — default velocity 0–127 (default 100)
+    :mods — portable modulator map (same vocabulary as make-motif-state :mods).
+            Phase is global arc progress [0,1]: 0.0 at the start of :ground,
+            1.0 at the last step of :resolution. Use to shape velocity, CC, or
+            any parameter over the five-phase excursion arc.
 
   Example:
     (defexcursion arc :fundamental :F#2 :region {...} :arc {...})
     (deflive-loop :arc-voice {}
-      (run-step! (make-excursion-seq arc)))"
-  [ctx-atom & {:keys [vel] :or {vel 100}}]
-  (->ExcursionSeq ctx-atom (long vel)))
+      (run-step! (make-excursion-seq arc
+                                     :mods {:mod/velocity {:modulator/type :lfo/tri}})))"
+  [ctx-atom & {:keys [vel mods] :or {vel 100}}]
+  (->ExcursionSeq ctx-atom (long vel) (modulator/compile-mods mods)))
 
 (extend-protocol sq/IStepSequencer
   ExcursionSeq
   (next-event [es]
-    (let [step  (next-step! (:ctx-atom es))
-          beats (double (:dur/beats step 4.0))]
-      {:event (when (:gate/on? step)
-                (assoc step :mod/velocity (:vel es)))
-       :beats beats}))
+    (let [step      (next-step! (:ctx-atom es))
+          beats     (double (:dur/beats step 4.0))
+          mod-phase (arc-progress-phase (:arc @(:ctx-atom es))
+                                        (:excursion/phase step)
+                                        (:excursion/step step))
+          event     (when (:gate/on? step)
+                      (cond-> (assoc step :mod/velocity (:vel es))
+                        (:mods-compiled es)
+                        (merge (modulator/sample-mods (:mods-compiled es) mod-phase))))]
+      {:event event :beats beats}))
   (seq-cycle-length [_] nil))
 
 ;; ---------------------------------------------------------------------------

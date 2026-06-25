@@ -40,6 +40,7 @@
   (:require [nomos.maths.harmonic :as h]
             [nomos.maths.lattice  :as l]
             [nous.ctrl            :as ctrl]
+            [nous.modulator       :as modulator]
             [nous.seq             :as sq]))
 
 ;; ---------------------------------------------------------------------------
@@ -432,29 +433,39 @@
 ;; IStepSequencer wrapper
 ;; ---------------------------------------------------------------------------
 
-(defrecord LatticeSeq [ctx-atom vel])
+(defrecord LatticeSeq [ctx-atom vel mods-compiled tenney-limit])
 
 (defn make-lattice-seq
   "Wrap a lattice context atom as an IStepSequencer for use with run-step! / deflive-loop.
 
   Options:
-    :vel — default velocity 0–127 (default 100)
+    :vel          — default velocity 0–127 (default 100)
+    :mods         — portable modulator map (same vocabulary as make-motif-state :mods).
+                    Phase is derived from Tenney H normalized to the region's tenney-limit:
+                    [1 1] (tonic) → 0.0, maximum harmonic complexity → 1.0.
+                    Use to modulate velocity, CC, or any parameter over harmonic tension.
 
   Example:
-    (deflattice f-sharp-space :fundamental :F#2 :region {...})
+    (deflattice f-sharp-space :fundamental :F#2 :region {:tenney-limit 6.5})
     (deflive-loop :lattice-voice {}
-      (run-step! (make-lattice-seq f-sharp-space)))"
-  [ctx-atom & {:keys [vel] :or {vel 100}}]
-  (->LatticeSeq ctx-atom (long vel)))
+      (run-step! (make-lattice-seq f-sharp-space
+                                   :mods {:mod/velocity {:modulator/type :lfo/sine}})))"
+  [ctx-atom & {:keys [vel mods] :or {vel 100}}]
+  (let [tlimit (get-in @ctx-atom [:opts :region :tenney-limit] 6.5)]
+    (->LatticeSeq ctx-atom (long vel) (modulator/compile-mods mods) (double tlimit))))
 
 (extend-protocol sq/IStepSequencer
   LatticeSeq
   (next-event [ls]
-    (let [step  (next-step! (:ctx-atom ls))
-          beats (double (:dur/beats step 4.0))]
-      {:event (when (:gate/on? step)
-                (assoc step :mod/velocity (:vel ls)))
-       :beats beats}))
+    (let [step      (next-step! (:ctx-atom ls))
+          beats     (double (:dur/beats step 4.0))
+          mod-phase (min 1.0 (/ (double (:lattice/tenney step 0.0))
+                                (:tenney-limit ls)))
+          event     (when (:gate/on? step)
+                      (cond-> (assoc step :mod/velocity (:vel ls))
+                        (:mods-compiled ls)
+                        (merge (modulator/sample-mods (:mods-compiled ls) mod-phase))))]
+      {:event event :beats beats}))
   (seq-cycle-length [_] nil))
 
 ;; ---------------------------------------------------------------------------

@@ -407,3 +407,48 @@
       (is (number? (:ratio prog)))))
   (testing "excursion-names returns a seq"
     (is (seqable? (ex/excursion-names)))))
+
+;; ---------------------------------------------------------------------------
+;; ExcursionSeq :mods — arc-progress-normalized modulation
+;; ---------------------------------------------------------------------------
+
+(def ^:private no-exit-arc
+  "Arc with thresholds that prevent early-exit so step counts are reliable."
+  {:ground     {:steps 4}
+   :departure  {:steps 4 :target-tenney 99.0}
+   :excursion  {:steps 4}
+   :return     {:steps 4 :target-tenney -1.0}
+   :resolution {:steps 4}})
+
+(deftest excursion-seq-mods-no-mods-uses-default-vel-test
+  (testing "without :mods the default vel is used"
+    (let [ctx (make-ctx {:region r5 :arc no-exit-arc})
+          es  (ex/make-excursion-seq ctx :vel 77)]
+      (is (= 77 (get-in (sq/next-event es) [:event :mod/velocity]))))))
+
+(deftest excursion-seq-mods-phase-zero-at-first-step-test
+  (testing ":mods applied at arc-progress=0.0 for first step (ground phase, step 0)"
+    ;; no-exit-arc total = 20 steps. First step: ground, phase-step 0.
+    ;; arc-progress = 0/20 = 0.0.
+    ;; step/hold [0.25 0.75]: phase 0.0 → segment 0 → value 0.25 → velocity 32.
+    (let [ctx (make-ctx {:region r5 :arc no-exit-arc})
+          es  (ex/make-excursion-seq ctx
+                                     :vel 100
+                                     :mods {:mod/velocity {:modulator/type :step/hold
+                                                           :step/values [0.25 0.75]}})]
+      (is (= 32 (get-in (sq/next-event es) [:event :mod/velocity]))))))
+
+(deftest excursion-seq-mods-velocity-increases-over-arc-test
+  (testing "velocity from :mods increases over the arc with ascending shape"
+    ;; no-exit-arc total = 20 steps.
+    ;; step/hold [0.0 1.0] (2 segments of 0.5):
+    ;;   arc-progress < 0.5 → vel 0 (steps 0–9)
+    ;;   arc-progress ≥ 0.5 → vel 127 (steps 10–19)
+    ;; First step vel=0, 11th step vel=127.
+    (let [ctx (make-ctx {:region r5 :arc no-exit-arc :repeat false})
+          es  (ex/make-excursion-seq ctx
+                                     :mods {:mod/velocity {:modulator/type :step/hold
+                                                           :step/values [0.0 1.0]}})]
+      (let [vels (mapv (fn [_] (get-in (sq/next-event es) [:event :mod/velocity])) (range 20))]
+        (is (= 0   (nth vels 0))  "step 0 (arc-progress=0.0) → velocity 0")
+        (is (= 127 (nth vels 10)) "step 10 (arc-progress=0.5) → velocity 127")))))

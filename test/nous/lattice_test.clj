@@ -416,3 +416,45 @@
       (is (instance? nomos.maths.lattice.LatticeRegion (lat/lattice-region ctx)))))
   (testing "lattice-names returns a seq"
     (is (seqable? (lat/lattice-names)))))
+
+;; ---------------------------------------------------------------------------
+;; LatticeSeq :mods — Tenney-H-normalized modulation
+;; ---------------------------------------------------------------------------
+
+(deftest lattice-seq-mods-no-mods-uses-default-vel-test
+  (testing "without :mods the default vel is used unchanged"
+    (let [ctx (make-ctx {:region r5 :position [1 1]})
+          ls  (lat/make-lattice-seq ctx :vel 88)]
+      (is (= 88 (get-in (sq/next-event ls) [:event :mod/velocity]))))))
+
+(deftest lattice-seq-mods-tenney-limit-extracted-from-opts-test
+  (testing "tenney-limit is read from region opts at construction"
+    (let [ctx (make-ctx {:region {:otonal-limit 11 :utonal-limit 7 :tenney-limit 8.0}
+                         :position [1 1]})
+          ls  (lat/make-lattice-seq ctx)]
+      (is (= 8.0 (:tenney-limit ls))))))
+
+(deftest lattice-seq-mods-tonic-phase-zero-test
+  (testing ":mods applied at Tenney-phase=0.0 for tonic position [1,1]"
+    ;; [1,1] has Tenney H = log2(1) = 0.0 → mod-phase = 0.0.
+    ;; step/hold [0.25 0.75]: 2 segments × 0.5 wide; phase 0.0 → segment 0 → value 0.25.
+    ;; velocity = round(0.25 × 127) = 32.
+    (let [ctx (make-ctx {:region r5 :position [1 1]})
+          ls  (lat/make-lattice-seq ctx
+                                    :vel 100
+                                    :mods {:mod/velocity {:modulator/type :step/hold
+                                                          :step/values [0.25 0.75]}})]
+      (is (= 32 (get-in (sq/next-event ls) [:event :mod/velocity]))))))
+
+(deftest lattice-seq-mods-higher-tenney-higher-phase-test
+  (testing "higher Tenney H → higher mod-phase → higher step/hold step"
+    ;; [1,1]: H=0, phase=0.0 → segment 0 of [0.0 0.33 0.67 1.0] → vel round(0×127)=0
+    ;; [3,2]: H=log2(6)≈2.58, r5 tenney-limit=5.5, phase≈0.47 → segment 1 → vel round(0.33×127)=42
+    ;; So vel([3,2]) > vel([1,1]).
+    (let [mods {:mod/velocity {:modulator/type :step/hold :step/values [0.0 0.33 0.67 1.0]}}
+          ls-tonic (lat/make-lattice-seq (make-ctx {:region r5 :position [1 1]}) :mods mods)
+          ls-fifth (lat/make-lattice-seq (make-ctx {:region r5 :position [3 2]}) :mods mods)]
+      (let [vel-tonic (get-in (sq/next-event ls-tonic) [:event :mod/velocity])
+            vel-fifth (get-in (sq/next-event ls-fifth) [:event :mod/velocity])]
+        (is (< vel-tonic vel-fifth)
+            "velocity at [3,2] (H≈2.58) > velocity at [1,1] (H=0)")))))
