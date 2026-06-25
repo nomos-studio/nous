@@ -617,7 +617,7 @@
                                   (cents->bend14 bend-cents))]
                  (when bend-14bit
                    (kairos/send-pitch-bend! channel bend-14bit))
-                 (kairos/send-note-on!  midi velocity :channel channel :beat on-beat)
+                 (kairos/send-note-on!  midi (/ (double velocity) 127.0) :channel channel :beat on-beat)
                  (kairos/send-note-off! midi :channel channel :beat off-beat)
                  (when bend-14bit
                    (kairos/send-pitch-bend! channel 8192))))))

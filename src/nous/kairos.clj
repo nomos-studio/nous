@@ -339,6 +339,13 @@
   (let [bin (or binary (get-in @kairos-state [:last-start-opts :binary]))]
     (when-not bin
       (throw (ex-info "start-kairos!: :binary is required" {})))
+    ;; Clean up stale state: disconnect if the socket is dead, kill any
+    ;; managed process that has already exited.
+    (let [old-proc ^java.lang.Process (:process @kairos-state)]
+      (when (and old-proc (not (.isAlive old-proc)))
+        (swap! kairos-state assoc :process nil)))
+    (when (connected?)
+      (disconnect!))
     (runtime/set! [:kairos :status] :starting)
     (let [proc (apply *process-launcher* bin args)]
       (swap! kairos-state assoc
