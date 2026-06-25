@@ -204,6 +204,7 @@
 (def mod-unroute!        mod/mod-unroute!)
 (def modulator-lfo       mod/modulator-lfo)
 (def modulator-one-shot  mod/modulator-one-shot)
+(def compile-step-mods   mod/compile-step-mods)
 (def normalize-modulator    modulator/normalize-modulator)
 (def bezier->path          modulator/bezier->path)
 (def modulator->shape-fn   modulator/modulator->shape-fn)

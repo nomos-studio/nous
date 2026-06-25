@@ -656,3 +656,94 @@
       (is (= 127 (:mod/cutoff (:event r0))) "lock merged at step 0")
       (is (nil?  (:mod/cutoff (:event r1))) "no lock at step 1")
       (is (= 32  (:mod/cutoff (:event r2))) "lock merged at step 2"))))
+
+;; ---------------------------------------------------------------------------
+;; MotifState :mods — step-synchronous modulator integration
+;; ---------------------------------------------------------------------------
+
+(deftest make-motif-state-mods-nil-test
+  (testing "make-motif-state with no :mods has nil mods-compiled"
+    (let [ms (pat/make-motif-state (pat/pattern [:midi 60])
+                                   (pat/rhythm  [100]))]
+      (is (nil? (:mods-compiled ms))))))
+
+(deftest make-motif-state-mods-compiled-test
+  (testing "make-motif-state compiles modulator maps at construction"
+    (let [ms (pat/make-motif-state (pat/pattern [:midi 60])
+                                   (pat/rhythm  [100])
+                                   :mods {:mod/velocity {:modulator/type :step/hold
+                                                         :step/values    [0.5 1.0]}})]
+      (is (some? (:mods-compiled ms)))
+      (is (contains? (:mods-compiled ms) :mod/velocity))
+      (let [{:keys [shape lo hi]} (get (:mods-compiled ms) :mod/velocity)]
+        (is (fn? shape))
+        (is (= 0.0 lo))
+        (is (= 127.0 hi))))))
+
+(deftest motif-mods-velocity-step-sync-test
+  (testing ":mods :mod/velocity shapes velocity across the cycle"
+    (require '[nous.seq :as sq])
+    ;; Pattern: 4 :midi notes, rhythm: all 100. 4-step cycle.
+    ;; :mods step/hold [0.0 0.5 0.75 1.0] → phase 0/4=0.0 → seg 0 → 0.0
+    ;;                                       phase 1/4=0.25 → seg 1 → 0.5
+    ;;                                       phase 2/4=0.5  → seg 2 → 0.75
+    ;;                                       phase 3/4=0.75 → seg 3 → 1.0
+    ;; :mod/velocity range [0,127]: 0.0→0, 0.5→64, 0.75→95, 1.0→127
+    (let [ms (pat/make-motif-state
+               (pat/pattern [:midi 60 60 60 60])
+               (pat/rhythm  [100 100 100 100])
+               :mods {:mod/velocity {:modulator/type :step/hold
+                                     :step/values    [0.0 0.5 0.75 1.0]}})
+          events (mapv (fn [_] (get-in ((resolve 'nous.seq/next-event) ms) [:event :mod/velocity]))
+                       (range 4))]
+      (is (= 0   (events 0)) "step 0: phase=0.00 → 0.0 → vel 0")
+      (is (= 64  (events 1)) "step 1: phase=0.25 → 0.5 → vel 64")
+      (is (= 95  (events 2)) "step 2: phase=0.50 → 0.75 → vel 95")
+      (is (= 127 (events 3)) "step 3: phase=0.75 → 1.0 → vel 127"))))
+
+(deftest motif-mods-custom-range-test
+  (testing ":modulator/range overrides the default range"
+    (require '[nous.seq :as sq])
+    ;; step/hold [0.0 1.0] with range [20 100] → step 0 → 20, step 1 → 100
+    (let [ms (pat/make-motif-state
+               (pat/pattern [:midi 60 60])
+               (pat/rhythm  [100 100])
+               :mods {:mod/velocity {:modulator/type    :step/hold
+                                     :step/values       [0.0 1.0]
+                                     :modulator/range   [20 100]}})
+          v0 (get-in ((resolve 'nous.seq/next-event) ms) [:event :mod/velocity])
+          v1 (get-in ((resolve 'nous.seq/next-event) ms) [:event :mod/velocity])]
+      (is (= 20  v0) "step 0: mod=0.0 → range lo 20")
+      (is (= 100 v1) "step 1: mod=1.0 → range hi 100"))))
+
+(deftest motif-mods-non-velocity-raw-range-test
+  (testing ":mods on non-velocity key uses raw [0,1] range"
+    (require '[nous.seq :as sq])
+    ;; step/hold [0.0 0.5 1.0] on :dur/beats → raw float values
+    (let [ms (pat/make-motif-state
+               (pat/pattern [:midi 60 60 60])
+               (pat/rhythm  [100 100 100])
+               :mods {:dur/beats {:modulator/type :step/hold
+                                  :step/values    [0.0 0.5 1.0]}})
+          d0 (get-in ((resolve 'nous.seq/next-event) ms) [:event :dur/beats])
+          d1 (get-in ((resolve 'nous.seq/next-event) ms) [:event :dur/beats])
+          d2 (get-in ((resolve 'nous.seq/next-event) ms) [:event :dur/beats])]
+      (is (< (Math/abs (- 0.0 (double d0))) 1e-6) "step 0: 0.0")
+      (is (< (Math/abs (- 0.5 (double d1))) 1e-6) "step 1: 0.5")
+      (is (< (Math/abs (- 1.0 (double d2))) 1e-6) "step 2: 1.0"))))
+
+(deftest motif-mods-lock-priority-test
+  (testing "Locks take priority over :mods at a given step"
+    (require '[nous.seq :as sq])
+    ;; mods sets velocity via mod; lock at step 0 forces velocity 42.
+    (let [lk (pat/locks [{:mod/velocity 42} {}])
+          ms (pat/make-motif-state
+               (pat/pattern [:midi 60 60])
+               (pat/rhythm  [100 100])
+               :locks lk
+               :mods {:mod/velocity {:modulator/type :step/hold
+                                     :step/values    [1.0 0.0]}})
+          v0 (get-in ((resolve 'nous.seq/next-event) ms) [:event :mod/velocity])
+          v1 (get-in ((resolve 'nous.seq/next-event) ms) [:event :mod/velocity])]
+      (is (= 42  v0) "lock at step 0 overrides mod")
+      (is (= 0   v1) "mod value at step 1 (no lock): 0.0 → vel 0"))))

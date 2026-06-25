@@ -283,3 +283,30 @@
             "one-shot runner removed itself from routes"))
       (finally
         (core/stop!)))))
+
+;; ---------------------------------------------------------------------------
+;; compile-step-mods
+;; ---------------------------------------------------------------------------
+
+(deftest compile-step-mods-nil-test
+  (testing "compile-step-mods returns nil for nil input"
+    (is (nil? (mod/compile-step-mods nil)))))
+
+(deftest compile-step-mods-passes-through-itv-test
+  (testing "compile-step-mods passes ITemporalValue values unchanged"
+    (let [lfo (mod/lfo (clock/->Phasor 1 0) phasor/sine-uni)
+          out (mod/compile-step-mods {:mod/velocity lfo})]
+      (is (= lfo (get out :mod/velocity))))))
+
+(deftest compile-step-mods-passes-through-constant-test
+  (testing "compile-step-mods passes constant numbers unchanged"
+    (let [out (mod/compile-step-mods {:gate/len 0.8})]
+      (is (= 0.8 (get out :gate/len))))))
+
+(deftest compile-step-mods-compiles-modulator-map-test
+  (testing "compile-step-mods compiles raw modulator maps to ModulatorLfo"
+    (let [out (mod/compile-step-mods {:mod/velocity {:modulator/type :step/hold
+                                                     :step/values    [0.5 1.0]}})]
+      (is (some? out))
+      (is (satisfies? clock/ITemporalValue (get out :mod/velocity)))
+      (is (instance? nous.mod.ModulatorLfo (get out :mod/velocity))))))

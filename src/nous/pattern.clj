@@ -73,14 +73,15 @@
     Root pitch is taken from *harmony-ctx*; no *chord-ctx* required.
 
   Key design decisions: R&R §5.1 (NDLR model), R&R §22.5.3 (named arpeggio library)."
-  (:require [nous.chord  :as chord-ns]
-            [nous.core   :as core]
-            [nous.live  :as live]
-            [nous.loop   :as loop-ns]
-            [nous.pitch  :as pitch]
-            [nous.rhythm :as rhythm-ns]
-            [nous.scale  :as scale-ns]
-            [nous.seq    :as sq]))
+  (:require [nous.chord     :as chord-ns]
+            [nous.core      :as core]
+            [nous.live      :as live]
+            [nous.loop      :as loop-ns]
+            [nous.modulator :as modulator]
+            [nous.pitch     :as pitch]
+            [nous.rhythm    :as rhythm-ns]
+            [nous.scale     :as scale-ns]
+            [nous.seq       :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Records
@@ -97,14 +98,15 @@
 ;; data — vector of maps (nil or {} = no lock at this step)
 ;; Cycles independently of Pattern and Rhythm; see make-motif-state.
 
-(defrecord MotifState [pat        ; Pattern record
-                       rhy        ; Rhythm record
-                       locks      ; Locks record or nil
-                       clock-div  ; duration per step in beats (double)
-                       gate       ; gate fraction of clock-div (double)
-                       probability ; per-note fire probability 0.0–1.0 (double)
-                       channel    ; MIDI channel override or nil
-                       step-atom]); atom holding current step index (wraps at seq-cycle-length)
+(defrecord MotifState [pat          ; Pattern record
+                       rhy          ; Rhythm record
+                       locks        ; Locks record or nil
+                       clock-div    ; duration per step in beats (double)
+                       gate         ; gate fraction of clock-div (double)
+                       probability  ; per-note fire probability 0.0–1.0 (double)
+                       channel      ; MIDI channel override or nil
+                       mods-compiled ; nil or {step-key {:shape fn :lo d :hi d}}
+                       step-atom])  ; atom holding current step index (wraps at seq-cycle-length)
 
 ;; ---------------------------------------------------------------------------
 ;; Constructors
@@ -294,6 +296,43 @@
 ;; MotifState — IStepSequencer implementation
 ;; ---------------------------------------------------------------------------
 
+(defn- default-mod-range
+  "Default [lo hi] range for a step-key modulator output.
+  :mod/velocity defaults to [0 127]; everything else to [0.0 1.0]."
+  [k]
+  (if (= k :mod/velocity) [0.0 127.0] [0.0 1.0]))
+
+(defn- compile-motif-mods
+  "Compile a {:step-key modulator-map-or-shape-fn} map into
+  {:step-key {:shape fn :lo double :hi double}}.
+  Modulator maps (with :modulator/type) are normalized and compiled.
+  Pre-compiled shape functions are accepted as-is (range defaults apply).
+  Returns nil when mods is nil or empty."
+  [mods]
+  (when (seq mods)
+    (reduce-kv
+      (fn [m k raw]
+        (let [[lo hi] (default-mod-range k)]
+          (if (and (map? raw) (:modulator/type raw))
+            (let [[rlo rhi] (get raw :modulator/range [lo hi])
+                  m*        (modulator/normalize-modulator (dissoc raw :modulator/range))
+                  shape     (modulator/modulator->shape-fn m*)]
+              (assoc m k {:shape shape :lo (double rlo) :hi (double rhi)}))
+            (assoc m k {:shape raw :lo (double lo) :hi (double hi)}))))
+      {}
+      mods)))
+
+(defn- apply-motif-mods
+  "Sample each compiled mod at `phase` and return a map of {key value}.
+  Scales output from [0,1] to [lo,hi]; casts :mod/velocity to long."
+  [mods-compiled phase]
+  (reduce-kv
+    (fn [m k {:keys [shape lo hi]}]
+      (let [v (+ lo (* (double (shape phase)) (- hi lo)))]
+        (assoc m k (if (= k :mod/velocity) (long (Math/round v)) v))))
+    {}
+    mods-compiled))
+
 (defn make-motif-state
   "Create a MotifState that implements IStepSequencer.
 
@@ -307,21 +346,32 @@
     :gate        — note duration as fraction of clock-div (default 0.9)
     :probability — per-note fire probability 0.0–1.0 (default 1.0)
     :channel     — MIDI channel override (integer 1–16, default nil)
+    :mods        — step-synchronous modulators: map from step-key to a modulator
+                   map (with :modulator/type) or a pre-compiled shape function.
+                   At each step, phase = step-index / cycle-length; the mod is
+                   sampled at that phase and merged into the event.  Accepts
+                   :modulator/range [lo hi] to map [0,1] output to a custom range.
+                   :mod/velocity defaults to range [0 127]; all others to [0 1].
+                   Locks take priority over :mods values.
 
   Returns a MotifState record. Use with run-cycle!, run-step!, or seq-loop!
   from nous.seq.
 
-  Example:
+  Examples:
     (def my-motif (make-motif-state (named-pattern :bounce)
                                     (named-rhythm  :tresillo)
                                     :clock-div 1/8))
-    (deflive-loop :melody {:harmony (scale/scale :C 4 :major)}
-      (run-cycle! my-motif))"
-  [pat rhy & {:keys [locks clock-div gate probability channel]
+
+    ;; Velocity crescendo across the cycle using a Bézier curve:
+    (make-motif-state pat rhy :clock-div 1/8
+      :mods {:mod/velocity {:modulator/type :spline/bezier
+                             :spline/anchors [[0.0 0.2] [1.0 1.0]]
+                             :spline/handles [[0.3 0.0] [-0.3 0.0]]}})"
+  [pat rhy & {:keys [locks clock-div gate probability channel mods]
                :or   {clock-div 1/8 gate 0.9 probability 1.0}}]
   (->MotifState pat rhy locks
                 (double clock-div) (double gate) (double probability)
-                channel (atom 0)))
+                channel (compile-motif-mods mods) (atom 0)))
 
 (defn- motif-cycle-length
   "Three-way lcm: lcm(pat-len, rhy-len[, locks-len])."
@@ -335,7 +385,8 @@
 (extend-protocol sq/IStepSequencer
   MotifState
   (next-event [ms]
-    (let [{:keys [pat rhy locks clock-div gate probability channel step-atom]} ms
+    (let [{:keys [pat rhy locks clock-div gate probability channel
+                  mods-compiled step-atom]} ms
           pd          (:data pat)
           rd          (:data rhy)
           pcnt        (long (count pd))
@@ -353,11 +404,13 @@
         (let [midi  (resolve-selector (:ptype pat) selector harmony-ctx chord-ctx)
               lock  (when-let [ld (and locks (:data locks))]
                       (not-empty (nth ld (mod i (count ld)) {})))
+              phase (/ (double i) (double n))
               event (cond-> {:pitch/midi   (long midi)
                              :dur/beats    (* beats gate)
                              :mod/velocity (long vel)}
-                      channel (assoc :midi/channel (long channel))
-                      lock    (merge lock))]
+                      channel       (assoc :midi/channel (long channel))
+                      mods-compiled (merge (apply-motif-mods mods-compiled phase))
+                      lock          (merge lock))]
           {:event event :beats beats}))))
 
   (seq-cycle-length [ms]

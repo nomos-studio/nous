@@ -244,6 +244,38 @@
         shape-ph   (fn [phase] (shape-t (* (double phase) total-time)))]
     (one-shot ph shape-ph start-beat)))
 
+(defn compile-step-mods
+  "Compile raw modulator maps in a step-mods context map to ITemporalValue.
+
+  Any entry whose value is a map with :modulator/type is compiled to a
+  ModulatorLfo driven by master-clock (rate=1, period=1 beat).  For slower
+  beat-time modulation, wrap the map explicitly with modulator-lfo instead.
+
+  ITemporalValue values and constant numbers are passed through unchanged.
+
+  Returns a new map suitable for deflive-loop :step-mods or use-step-mods!.
+  Returns nil when `ctx` is nil.
+
+  Examples:
+    ;; raw modulator map → ModulatorLfo on master-clock
+    (deflive-loop :melody
+      {:step-mods (compile-step-mods
+                    {:mod/velocity {:modulator/type :lfo/sine}})}
+      (run-cycle! my-motif))
+
+    ;; mix of raw map + explicit ITemporalValue
+    (compile-step-mods
+      {:mod/velocity {:modulator/type :step/hold :step/values [80 100 90 120]}
+       :gate/len     (modulator-lfo (clock-div 4) {:modulator/type :lfo/sine})})"
+  [ctx]
+  (when ctx
+    (reduce-kv (fn [m k v]
+                 (assoc m k (if (and (map? v) (:modulator/type v))
+                              (modulator-lfo clock/master-clock v)
+                              v)))
+               {}
+               ctx)))
+
 ;; ---------------------------------------------------------------------------
 ;; Runner thread
 ;; ---------------------------------------------------------------------------
