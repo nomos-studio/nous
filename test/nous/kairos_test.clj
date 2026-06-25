@@ -8,6 +8,11 @@
            [java.nio.channels ServerSocketChannel SocketChannel Channels]
            [java.io File OutputStream]))
 
+(def ^:private kairos-binary
+  "Absolute path to the kairos build artifact. Tests that need the live binary check this first."
+  (-> (java.io.File. (System/getProperty "user.dir") "../kairos/build/kairos")
+      .getCanonicalPath))
+
 ;; ---------------------------------------------------------------------------
 ;; Private access
 ;; ---------------------------------------------------------------------------
@@ -777,4 +782,95 @@
           (is (= 0   (get-in frame [:payload :tuning-prog])))
           (is (= :all (get-in frame [:payload :device-id]))))
         (finally
-          (kairos/disconnect!))))))
+          (kairos/disconnect!)))))
+
+;; ---------------------------------------------------------------------------
+;; Integration tests — require the kairos binary
+;;
+;; These tests launch the actual kairos process with --no-audio so no audio
+;; device is needed.  They skip gracefully if the binary is absent, so they
+;; can live in the normal test suite without breaking CI.
+;;
+;; Run selectively:
+;;   lein test :only nous.kairos-test/kairos-builtin-passthrough-in-plugin-list-test
+;; ---------------------------------------------------------------------------
+
+(defn- kairos-binary-exists? []
+  (.exists (File. kairos-binary)))
+
+(defn- run-if-kairos-present
+  "Call (f) only when the kairos binary exists; otherwise print a skip notice."
+  [f]
+  (if (kairos-binary-exists?)
+    (f)
+    (println (str "  [skip] kairos binary not found: " kairos-binary))))
+
+(defn- temp-kairos-socket []
+  (let [f (File/createTempFile "kairos-itest-" ".sock")]
+    (.delete f)
+    (.deleteOnExit f)
+    (.getAbsolutePath f)))
+
+(defn- with-kairos-process*
+  "Start kairos --no-audio on a temp socket, call (f sock-path), then stop.
+  Ensures stop-kairos! runs even if f throws."
+  [f]
+  (let [sock (temp-kairos-socket)]
+    (kairos/start-kairos!
+      :binary      kairos-binary
+      :socket-path sock
+      :args        ["--no-audio" "--socket" sock]
+      :wait-ms     400
+      :retry       15)
+    (try
+      (f sock)
+      (finally
+        (kairos/stop-kairos!)))))
+
+(deftest kairos-builtin-passthrough-in-plugin-list-test
+  (testing "kairos reports org.nomos-studio.kairos.midi-passthrough in plugin list"
+    (run-if-kairos-present
+      #(with-kairos-process*
+         (fn [_sock]
+           (let [plugins (kairos/list-plugins! :timeout-ms 3000)]
+             (is (some? plugins) "list-plugins! should return a non-nil result")
+             (let [ids (set (map :id plugins))]
+               (is (contains? ids "org.nomos-studio.kairos.midi-passthrough")
+                   (str "passthrough missing; got: " ids))
+               (is (contains? ids "org.nomos-studio.kairos.audio-passthrough")
+                   (str "audio-passthrough missing; got: " ids)))))))))
+
+(deftest kairos-note-pipeline-survives-test
+  (testing "kairos process stays alive after note-on / note-off with passthrough graph"
+    (run-if-kairos-present
+      #(with-kairos-process*
+         (fn [_sock]
+           (let [graph {:graph/nodes [{:id     :pt/main
+                                       :plugin "org.nomos-studio.kairos.midi-passthrough"
+                                       :params {}}]
+                        :graph/edges []}]
+             (kairos/send-graph-load! graph)
+             (Thread/sleep 50)
+             (kairos/send-note-on!  60 0.75 :channel 0)
+             (Thread/sleep 20)
+             (kairos/send-note-off! 60 :channel 0)
+             (Thread/sleep 50)
+             (let [^java.lang.Process proc (:process @#'kairos/kairos-state)]
+               (is (some? proc) "kairos-state should hold a Process")
+               (is (.isAlive proc) "kairos process must still be alive after notes"))))))))
+
+(deftest kairos-reconnect-after-stop-test
+  (testing "start-kairos! can reconnect after stop-kairos!"
+    (run-if-kairos-present
+      #(with-kairos-process*
+         (fn [sock]
+           (is (kairos/connected?) "should be connected after start")
+           (kairos/stop-kairos!)
+           (is (not (kairos/connected?)) "should be disconnected after stop")
+           (kairos/start-kairos!
+             :binary      kairos-binary
+             :socket-path sock
+             :args        ["--no-audio" "--socket" sock]
+             :wait-ms     400
+             :retry       15)
+           (is (kairos/connected?) "should be connected after second start")))))))
