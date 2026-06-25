@@ -3,8 +3,9 @@
   "Unit tests for nous.loop — virtual time, sleep!, sync!, deflive-loop,
   stop-loop!, dynamic context vars."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [nous.core :as core]
-            [nous.loop :as loop]))
+            [nous.clock :as clock]
+            [nous.core  :as core]
+            [nous.loop  :as loop]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures
@@ -568,3 +569,47 @@
     (let [names (map :name (loop/loop-status))]
       (is (not (some #(= :status-stop %) names))
           "stopped loop not present in status"))))
+
+;; ---------------------------------------------------------------------------
+;; deflive-loop :step-mods auto-compile
+;; ---------------------------------------------------------------------------
+
+(deftest deflive-loop-step-mods-auto-compile-itv-test
+  (testing "raw modulator map in :step-mods is compiled to ITemporalValue"
+    ;; deflive-loop wraps :step-mods with step-mods-compile before binding.
+    ;; Verify by reading *step-mod-ctx* from inside the loop.
+    (core/start! :bpm 60000)
+    (try
+      (let [captured (promise)]
+        (loop/deflive-loop :step-mods-compile-test
+          {:step-mods {:mod/velocity {:modulator/type :step/hold
+                                      :step/values    [0.5 1.0]}}}
+          (deliver captured loop/*step-mod-ctx*)
+          (loop/sleep! 10000))
+        (let [ctx (deref captured 500 ::timeout)]
+          (is (not= ::timeout ctx) "loop body executed")
+          (is (map? ctx) ":step-mods bound as map")
+          (is (satisfies? clock/ITemporalValue (get ctx :mod/velocity))
+              "raw map compiled to ITemporalValue")))
+      (finally
+        (loop/stop-loop! :step-mods-compile-test)
+        (core/stop!)))))
+
+(deftest deflive-loop-step-mods-passes-through-itv-test
+  (testing "existing ITemporalValue in :step-mods is not re-wrapped"
+    (core/start! :bpm 60000)
+    (try
+      (let [lfo      (reify clock/ITemporalValue
+                       (sample    [_ _] 0.5)
+                       (next-edge [_ b] (+ (double b) 1.0)))
+            captured (promise)]
+        (loop/deflive-loop :step-mods-passthrough-test
+          {:step-mods {:mod/velocity lfo}}
+          (deliver captured loop/*step-mod-ctx*)
+          (loop/sleep! 10000))
+        (let [ctx (deref captured 500 ::timeout)]
+          (is (identical? lfo (get ctx :mod/velocity))
+              "ITemporalValue passed through unchanged")))
+      (finally
+        (loop/stop-loop! :step-mods-passthrough-test)
+        (core/stop!)))))

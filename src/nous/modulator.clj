@@ -79,7 +79,7 @@
   Pass any modulator map through `normalize-modulator` before handing it to a
   tier evaluator or sending it over IPC.  Each tier's evaluator expects canonical
   form only."
-  )
+  (:require [nous.clock :as clock]))
 
 ;; ---------------------------------------------------------------------------
 ;; Type-specific normalization — private multimethod
@@ -477,3 +477,36 @@
         (assoc m k (if (= k :mod/velocity) (long (Math/round v)) v))))
     {}
     mods-compiled))
+
+;; ---------------------------------------------------------------------------
+;; deflive-loop :step-mods auto-compilation
+;; ---------------------------------------------------------------------------
+
+(defn step-mods-compile
+  "Auto-compile raw modulator maps in a *step-mod-ctx* map to ITemporalValue.
+
+  Called automatically by deflive-loop on the :step-mods option — users do
+  not need to call this directly.  Any entry whose value is a map with
+  :modulator/type is compiled against master-clock (1 cycle/beat); ITemporalValue
+  values and constants pass through unchanged.
+
+  For beat-time modulation at a rate other than master-clock, or when you need
+  the source map preserved on the ITemporalValue for inspection, construct
+  explicitly with nous.mod/modulator-lfo and pass the result in :step-mods.
+
+  Returns nil when `ctx` is nil."
+  [ctx]
+  (when ctx
+    (reduce-kv
+      (fn [m k v]
+        (assoc m k
+               (if (and (map? v) (:modulator/type v))
+                 (let [m*    (normalize-modulator v)
+                       shape (modulator->shape-fn m*)
+                       ph    clock/master-clock]
+                   (reify clock/ITemporalValue
+                     (sample    [_ beat] (shape (clock/sample ph beat)))
+                     (next-edge [_ beat] (clock/next-edge ph beat))))
+                 v)))
+      {}
+      ctx)))

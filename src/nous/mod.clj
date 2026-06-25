@@ -245,7 +245,7 @@
     (one-shot ph shape-ph start-beat)))
 
 (defn compile-step-mods
-  "Compile raw modulator maps in a step-mods context map to ITemporalValue.
+  "Compile raw modulator maps in a step-mods context map to ModulatorLfo.
 
   Any entry whose value is a map with :modulator/type is compiled to a
   ModulatorLfo driven by master-clock (rate=1, period=1 beat).  For slower
@@ -253,15 +253,18 @@
 
   ITemporalValue values and constant numbers are passed through unchanged.
 
-  Returns a new map suitable for deflive-loop :step-mods or use-step-mods!.
+  Returns a new map suitable for use-step-mods! or explicit construction.
   Returns nil when `ctx` is nil.
 
+  Note: deflive-loop :step-mods already auto-compiles raw modulator maps via
+  nous.modulator/step-mods-compile, so you only need compile-step-mods when
+  you want the full ModulatorLfo type (which preserves the source map at
+  :modulator for introspection) rather than the lightweight auto-compiled form.
+
   Examples:
-    ;; raw modulator map → ModulatorLfo on master-clock
-    (deflive-loop :melody
-      {:step-mods (compile-step-mods
-                    {:mod/velocity {:modulator/type :lfo/sine}})}
-      (run-cycle! my-motif))
+    ;; preserve source map for inspection
+    (def vel-mod (compile-step-mods {:mod/velocity {:modulator/type :lfo/sine}}))
+    (get-in vel-mod [:mod/velocity :modulator])  ;=> normalized map
 
     ;; mix of raw map + explicit ITemporalValue
     (compile-step-mods

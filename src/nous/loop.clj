@@ -19,9 +19,10 @@
 
   Key design decisions: Q11 (live-loop alias), Q1 (virtual time), Q59
   (LockSupport/parkUntil for drift-free sleep), Q2–Q3 (sync! stub Phase 0)."
-  (:require [nous.clock    :as clock]
-            [nous.link     :as link]
-            [nous.timeline :as timeline])
+  (:require [nous.clock     :as clock]
+            [nous.link      :as link]
+            [nous.modulator :as modulator]
+            [nous.timeline  :as timeline])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
@@ -396,7 +397,7 @@
   `(let [synth-ctx#     (:synth ~opts)
          timing-ctx#    (:timing ~opts)
          mod-ctx#       (:mod ~opts)
-         step-mod-ctx#  (:step-mods ~opts)
+         step-mod-ctx#  (modulator/step-mods-compile (:step-mods ~opts))
          harmony-ctx#   (:harmony ~opts)
          chord-ctx#     (:chord ~opts)
          tuning-ctx#    (:tuning ~opts)
