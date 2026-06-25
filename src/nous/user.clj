@@ -90,7 +90,8 @@
             [nous.lattice               :as lattice]
             [nous.mts             :as mts]
             [nous.terrain         :as terr]
-            [nous.bitwig          :as bitwig]))
+            [nous.bitwig          :as bitwig]
+            [nous.topology        :as topology]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle
@@ -751,6 +752,20 @@
                   (when handle
                     (kairos/send-note-off! (:note handle)
                                            :channel (:channel handle))))))
+
+;; ---------------------------------------------------------------------------
+;; Studio MIDI topology (nous.topology)
+;; ---------------------------------------------------------------------------
+
+(def load-topology!          topology/load-topology!)
+(def loaded-topology?        topology/loaded?)
+(def device-ids              topology/device-ids)
+(def resolve-output-port     topology/resolve-output-port)
+(def resolve-input-port      topology/resolve-input-port)
+(def print-topology          topology/print-topology)
+;; topology/start-kairos! takes a device alias and requires load-topology! first.
+;; For raw launch without a topology file, use start-sidecar! :binary/:midi-port directly.
+(def start-topology-kairos!  topology/start-kairos!)
 
 ;; ---------------------------------------------------------------------------
 ;; Session topology (nous.session)
