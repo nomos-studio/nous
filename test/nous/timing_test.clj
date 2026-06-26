@@ -101,12 +101,15 @@
                       nous.kairos/send-note-on! (fn [_n _v & {:keys [beat]}]
                                                    (swap! captured conj beat))
                       nous.kairos/send-note-off! (fn [& _] nil)]
-          ;; Downbeat note — no swing
-          (binding [loop-ns/*virtual-time* 0.0
+          ;; Downbeat note — no swing.  Bind *loop-name* to simulate loop context
+          ;; so play! uses beat-scheduling (not the REPL immediate-dispatch path).
+          (binding [loop-ns/*loop-name*    :test-loop
+                    loop-ns/*virtual-time* 0.0
                     loop-ns/*timing-ctx*   nil]
             (core/play! :C4 1/4))
           ;; Upbeat note — should be shifted by swing amount
-          (binding [loop-ns/*virtual-time* 0.5
+          (binding [loop-ns/*loop-name*    :test-loop
+                    loop-ns/*virtual-time* 0.5
                     loop-ns/*timing-ctx*   (timing/swing :amount 0.6)]
             (core/play! :E4 1/4)))
         (let [sw                  (timing/swing :amount 0.6)
@@ -126,7 +129,8 @@
                       nous.kairos/send-note-on! (fn [_n _v & {:keys [beat]}]
                                                    (reset! captured beat))
                       nous.kairos/send-note-off! (fn [& _] nil)]
-          (binding [loop-ns/*virtual-time* 100.0
+          (binding [loop-ns/*loop-name*    :test-loop
+                    loop-ns/*virtual-time* 100.0
                     loop-ns/*timing-ctx*   (timing/swing :amount 0.6)]
             (core/play! :C4 1/4)))
         (is (= 100.0 @captured) "downbeat beat unmodified by swing"))
@@ -141,7 +145,8 @@
                       nous.kairos/send-note-on! (fn [_n _v & {:keys [beat]}]
                                                    (reset! captured beat))
                       nous.kairos/send-note-off! (fn [& _] nil)]
-          (binding [loop-ns/*virtual-time* 0.5
+          (binding [loop-ns/*loop-name*    :test-loop
+                    loop-ns/*virtual-time* 0.5
                     loop-ns/*timing-ctx*   nil]
             (core/play! :E4 1/4)))
         (is (= 0.5 @captured) "no offset applied with nil context"))

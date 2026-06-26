@@ -617,10 +617,27 @@
                                   (cents->bend14 bend-cents))]
                  (when bend-14bit
                    (kairos/send-pitch-bend! channel bend-14bit))
-                 (kairos/send-note-on!  midi (/ (double velocity) 127.0) :channel channel :beat on-beat)
-                 (kairos/send-note-off! midi :channel channel :beat off-beat)
-                 (when bend-14bit
-                   (kairos/send-pitch-bend! channel 8192))))))
+                 (if loop-ns/*loop-name*
+                   ;; Inside a live loop -- use beat-accurate scheduling so that
+                   ;; note-on and note-off land at the musically correct beats.
+                   (do
+                     (kairos/send-note-on!  midi (/ (double velocity) 127.0) :channel channel :beat on-beat)
+                     (kairos/send-note-off! midi :channel channel :beat off-beat)
+                     (when bend-14bit
+                       (kairos/send-pitch-bend! channel 8192)))
+                   ;; REPL context (*loop-name* is nil): on-beat and off-beat are
+                   ;; anchored to *virtual-time* = 0.0, which is far in the past.
+                   ;; The scheduler fires both in the same audio block, so the synth
+                   ;; hears note-on + immediate note-off and produces no sound.
+                   ;; Send note-on immediately (no :beat) and use a wall-clock timer
+                   ;; for note-off so the note sustains for the correct duration.
+                   (let [dur-ms (long (clock/beats->ms beats (get-bpm)))]
+                     (kairos/send-note-on! midi (/ (double velocity) 127.0) :channel channel)
+                     (future
+                       (Thread/sleep dur-ms)
+                       (kairos/send-note-off! midi :channel channel)
+                       (when bend-14bit
+                         (kairos/send-pitch-bend! channel 8192)))))))))
          (let [ms (long (clock/beats->ms beats (get-bpm)))]
            (println (format "[play!] beat=%-8s midi=%-3d dur=%s beats (%dms)"
                             (str now-beat) midi (str beats) ms))))))))
