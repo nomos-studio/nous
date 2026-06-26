@@ -91,7 +91,8 @@
             [nous.mts             :as mts]
             [nous.terrain         :as terr]
             [nous.bitwig          :as bitwig]
-            [nous.topology        :as topology]))
+            [nous.topology        :as topology]
+            [nous.test-rig        :as test-rig]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle
@@ -554,6 +555,18 @@
 (def send-mts!               kairos/send-mts!)
 (def await-midi-message      kairos/await-midi-message)
 (def midi-in-messages        kairos/midi-in-messages)
+
+;; ---------------------------------------------------------------------------
+;; MIDI capture rig (test-rig)
+;; ---------------------------------------------------------------------------
+
+(def open-midi-capture!   test-rig/open-capture!)
+(def close-midi-capture!  test-rig/close-capture!)
+(def midi-events-so-far   test-rig/events-so-far)
+(def clear-midi-events!   test-rig/clear-events!)
+(def wait-for-midi!       test-rig/wait-for-events!)
+(defmacro with-midi-capture [binding-vec & body]
+  `(test-rig/with-midi-capture ~binding-vec ~@body))
 
 ;; ---------------------------------------------------------------------------
 ;; Peer auto-discovery helpers
