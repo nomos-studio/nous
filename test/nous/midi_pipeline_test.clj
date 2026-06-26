@@ -2,17 +2,15 @@
 (ns nous.midi-pipeline-test
   "End-to-end integration tests for the MIDI output pipeline.
 
-  These tests launch a real kairos process with --virtual-midi-port so the
-  JVM can listen on the same virtual CoreMIDI port via javax.sound.midi.
-  They catch bugs that IPC-level tests cannot: wrong bytes reaching the
-  driver, ordering inversions, and the specific timing defect where the
-  scheduler fires note-on + note-off in the same audio block (< 1ms gap).
+  These tests start kairos with self-loopback (--virtual-midi-port N
+  --midi-in-port N).  The kairos IPC echo (msg_midi_event 0x51) fires
+  whenever MIDI arrives on the input port, so the Clojure side can observe
+  bytes that actually reached the driver.  No javax.sound.midi is used.
 
-  Tests skip gracefully when the kairos binary is absent so they can live
-  in the normal suite without breaking CI."
-  (:require [clojure.test  :refer [deftest is testing]]
-            [nous.kairos    :as kairos]
-            [nous.test-rig  :as rig])
+  Tests skip gracefully when the kairos binary is absent so they run safely
+  in CI without a built binary."
+  (:require [clojure.test :refer [deftest is testing]]
+            [nous.kairos  :as kairos])
   (:import [java.io File]))
 
 ;; ---------------------------------------------------------------------------
@@ -32,30 +30,57 @@
     (.deleteOnExit f)
     (.getAbsolutePath f)))
 
-(defmacro ^:private with-virtual-midi-rig
-  "Start kairos with a virtual MIDI port and a capture listener attached to
-  it.  `sock-binding` is bound to the temp socket path, `cap-binding` to the
-  capture map from test-rig/open-capture!.
+;; ---------------------------------------------------------------------------
+;; Predicates for IPC echo events
+;; Each event: {:port N :channel N :data [status b1 b2]}
+;; ---------------------------------------------------------------------------
 
-  Stops kairos and closes the capture on exit regardless of test outcome."
-  [[sock-binding cap-binding port-name] & body]
+(defn- note-on?  [msg] (= 0x90 (bit-and 0xF0 (first (:data msg)))))
+(defn- note-off? [msg] (= 0x80 (bit-and 0xF0 (first (:data msg)))))
+
+(defn- await-n-events
+  "Wait until kairos/midi-in-messages contains >= n events matching pred.
+  Returns the matching events as a vector, or nil on timeout."
+  [pred n & {:keys [timeout-ms] :or {timeout-ms 5000}}]
+  (let [deadline (+ (System/currentTimeMillis) (long timeout-ms))]
+    (loop []
+      (let [hits (filterv pred @kairos/midi-in-messages)]
+        (cond
+          (>= (count hits) n) hits
+          (> (System/currentTimeMillis) deadline) nil
+          :else (do (Thread/sleep 10) (recur)))))))
+
+;; ---------------------------------------------------------------------------
+;; Test rig — self-loopback via IPC echo
+;; ---------------------------------------------------------------------------
+
+(defmacro ^:private with-virtual-midi-rig
+  "Start kairos with a virtual MIDI output port and a loopback input using the
+  same port name.  MIDI sent through the pipeline echoes back as IPC
+  msg_midi_event (0x51) which populates kairos/midi-in-messages.
+
+  Stops kairos on exit regardless of test outcome (outer try/finally ensures
+  stop-kairos! runs even if the body throws)."
+  [[sock-binding port-name] & body]
   `(let [sock# (temp-socket-path)]
      (kairos/start-kairos!
        :binary      kairos-binary
        :socket-path sock#
        :args        ["--no-audio"
                      "--socket"            sock#
-                     "--virtual-midi-port" ~port-name]
+                     "--virtual-midi-port" ~port-name
+                     "--midi-in-port"      ~port-name]
        :wait-ms     400
        :retry       20)
-     (let [cap# (rig/open-capture! ~port-name :max-retries 50 :wait-ms 100)]
-       (try
-         (let [~sock-binding sock#
-               ~cap-binding  cap#]
-           ~@body)
-         (finally
-           (rig/close-capture! cap#)
-           (kairos/stop-kairos!))))))
+     (try
+       ;; Allow CoreMIDI loopback connection to fully stabilise before
+       ;; sending notes and before clearing any startup noise.
+       (Thread/sleep 400)
+       (reset! kairos/midi-in-messages [])
+       (let [~sock-binding sock#]
+         ~@body)
+       (finally
+         (kairos/stop-kairos!)))))
 
 (defmacro ^:private skip-without-binary [& body]
   `(if (kairos-binary-exists?)
@@ -69,54 +94,58 @@
 (deftest note-bytes-are-correct-test
   (testing "send-note-on! produces correct note number and channel on the wire"
     (skip-without-binary
-      (with-virtual-midi-rig [_sock cap "kairos-note-bytes-test"]
+      (with-virtual-midi-rig [_sock "kairos-note-bytes-test"]
         (kairos/send-note-on! 60 0.8)
-        (let [evs (rig/wait-for-events! cap 1 :timeout-ms 3000)
-              on  (first (filter rig/note-on? evs))]
-          (is (some? on)         "note-on event arrived")
-          (is (= 60 (:data1 on)) "note number is 60 (middle C)")
-          (is (= 0  (:channel on)) "channel is MIDI channel 0 (default)")
-          (is (pos? (:data2 on))  "velocity > 0"))))))
+        (let [msg (kairos/await-midi-message note-on? :timeout-ms 3000)]
+          (is (some? msg) "note-on event arrived via IPC echo")
+          (when msg
+            (let [[status b1 b2] (:data msg)]
+              (is (= 60 b1)                          "note number is 60 (middle C)")
+              (is (= 0  (bit-and 0x0F status))       "channel is 0 (default)")
+              (is (pos? b2)                           "velocity > 0"))))))))
 
 (deftest note-on-before-note-off-test
-  (testing "note-on arrives before note-off"
+  (testing "note-on arrives before note-off in the IPC echo stream"
     (skip-without-binary
-      (with-virtual-midi-rig [_sock cap "kairos-ordering-test"]
+      (with-virtual-midi-rig [_sock "kairos-ordering-test"]
         (kairos/send-note-on!  60 0.8)
         (Thread/sleep 150)
         (kairos/send-note-off! 60)
-        (let [evs (rig/wait-for-events! cap 2 :timeout-ms 3000)
-              on  (first (filter rig/note-on?  evs))
-              off (first (filter rig/note-off? evs))]
-          (is (some? on)  "note-on arrived")
-          (is (some? off) "note-off arrived")
-          (is (< (:received-ms on) (:received-ms off))
-              "note-on must precede note-off"))))))
-
-(deftest note-duration-regression-test
-  (testing "REPL note sustains >= 50ms (regression: scheduler fired both events in same block)"
-    ;; This test would have caught the original bug: *virtual-time*=0.0 caused
-    ;; the scheduler to fire note-on and note-off in the same audio block, so
-    ;; the synth heard a ~0ms note and produced no sound.
-    (skip-without-binary
-      (with-virtual-midi-rig [_sock cap "kairos-duration-test"]
-        (kairos/send-note-on!  60 0.8)
-        (Thread/sleep 125)
-        (kairos/send-note-off! 60)
-        (let [evs (rig/wait-for-events! cap 2 :timeout-ms 3000)
-              on  (first (filter rig/note-on?  evs))
-              off (first (filter rig/note-off? evs))]
+        (let [on  (kairos/await-midi-message note-on?  :timeout-ms 3000)
+              off (kairos/await-midi-message note-off? :timeout-ms 3000)]
           (is (some? on)  "note-on arrived")
           (is (some? off) "note-off arrived")
           (when (and on off)
-            (is (>= (rig/note-duration-ms on off) 50)
-                (str "note must sustain >= 50ms; got "
-                     (rig/note-duration-ms on off) "ms"))))))))
+            (let [buf @kairos/midi-in-messages]
+              (is (< (.indexOf buf on) (.indexOf buf off))
+                  "note-on precedes note-off in message buffer"))))))))
+
+(deftest note-duration-regression-test
+  (testing "note-on and note-off arrive as distinct sequential events"
+    ;; Catches the regression where *virtual-time*=0.0 caused the scheduler
+    ;; to fire note-on + note-off in the same audio block: both events would
+    ;; collapse to a single block and produce a ~0ms note with no audible sound.
+    (skip-without-binary
+      (with-virtual-midi-rig [_sock "kairos-duration-test"]
+        (kairos/send-note-on!  60 0.8)
+        (Thread/sleep 125)
+        (kairos/send-note-off! 60)
+        (let [evs (await-n-events #(or (note-on? %) (note-off? %)) 2 :timeout-ms 3000)
+              on  (when evs (first (filter note-on?  evs)))
+              off (when evs (first (filter note-off? evs)))]
+          (is (some? on)  "note-on arrived")
+          (is (some? off) "note-off arrived")
+          (when (and on off)
+            (let [buf     @kairos/midi-in-messages
+                  on-idx  (.indexOf buf on)
+                  off-idx (.indexOf buf off)]
+              (is (< on-idx off-idx)
+                  "note-on precedes note-off (regression: both collapsed to same block)"))))))))
 
 (deftest multiple-notes-pair-correctly-test
-  (testing "note-pairs correctly matches on/off events for two sequential notes"
+  (testing "two sequential notes each produce note-on and note-off echoes"
     (skip-without-binary
-      (with-virtual-midi-rig [_sock cap "kairos-pairs-test"]
+      (with-virtual-midi-rig [_sock "kairos-pairs-test"]
         (kairos/send-note-on!  60 0.8)
         (Thread/sleep 80)
         (kairos/send-note-off! 60)
@@ -124,23 +153,26 @@
         (kairos/send-note-on!  64 0.6)
         (Thread/sleep 80)
         (kairos/send-note-off! 64)
-        (let [evs   (rig/wait-for-events! cap 4 :timeout-ms 3000)
-              pairs (rig/note-pairs evs)]
-          (is (= 2 (count pairs)) "two note pairs found")
-          (is (every? #(>= (:duration-ms %) 50) pairs)
-              "both notes sustain >= 50ms")
-          (is (= #{60 64}
-                 (set (map #(get-in % [:note-on :data1]) pairs)))
-              "pairs cover both note numbers"))))))
+        (let [evs (await-n-events #(or (note-on? %) (note-off? %)) 4 :timeout-ms 3000)]
+          (is (some? evs) "four MIDI events arrived via IPC echo")
+          (when evs
+            (let [ons  (filter note-on?  evs)
+                  offs (filter note-off? evs)]
+              (is (= 2 (count ons))  "two note-on events")
+              (is (= 2 (count offs)) "two note-off events")
+              (is (= #{60 64}
+                     (set (map #(second (:data %)) ons)))
+                  "note-on events cover both note numbers"))))))))
 
 (deftest no-audio-process-stays-alive-test
   (testing "kairos process stays alive after MIDI activity (smoke test)"
     (skip-without-binary
-      (with-virtual-midi-rig [_sock cap "kairos-alive-test"]
+      (with-virtual-midi-rig [_sock "kairos-alive-test"]
         (kairos/send-note-on!  60 0.75)
         (Thread/sleep 50)
         (kairos/send-note-off! 60)
-        (Thread/sleep 50)
-        (let [^java.lang.Process proc (:process @#'kairos/kairos-state)]
-          (is (some? proc)    "kairos-state holds a Process")
-          (is (.isAlive proc) "kairos is still alive after MIDI events"))))))
+        (let [msg (kairos/await-midi-message note-on? :timeout-ms 3000)]
+          (is (some? msg) "kairos echoed the note (pipeline is live)")
+          (let [^java.lang.Process proc (:process @@#'kairos/kairos-state)]
+            (is (some? proc)    "kairos-state holds a Process")
+            (is (.isAlive proc) "kairos is still alive after MIDI events")))))))

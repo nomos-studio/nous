@@ -21,7 +21,7 @@
                  :init     (require 'nous.user)}
   :profiles {:uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}
-             :dev {:dependencies []}}
+             :dev {}}
   :aliases {"mcp" ["run" "-m" "nous.mcp"]}
   :plugins [[lein-codox "0.10.8"]]
   :codox {:output-path "target/codox"

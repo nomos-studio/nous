@@ -276,7 +276,8 @@
                     (doto (SocketChannel/open StandardProtocolFamily/UNIX)
                       (.connect (UnixDomainSocketAddress/of socket-path)))
                     (catch java.net.ConnectException _ nil)
-                    (catch java.nio.file.NoSuchFileException _ nil))
+                    (catch java.nio.file.NoSuchFileException _ nil)
+                    (catch java.net.SocketException _ nil))
                   (do (Thread/sleep delay-ms)
                       (recur (inc attempt) (min 500 (* 2 delay-ms))))))]
     (let [out (Channels/newOutputStream ch)
