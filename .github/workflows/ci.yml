@@ -48,7 +48,7 @@ jobs:
         run: lein test
 
   # ---------------------------------------------------------------------------
-  # C++ sidecar build (no Ableton Link — LGPL-only binary)
+  # C++ sidecar build (Link disabled — LGPL-only binary for the nous sidecar)
   # ---------------------------------------------------------------------------
   cpp:
     name: C++ build (${{ matrix.os }})
@@ -73,7 +73,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cmake-deps-
 
       - name: Configure (Link disabled — LGPL binary)
-        run: cmake -B build -DCLJSEQ_ENABLE_LINK=OFF -DCLJSEQ_BUILD_TESTS=OFF
+        run: cmake -B build -DNOUS_ENABLE_LINK=OFF -DNOUS_BUILD_TESTS=OFF
 
       - name: Build
         run: cmake --build build --parallel
