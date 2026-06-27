@@ -2,64 +2,71 @@
 (ns nous.dirs
   "Platform-appropriate directory resolution for nous.
 
-  Provides the canonical locations for user data, config, and cache under a
-  pluggable layout abstraction. The active layout can be changed at runtime via
-  `set-layout!`, making it straightforward to add new layout strategies (e.g.
-  macOS native ~/Library conventions) in a future sprint without modifying call
-  sites.
+  ## Two tiers
 
-  ## Active layout
+  ### User tier  — per-user, writable, survives product updates
 
-  The default layout follows the XDG Base Directory Specification — the de
-  facto standard for developer tools on Linux and macOS:
+    macOS   ~/Library/Application Support/nous/
+    Linux   ~/.local/share/nous/   (XDG_DATA_HOME respected)
 
-    ~/.local/share/nous/   — user data   (learned device maps, saved sessions)
-    ~/.config/nous/        — user config (preferences, port assignments)
-    ~/.cache/nous/         — cache       (m21 corpus, derived artefacts)
+  User subdirectories (created on first access):
+    (user-devices-dir)  — user-created / learned device maps
+    (corpora-dir)       — m21 corpus, imported score data
+    (sessions-dir)      — saved session state
+    (scales-dir)        — Scala (.scl) and keyboard mapping (.kbm) files
 
-  XDG environment variables are respected: XDG_DATA_HOME, XDG_CONFIG_HOME,
-  XDG_CACHE_HOME.
+  User config:
+    macOS   ~/Library/Application Support/nous/
+    Linux   ~/.config/nous/   (XDG_CONFIG_HOME respected)
+
+  User cache:
+    macOS   ~/Library/Caches/nous/
+    Linux   ~/.cache/nous/   (XDG_CACHE_HOME respected)
+
+  ### System tier  — shipped with the product, read-only to the user
+
+  nomos-studio/maps is a deployment artifact containing device maps and
+  parameter schema.  Peers resolve it via NOUS_MAPS or the
+  platform-conventional system path:
+
+    macOS   /Library/Application Support/nomos-studio/maps
+    Linux   /usr/local/share/nomos-studio/maps
+
+  System subdirectories:
+    (system-devices-dir) — (system-maps-dir)/devices
+    (schema-dir)         — (system-maps-dir)/schema
 
   ## Environment variable overrides
 
-  These take priority over the active layout and are useful for CI, containers,
-  and non-standard setups:
+  All take priority over the active layout and platform defaults:
 
-    CLJSEQ_DATA_DIR    — overrides (user-data-dir)
-    CLJSEQ_CONFIG_DIR  — overrides (user-config-dir)
-    CLJSEQ_CACHE_DIR   — overrides (user-cache-dir)
-    CLJSEQ_LAYOUT      — selects layout at startup: 'xdg' (default) or
-                         'macos-native' (reserved, not yet implemented)
-
-  ## macOS native layout (future sprint)
-
-  When implemented, the :macos-native layout will follow Apple HIG conventions:
-
-    ~/Library/Application Support/nous/   — data + config
-    ~/Library/Caches/nous/                — cache
-
-  The `macos-native-layout` constructor is already defined (stubbed) so that
-  `set-layout! :macos-native` becomes a one-line activation in that sprint.
+    NOUS_DATA    — overrides (user-data-dir)
+    NOUS_CONFIG  — overrides (user-config-dir)
+    NOUS_CACHE   — overrides (user-cache-dir)
+    NOUS_MAPS    — overrides (system-maps-dir)
+    NOUS_LAYOUT  — selects layout: 'xdg' or 'macos-native'
+                   (auto-detected from platform when absent)
+    NOUS_TOPOLOGY — path to studio topology EDN file
 
   ## Resource search order for device maps
 
-  `(resolve-device-resource name)` searches:
-    1. (devices-dir)              — user-created / learned maps (writable)
-    2. Classpath resources/devices/ — built-in maps (read-only, bundled)
+  `(resolve-device-resource name)` searches three tiers in order:
 
-  User maps shadow built-in maps of the same filename.
+    1. (user-devices-dir)/<name>         — user-created / learned (writable)
+    2. (system-devices-dir)/<name>       — nomos-studio/maps deployment
+    3. classpath resources/devices/<name> — temporary fallback
 
-  ## Subdirectory helpers
+  User maps shadow system maps of the same filename.
 
-  All subdirectory helpers call mkdirs on first access so callers never need to
-  check for directory existence:
+  ## Layout abstraction
 
-    (devices-dir)   — (user-data-dir)/devices
-    (corpora-dir)   — (user-data-dir)/corpora
-    (sessions-dir)  — (user-data-dir)/sessions
+  A layout is a plain map:
+    {:id     keyword
+     :data   (fn [] path-string)
+     :config (fn [] path-string)
+     :cache  (fn [] path-string)}
 
-  Key design decisions: XDG Base Directory Specification (freedesktop.org),
-  macOS HIG (future), R&R §32 (directory layout)."
+  Tests inject a custom layout via set-layout! without protocol machinery."
   (:require [clojure.java.io :as io]))
 
 ;; ---------------------------------------------------------------------------
@@ -68,72 +75,60 @@
 
 (defn- home [] (System/getProperty "user.home"))
 
-(defn- read-env
-  "Read an environment variable. Extracted into a function so tests can
-  redirect it via with-redefs without touching System/getenv directly."
-  [k]
-  (System/getenv k))
+(defn- read-env [k] (System/getenv k))
+
+(defn- macos?
+  "True when running on macOS."
+  []
+  (.startsWith (System/getProperty "os.name" "") "Mac"))
 
 (defn- ensure-dir
-  "Create `path` and all parent directories if they do not exist.
-  Returns `path` as a string."
+  "Create path and all parents if absent. Returns path as a string."
   ^String [^String path]
   (.mkdirs (io/file path))
   path)
 
 ;; ---------------------------------------------------------------------------
-;; Layout maps
-;;
-;; A layout is a plain map:
-;;   {:id      keyword
-;;    :data    (fn [] path-string)
-;;    :config  (fn [] path-string)
-;;    :cache   (fn [] path-string)}
-;;
-;; Using plain maps (rather than a protocol) keeps the abstraction light and
-;; testable: tests can inject a custom layout map without any protocol machinery.
+;; Layout definitions
 ;; ---------------------------------------------------------------------------
 
-(def app-name "nous")
+(def ^:private user-app "nous")
+(def ^:private system-vendor "nomos-studio")
 
 (defn xdg-layout
-  "XDG Base Directory Specification layout (default).
+  "XDG Base Directory Specification layout.
   Respects XDG_DATA_HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME."
   []
   {:id     :xdg
    :data   (fn [] (str (or (read-env "XDG_DATA_HOME")
                            (str (home) "/.local/share"))
-                       "/" app-name))
+                       "/" user-app))
    :config (fn [] (str (or (read-env "XDG_CONFIG_HOME")
                            (str (home) "/.config"))
-                       "/" app-name))
+                       "/" user-app))
    :cache  (fn [] (str (or (read-env "XDG_CACHE_HOME")
                            (str (home) "/.cache"))
-                       "/" app-name))})
+                       "/" user-app))})
 
 (defn macos-native-layout
-  "macOS native layout using ~/Library conventions (reserved for future sprint).
-
-  When activated the layout will use:
+  "macOS native layout following Apple HIG conventions:
     ~/Library/Application Support/nous/   — data and config
-    ~/Library/Caches/nous/                — cache
-
-  Currently produces the same paths as xdg-layout. Activate with:
-    (set-layout! :macos-native)"
+    ~/Library/Caches/nous/                — cache"
   []
   {:id     :macos-native
-   :data   (fn [] (str (home) "/Library/Application Support/" app-name))
-   :config (fn [] (str (home) "/Library/Application Support/" app-name))
-   :cache  (fn [] (str (home) "/Library/Caches/" app-name))})
+   :data   (fn [] (str (home) "/Library/Application Support/" user-app))
+   :config (fn [] (str (home) "/Library/Application Support/" user-app))
+   :cache  (fn [] (str (home) "/Library/Caches/" user-app))})
 
-(defn- layout-for-env
-  "Select the default layout based on the CLJSEQ_LAYOUT environment variable."
+(defn- default-layout
+  "Select layout from NOUS_LAYOUT env var, falling back to platform detection."
   []
-  (case (read-env "CLJSEQ_LAYOUT")
+  (case (read-env "NOUS_LAYOUT")
     "macos-native" (macos-native-layout)
-    (xdg-layout)))
+    "xdg"          (xdg-layout)
+    (if (macos?) (macos-native-layout) (xdg-layout))))
 
-(defonce ^:private active-layout (atom (layout-for-env)))
+(defonce ^:private active-layout (atom (default-layout)))
 
 ;; ---------------------------------------------------------------------------
 ;; Layout management
@@ -142,17 +137,8 @@
 (defn set-layout!
   "Change the active directory layout.
 
-  `layout` — :xdg               XDG Base Directory Specification (default)
-             :macos-native       macOS ~/Library conventions (future sprint)
-             a layout map        from xdg-layout / macos-native-layout, or
-                                 a user-supplied map with :id/:data/:config/:cache
-
-  Returns the layout :id keyword.
-
-  Example:
-    (dirs/set-layout! :xdg)
-    (dirs/set-layout! :macos-native)
-    (dirs/set-layout! (assoc (dirs/xdg-layout) :data (fn [] \"/tmp/test\")))"
+  layout — :xdg, :macos-native, or a layout map with :id/:data/:config/:cache.
+  Returns the layout :id keyword."
   [layout]
   (let [l (case layout
             :xdg          (xdg-layout)
@@ -161,128 +147,125 @@
     (reset! active-layout l)
     (:id l)))
 
-(defn active-layout-id
-  "Return the keyword identifying the currently active layout."
-  []
-  (:id @active-layout))
+(defn active-layout-id [] (:id @active-layout))
 
 ;; ---------------------------------------------------------------------------
-;; Core directory resolution
-;; CLJSEQ_*_DIR environment variables always take priority over the layout.
+;; User tier — per-user directories
 ;; ---------------------------------------------------------------------------
 
 (defn user-data-dir
-  "Root user data directory. Override with CLJSEQ_DATA_DIR.
-
-  Default (XDG): ~/.local/share/nous
-  Default (macOS native): ~/Library/Application Support/nous"
+  "Root user data directory.
+  Override with NOUS_DATA.
+  Default: ~/Library/Application Support/nous (macOS) or ~/.local/share/nous (Linux)"
   ^String []
-  (or (read-env "CLJSEQ_DATA_DIR")
-      ((:data @active-layout))))
+  (or (read-env "NOUS_DATA") ((:data @active-layout))))
 
 (defn user-config-dir
-  "Root user config directory. Override with CLJSEQ_CONFIG_DIR.
-
-  Default (XDG): ~/.config/nous
-  Default (macOS native): ~/Library/Application Support/nous"
+  "Root user config directory.
+  Override with NOUS_CONFIG.
+  Default: ~/Library/Application Support/nous (macOS) or ~/.config/nous (Linux)"
   ^String []
-  (or (read-env "CLJSEQ_CONFIG_DIR")
-      ((:config @active-layout))))
+  (or (read-env "NOUS_CONFIG") ((:config @active-layout))))
 
 (defn user-cache-dir
-  "Root user cache directory. Override with CLJSEQ_CACHE_DIR.
-
-  Default (XDG): ~/.cache/nous
-  Default (macOS native): ~/Library/Caches/nous"
+  "Root user cache directory.
+  Override with NOUS_CACHE.
+  Default: ~/Library/Caches/nous (macOS) or ~/.cache/nous (Linux)"
   ^String []
-  (or (read-env "CLJSEQ_CACHE_DIR")
-      ((:cache @active-layout))))
+  (or (read-env "NOUS_CACHE") ((:cache @active-layout))))
 
-;; ---------------------------------------------------------------------------
-;; Subdirectory helpers — created on first access
-;; ---------------------------------------------------------------------------
-
-(defn devices-dir
-  "Directory for user-created and learned device maps.
-  Searched before classpath resources by resolve-device-resource.
+(defn user-devices-dir
+  "User-created and learned device maps. Shadows system maps of the same name.
   Created on first access."
   ^String []
   (ensure-dir (str (user-data-dir) "/devices")))
 
 (defn corpora-dir
-  "Directory for user-imported corpora (m21 cache, etc.).
-  Created on first access."
+  "User-imported corpora (m21 cache, score data). Created on first access."
   ^String []
   (ensure-dir (str (user-data-dir) "/corpora")))
 
 (defn sessions-dir
-  "Directory for saved session state and conductor scripts.
-  Created on first access."
+  "Saved session state and conductor scripts. Created on first access."
   ^String []
   (ensure-dir (str (user-data-dir) "/sessions")))
 
-;; ---------------------------------------------------------------------------
-;; Device resource resolution
-;;
-;; Search order:
-;;   1. (devices-dir)/<name>  — user-created / learned (writable)
-;;   2. classpath resources/devices/<name>  — built-in (read-only)
-;;
-;; Returns a java.net.URL or nil.
-;; ---------------------------------------------------------------------------
-
 (defn scales-dir
-  "Directory for Scala (.scl) and keyboard mapping (.kbm) microtonal scale files.
-  Created on first access."
+  "Scala (.scl) and keyboard mapping (.kbm) files. Created on first access."
   ^String []
   (ensure-dir (str (user-data-dir) "/scales")))
 
+;; ---------------------------------------------------------------------------
+;; System tier — nomos-studio/maps deployment artifact
+;; ---------------------------------------------------------------------------
+
+(defn- system-maps-default
+  "Platform-conventional path for the deployed nomos-studio/maps artifact."
+  []
+  (if (macos?)
+    (str "/Library/Application Support/" system-vendor "/maps")
+    (str "/usr/local/share/" system-vendor "/maps")))
+
+(defn system-maps-dir
+  "Root of the deployed nomos-studio/maps artifact (read-only).
+  Override with NOUS_MAPS for development or non-standard installations.
+  Default: /Library/Application Support/nomos-studio/maps (macOS)
+           /usr/local/share/nomos-studio/maps (Linux)"
+  ^String []
+  (or (read-env "NOUS_MAPS") (system-maps-default)))
+
+(defn system-devices-dir
+  "Device maps shipped with nomos-studio/maps. Read-only."
+  ^String []
+  (str (system-maps-dir) "/devices"))
+
+(defn schema-dir
+  "Parameter schema files shipped with nomos-studio/maps (curves.edn, etc.). Read-only."
+  ^String []
+  (str (system-maps-dir) "/schema"))
+
+;; ---------------------------------------------------------------------------
+;; Resource resolution
+;; ---------------------------------------------------------------------------
+
+(defn resolve-device-resource
+  "Resolve a device map filename to a URL.
+
+  Search order:
+    1. (user-devices-dir)/<name>          — user-created / learned (writable)
+    2. (system-devices-dir)/<name>        — nomos-studio/maps deployment
+    3. classpath resources/devices/<name> — fallback
+
+  name — filename only, e.g. \"hydrasynth-explorer.edn\"
+
+  Returns a java.net.URL or nil."
+  [name]
+  (let [fname (if (.contains ^String name "/")
+                (subs name (inc (.lastIndexOf ^String name "/")))
+                name)]
+    (or (let [f (io/file (user-devices-dir) fname)]
+          (when (.exists f) (.toURL f)))
+        (let [f (io/file (system-devices-dir) fname)]
+          (when (.exists f) (.toURL f)))
+        (io/resource (str "devices/" fname)))))
+
 (defn resolve-scala-resource
-  "Resolve a Scala scale filename to a URL, searching user scales before classpath.
+  "Resolve a Scala scale filename to a URL.
 
   Search order:
     1. (scales-dir)/<name>               — user scales (writable)
-    2. classpath resources/scales/<name> — built-in bundled scales (read-only)
+    2. classpath resources/scales/<name> — built-in bundled scales
 
-  Returns a java.net.URL if found, nil if not found in either location.
-
-  Example:
-    (dirs/resolve-scala-resource \"31edo.scl\")
-    (dirs/resolve-scala-resource \"pythagorean.scl\")"
+  Returns a java.net.URL or nil."
   [name]
-  (let [user-file (io/file (scales-dir) name)]
-    (if (.exists user-file)
-      (.toURL user-file)
-      (io/resource (str "scales/" name)))))
-
-(defn resolve-device-resource
-  "Resolve a device map filename to a URL, searching user data before classpath.
-
-  `name` — filename, e.g. \"hydrasynth-explorer.edn\" (no directory prefix)
-
-  Returns a java.net.URL if found, nil if not found in either location.
-
-  Search order:
-    1. (devices-dir)/<name>         — user-created or learned map
-    2. classpath resources/devices/<name>  — built-in map
-
-  Example:
-    (resolve-device-resource \"hydrasynth-explorer.edn\")
-    (resolve-device-resource \"lm-drum.edn\")"
-  [name]
-  (let [user-file (io/file (devices-dir) name)]
-    (if (.exists user-file)
-      (.toURL user-file)
-      (io/resource (str "devices/" name)))))
+  (or (let [f (io/file (scales-dir) name)]
+        (when (.exists f) (.toURL f)))
+      (io/resource (str "scales/" name))))
 
 (defn topology-path
   "Canonical path for the user's studio topology file.
-
-  Default: (user-config-dir)/topology.edn
-  Override: NOUS_TOPOLOGY environment variable.
-
-  The file is not created automatically. Use nous.topology/load-topology!
-  to load it; see doc/topology-example.edn for the schema and annotations."
+  Override with NOUS_TOPOLOGY.
+  Default: (user-config-dir)/topology.edn"
   ^String []
   (or (read-env "NOUS_TOPOLOGY")
       (str (user-config-dir) "/topology.edn")))

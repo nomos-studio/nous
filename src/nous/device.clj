@@ -73,8 +73,9 @@
                    Both forms are accepted for backwards compatibility.
 
   Search order (filename form):
-    1. (dirs/devices-dir)/<name>          — user-created or learned map
-    2. classpath resources/devices/<name> — built-in map
+    1. (dirs/user-devices-dir)/<name>     — user-created or learned map
+    2. (dirs/system-devices-dir)/<name>   — nomos-studio/maps deployment
+    3. classpath resources/devices/<name> — fallback
 
   Example:
     (load-device-map \"hydrasynth-explorer.edn\")
@@ -89,7 +90,7 @@
       (edn/read-string (slurp url))
       (throw (ex-info "nous.device/load-device-map: device map not found"
                       {:name name-or-path
-                       :searched [(dirs/devices-dir)
+                       :searched [(dirs/user-devices-dir)
                                   (str "classpath:resources/devices/" fname)]})))))
 
 ;; ---------------------------------------------------------------------------

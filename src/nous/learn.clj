@@ -4,7 +4,7 @@
 
   Guides the user through tapping/wiggling physical controls while nous
   listens on the sidecar MIDI input port. The result is a device EDN map
-  written to (dirs/devices-dir) — loadable immediately by load-device-map.
+  written to (dirs/user-devices-dir) — loadable immediately by load-device-map.
 
   ## Workflow
 
@@ -31,7 +31,7 @@
     ;; 4. Check progress mid-session
     (learn-session-state :lm-drum)
 
-    ;; 5. Export to (dirs/devices-dir)/lm-drum.edn
+    ;; 5. Export to (dirs/user-devices-dir)/lm-drum.edn
     (export-device-map! :lm-drum)
 
     ;; or to a specific path:
@@ -389,10 +389,10 @@
 
   `session-id`  — an open session with at least one captured entry
   `output-path` — (optional) absolute or relative path to write.
-                  Default: (dirs/devices-dir)/<session-name>.edn
+                  Default: (dirs/user-devices-dir)/<session-name>.edn
 
   The file is written in a format compatible with load-device-map and
-  defdevice. If written to (dirs/devices-dir) it will be found automatically
+  defdevice. If written to (dirs/user-devices-dir) it will be found automatically
   by resolve-device-resource, shadowing any built-in map of the same name.
 
   Returns the path written.
@@ -402,7 +402,7 @@
     (export-device-map! :lm-drum \"resources/devices/lm-drum.edn\")"
   ([session-id]
    (export-device-map! session-id
-                       (str (dirs/devices-dir) "/" (name session-id) ".edn")))
+                       (str (dirs/user-devices-dir) "/" (name session-id) ".edn")))
   ([session-id output-path]
    (when-not (clojure.core/get @sessions session-id)
      (throw (ex-info (str "No session for " (pr-str session-id)) {})))

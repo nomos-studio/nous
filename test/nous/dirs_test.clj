@@ -29,8 +29,7 @@
 (defn- home [] (System/getProperty "user.home"))
 
 (defn- test-layout
-  "Return a layout map that uses a fixed temp-style prefix for all dirs.
-  Avoids touching the real user home in path assertions."
+  "Return a layout map that uses a fixed temp-style prefix for all dirs."
   [prefix]
   {:id     :test
    :data   (constantly (str prefix "/data"))
@@ -51,7 +50,7 @@
 
 (deftest xdg-layout-data-dir-default-test
   (testing "xdg-layout data dir uses ~/.local/share when XDG_DATA_HOME unset"
-    (with-redefs [nous.dirs/read-env (fn [k] (when (= k "CLJSEQ_LAYOUT") nil))]
+    (with-redefs [nous.dirs/read-env (constantly nil)]
       (let [layout (dirs/xdg-layout)
             result ((:data layout))]
         (is (str/starts-with? result (str (home) "/.local/share")))
@@ -121,49 +120,74 @@
       (is (= "/tmp/test-data/data" (dirs/user-data-dir))))))
 
 (deftest user-data-dir-env-override-test
-  (testing "CLJSEQ_DATA_DIR overrides the active layout"
+  (testing "NOUS_DATA overrides the active layout"
     (dirs/set-layout! (test-layout "/tmp/test-data"))
     (with-redefs [nous.dirs/read-env (fn [k]
-                                         (when (= k "CLJSEQ_DATA_DIR")
+                                         (when (= k "NOUS_DATA")
                                            "/override/data"))]
       (is (= "/override/data" (dirs/user-data-dir))))))
 
 (deftest user-config-dir-env-override-test
-  (testing "CLJSEQ_CONFIG_DIR overrides the active layout"
+  (testing "NOUS_CONFIG overrides the active layout"
     (dirs/set-layout! (test-layout "/tmp/test-cfg"))
     (with-redefs [nous.dirs/read-env (fn [k]
-                                         (when (= k "CLJSEQ_CONFIG_DIR")
+                                         (when (= k "NOUS_CONFIG")
                                            "/override/config"))]
       (is (= "/override/config" (dirs/user-config-dir))))))
 
 (deftest user-cache-dir-env-override-test
-  (testing "CLJSEQ_CACHE_DIR overrides the active layout"
+  (testing "NOUS_CACHE overrides the active layout"
     (dirs/set-layout! (test-layout "/tmp/test-cache"))
     (with-redefs [nous.dirs/read-env (fn [k]
-                                         (when (= k "CLJSEQ_CACHE_DIR")
+                                         (when (= k "NOUS_CACHE")
                                            "/override/cache"))]
       (is (= "/override/cache" (dirs/user-cache-dir))))))
 
-(deftest env-overrides-take-priority-over-xdg-vars-test
-  (testing "CLJSEQ_DATA_DIR takes priority over XDG_DATA_HOME"
+(deftest nous-data-takes-priority-over-xdg-vars-test
+  (testing "NOUS_DATA takes priority over XDG_DATA_HOME"
     (dirs/set-layout! :xdg)
     (with-redefs [nous.dirs/read-env (fn [k]
                                          (case k
-                                           "CLJSEQ_DATA_DIR" "/nous-override"
-                                           "XDG_DATA_HOME"   "/xdg-home"
+                                           "NOUS_DATA"     "/nous-override"
+                                           "XDG_DATA_HOME" "/xdg-home"
                                            nil))]
       (is (= "/nous-override" (dirs/user-data-dir))))))
 
 ;; ---------------------------------------------------------------------------
-;; Subdirectory helpers — structure checks (avoid real filesystem writes)
+;; System tier
 ;; ---------------------------------------------------------------------------
 
-(deftest devices-dir-under-data-dir-test
-  (testing "devices-dir is a subdirectory of user-data-dir"
+(deftest system-maps-dir-nous-maps-override-test
+  (testing "NOUS_MAPS overrides the system maps path"
+    (with-redefs [nous.dirs/read-env (fn [k]
+                                         (when (= k "NOUS_MAPS")
+                                           "/custom/maps"))]
+      (is (= "/custom/maps" (dirs/system-maps-dir))))))
+
+(deftest system-devices-dir-under-maps-test
+  (testing "system-devices-dir is (system-maps-dir)/devices"
+    (with-redefs [nous.dirs/read-env (fn [k]
+                                         (when (= k "NOUS_MAPS")
+                                           "/custom/maps"))]
+      (is (= "/custom/maps/devices" (dirs/system-devices-dir))))))
+
+(deftest schema-dir-under-maps-test
+  (testing "schema-dir is (system-maps-dir)/schema"
+    (with-redefs [nous.dirs/read-env (fn [k]
+                                         (when (= k "NOUS_MAPS")
+                                           "/custom/maps"))]
+      (is (= "/custom/maps/schema" (dirs/schema-dir))))))
+
+;; ---------------------------------------------------------------------------
+;; Subdirectory helpers — structure checks
+;; ---------------------------------------------------------------------------
+
+(deftest user-devices-dir-under-data-dir-test
+  (testing "user-devices-dir is a subdirectory of user-data-dir"
     (dirs/set-layout! (test-layout (System/getProperty "java.io.tmpdir")))
     (with-redefs [nous.dirs/read-env (constantly nil)]
       (let [data    (dirs/user-data-dir)
-            devices (dirs/devices-dir)]
+            devices (dirs/user-devices-dir)]
         (is (str/starts-with? devices data))
         (is (str/ends-with? devices "/devices"))))))
 
@@ -191,7 +215,6 @@
 
 (deftest resolve-device-classpath-test
   (testing "resolve-device-resource finds built-in device maps on classpath"
-    ;; hydrasynth-explorer.edn ships with the product — must always be found
     (let [url (dirs/resolve-device-resource "hydrasynth-explorer.edn")]
       (is (some? url) "hydrasynth-explorer.edn found on classpath")
       (is (instance? java.net.URL url)))))
@@ -202,18 +225,16 @@
       (is (nil? url)))))
 
 (deftest resolve-device-user-shadows-classpath-test
-  (testing "user devices-dir shadows classpath for same filename"
-    (let [tmp-dir (str (System/getProperty "java.io.tmpdir")
-                       "/nous-dirs-test-" (System/currentTimeMillis))
+  (testing "user-devices-dir shadows classpath for same filename"
+    (let [tmp-dir  (str (System/getProperty "java.io.tmpdir")
+                        "/nous-dirs-test-" (System/currentTimeMillis))
           tmp-file (io/file tmp-dir "hydrasynth-explorer.edn")]
       (try
         (.mkdirs (io/file tmp-dir))
         (spit tmp-file ";; user override\n{:device/id :test}")
-        ;; Point devices-dir to our temp dir
-        (with-redefs [nous.dirs/devices-dir (constantly tmp-dir)]
+        (with-redefs [nous.dirs/user-devices-dir (constantly tmp-dir)]
           (let [url (dirs/resolve-device-resource "hydrasynth-explorer.edn")]
             (is (some? url))
-            ;; The resolved URL should serve our override content, not the bundled map
             (is (str/includes? (slurp url) "user override")
                 "user file content returned, not classpath bundled map")))
         (finally

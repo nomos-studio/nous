@@ -89,7 +89,7 @@
   "Directory for on-disk EDN cache files.
   Default: (dirs/corpora-dir)/m21  (~/.local/share/nous/corpora/m21 on XDG)
   Override: (alter-var-root #'m21/*cache-dir* (constantly \"/my/path\"))
-  or set CLJSEQ_DATA_DIR to redirect the entire user data tree."
+  or set NOUS_DATA to redirect the entire user data tree."
   (str (dirs/corpora-dir) "/m21"))
 
 ;; ---------------------------------------------------------------------------
