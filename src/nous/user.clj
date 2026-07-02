@@ -92,7 +92,10 @@
             [nous.terrain         :as terr]
             [nous.bitwig          :as bitwig]
             [nous.topology        :as topology]
-            [nous.test-rig        :as test-rig]))
+            [nous.test-rig        :as test-rig]
+            ;; BEAM IPC substrate
+            [nous.txlog-store     :as txlog-store]
+            [nous.jinterface      :as jinterface]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle

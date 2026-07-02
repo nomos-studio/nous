@@ -10,7 +10,16 @@
                  [alembic "0.1.0"]
                  [org.clojure/data.json "2.5.1"]
                  [http-kit "2.8.0"]
-                 [org.xerial/sqlite-jdbc "3.47.1.0"]]
+                 [org.xerial/sqlite-jdbc "3.47.1.0"]
+                 ;; ctrl-tree substrate + Jinterface IPC
+                 [nomos-studio/protomatter "0.1.0-SNAPSHOT"]
+                 [nomos-studio/ctrl-tree   "0.1.0-SNAPSHOT"]
+                 [org.erlang.otp/jinterface "1.16.0"]]
+  ;; lib/maven is a project-local Maven repo holding the jinterface jar.
+  ;; Built from OTP 29.0.2 source (lib/jinterface/java_src) — travels with the
+  ;; source tree so builds stay hermetic when bundling a JVM for distribution.
+  :repositories [["project-jars" {:url "file:lib/maven"}]]
+  :jvm-opts ["--enable-native-access=ALL-UNNAMED"]
   :main ^:skip-aot nous.core
   :source-paths ["src"]
   :test-paths   ["test"]
