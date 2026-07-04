@@ -22,9 +22,11 @@ step is the root cause of past misses (version stayed at 0.2.0 through v0.3.0).
 
 ### 4. SPDX headers
 - [ ] Every new source file must carry an SPDX identifier on its first line.
+<!-- REUSE-IgnoreStart -->
   Clojure and Elixir: `; SPDX-License-Identifier: EPL-2.0`
   C++ (sans Link): `// SPDX-License-Identifier: EPL-2.0`
   C++ (Link-compiled): `// SPDX-License-Identifier: GPL-2.0-or-later`
+<!-- REUSE-IgnoreEnd -->
 - [ ] Run `reuse lint` — must exit 0 with no missing-header errors
 
 ### 5. Test suite

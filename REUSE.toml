@@ -1,0 +1,84 @@
+version = 1
+SPDX-PackageName = "nous"
+SPDX-PackageSupplier = "rodgert@twrodgers.com"
+SPDX-PackageDownloadLocation = "https://github.com/nomos-studio/nous"
+
+# Clojure/ClojureScript source — SPDX-License-Identifier already inline on
+# each file; aggregate adds the missing FileCopyrightText without modifying files.
+[[annotations]]
+path = ["src/**", "test/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "EPL-2.0"
+
+# C++ build system + libnous-rt / nous-audio / nous-sidecar (LGPL-2.1-or-later inline)
+[[annotations]]
+path = ["CMakeLists.txt", "Makefile", "cpp/libnous-rt/**", "cpp/nous-audio/**", "cpp/nous-sidecar/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "LGPL-2.1-or-later"
+
+# libnous-link uses Ableton Link (GPL-2.0-or-later inline)
+[[annotations]]
+path = "cpp/libnous-link/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Python tooling (GPL-2.0-or-later inline)
+[[annotations]]
+path = "python/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# Resource data files (synth defs, scales, samples, EDN configs, etc.)
+[[annotations]]
+path = "resources/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "EPL-2.0"
+
+# Boot/helper scripts
+[[annotations]]
+path = "script/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "EPL-2.0"
+
+# Documentation
+[[annotations]]
+path = "doc/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "EPL-2.0"
+
+# Vendored jinterface JAR + POM (Erlang/OTP, Apache-2.0)
+[[annotations]]
+path = "lib/maven/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ericsson AB"
+SPDX-License-Identifier = "Apache-2.0"
+
+# Root project and config files
+[[annotations]]
+path = ["project.clj", ".gitignore", "BUILD.md", "README.md", "CHANGELOG.md",
+        "CLAUDE.md", ".mcp.json", "package.json", "package-lock.json",
+        "pyproject.toml", "shadow-cljs.edn", "lib/maven/README.md"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "EPL-2.0"
+
+# CI and scripts
+[[annotations]]
+path = [".github/**", "scripts/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "EPL-2.0"
+
+# Examples and live session files
+[[annotations]]
+path = ["examples/**", "sessions/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025-2026 nomos-studio contributors"
+SPDX-License-Identifier = "EPL-2.0"

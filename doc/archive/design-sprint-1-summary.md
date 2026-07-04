@@ -875,7 +875,9 @@ EPL-2.0 (Eclipse Public License 2.0) is the right choice for the Clojure side:
 3. Replace the placeholder `LICENSE` file with EPL-2.0 full text
 4. Update `project.clj` `:license` metadata
 5. Add per-file SPDX license headers to all C++ source files:
+<!-- REUSE-IgnoreStart -->
    `// SPDX-License-Identifier: LGPL-2.1-or-later`
+<!-- REUSE-IgnoreEnd -->
 6. Add a `LICENSES/` directory (REUSE spec) or equivalent `LICENSE` files in
    each C++ subdirectory
 7. Write `doc/licensing.md` recording these decisions and their rationale
@@ -1208,7 +1210,7 @@ Where no established standard format exists for a category of static data,
 | MIDI Standard files | `.mid` (SMF) | Standard format; interop with all MIDI tools |
 | MusicXML scores | `.musicxml` / `.xml` | Standard format; Music21 native |
 | Humdrum / MEI | `.krn` / `.mei` | Standard formats for corpus research |
-| C++ SPDX headers | `// SPDX-License-Identifier:` | REUSE spec |
+<!-- REUSE-IgnoreStart -->| C++ SPDX headers | `// SPDX-License-Identifier:` | REUSE spec |<!-- REUSE-IgnoreEnd -->
 | Python packages | `pyproject.toml` | PEP 517/518 standard |
 
 **EDN is preferred for**:

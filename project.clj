@@ -31,8 +31,10 @@
   :profiles {:uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}
              :dev {}}
-  :aliases {"mcp" ["run" "-m" "nous.mcp"]}
-  :plugins [[lein-codox "0.10.8"]]
+  :aliases {"mcp"        ["run" "-m" "nous.mcp"]
+            "lint.reuse" ["shell" "reuse" "lint"]}
+  :plugins [[lein-codox "0.10.8"]
+            [lein-shell "0.5.0"]]
   :codox {:output-path "target/codox"
           :namespaces [;; Core sequencing
                        nous.loop

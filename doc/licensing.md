@@ -78,12 +78,14 @@ The SPDX identifier for Link-enabled builds is `GPL-2.0-or-later`.
 Every source file carries an SPDX short-form identifier in a comment at the
 top of the file:
 
+<!-- REUSE-IgnoreStart -->
 | Language | Format                                              |
 |----------|-----------------------------------------------------|
 | Clojure  | `; SPDX-License-Identifier: EPL-2.0`               |
 | C++      | `// SPDX-License-Identifier: LGPL-2.1-or-later`    |
 | Python   | `# SPDX-License-Identifier: LGPL-2.1-or-later`     |
 | CMake    | `# SPDX-License-Identifier: LGPL-2.1-or-later`     |
+<!-- REUSE-IgnoreEnd -->
 
 Files in `cpp/nous-audio/` that unconditionally link against Link would
 carry `GPL-2.0-or-later` once that integration is implemented.
