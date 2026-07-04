@@ -21,12 +21,11 @@ step is the root cause of past misses (version stayed at 0.2.0 through v0.3.0).
 - [ ] Renumber any sections that shifted
 
 ### 4. SPDX headers
-- [ ] Every new `.clj` and `.cpp`/`.h` file must start with:
-  ```
-  ; SPDX-License-Identifier: EPL-2.0
-  ```
-  (or `GPL-2.0-or-later` for C++ files compiled with Link support)
-- [ ] Quick audit: `grep -rL "SPDX" src/ test/` should return nothing
+- [ ] Every new source file must carry an SPDX identifier on its first line.
+  Clojure and Elixir: `; SPDX-License-Identifier: EPL-2.0`
+  C++ (sans Link): `// SPDX-License-Identifier: EPL-2.0`
+  C++ (Link-compiled): `// SPDX-License-Identifier: GPL-2.0-or-later`
+- [ ] Run `reuse lint` — must exit 0 with no missing-header errors
 
 ### 5. Test suite
 - [ ] `lein test` — 0 failures, 0 errors
