@@ -96,7 +96,8 @@
             ;; BEAM IPC substrate + aion session peer
             [nous.txlog-store     :as txlog-store]
             [nous.jinterface      :as jinterface]
-            [nous.aion            :as aion]))
+            [nous.aion            :as aion]
+            [nous.sc-keyboard     :as sc-keyboard]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle

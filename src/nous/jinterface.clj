@@ -14,6 +14,7 @@
   ────────────────
   BEAM → nous (ctrl mailbox):
     %{op: :ctrl_write, path: [...atoms...], value: binary}
+    %{op: :service_down, service: :sc}   — ScSynth Port exited; nous marks SC :stopped
 
   nous → BEAM (:nous_port registered name):
     %{op: :ctrl_write_echo, path: [...atoms...], value: binary}
@@ -22,6 +23,8 @@
             [ctrl-tree.refs    :as refs]
             [nous.aion         :as aion]
             [nous.beam-mount   :as bm]
+            [nous.runtime      :as runtime]
+            [nous.sc-keyboard  :as sc-keyboard]
             [nous.txlog-store  :as tx])
   (:import [com.ericsson.otp.erlang
             OtpNode OtpMbox
@@ -75,8 +78,14 @@
           (when (vector? path)
             (ct/ctrl-write! path value)
             (cond
-              (= path [:input :keyboard :key_down]) (aion/note-on!  value)
-              (= path [:input :keyboard :key_up])   (aion/note-off! value))))
+              (= path [:input :keyboard :key_down]) (do (aion/note-on!       value)
+                                                        (sc-keyboard/key-down! value))
+              (= path [:input :keyboard :key_up])   (do (aion/note-off!       value)
+                                                        (sc-keyboard/key-up!   value)))))
+        :service_down
+        (case (:service msg)
+          :sc (runtime/set! [:sc :status] :stopped)
+          nil)
         ;; Ignore unrecognised ops
         nil))))
 

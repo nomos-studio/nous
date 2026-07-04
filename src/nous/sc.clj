@@ -240,6 +240,23 @@
       (println (str "[sc] restarted — " (count defs-to-restore) " SynthDef(s) restored"))
       nil)))
 
+(defn watch-sc-ready!
+  "Register a persistent /sc-lang-ready OSC handler for BEAM-managed sclang.
+
+  Intended for deployments where BEAM.ScSynth owns the sclang process lifecycle.
+  Each time sclang boots it sends /sc-lang-ready; this handler calls connect-sc!,
+  which updates [:sc :status] to :running and triggers nous.supervisor's watcher
+  to resend any loaded SynthDefs.
+
+  Safe to call multiple times — the OSC library replaces the handler on re-registration.
+
+  Options:
+    :ctrl-port — nous OSC listen port (default 57121)"
+  [& {:keys [ctrl-port] :or {ctrl-port 57121}}]
+  (when-not (osc/osc-running?)
+    (osc/start-osc-server! :port ctrl-port))
+  (osc/register-handler! "/sc-lang-ready" (fn [_] (connect-sc!))))
+
 (defn sc-sync!
   "Block until scsynth has processed all pending commands (SynthDef compilations etc).
 
