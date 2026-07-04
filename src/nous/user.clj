@@ -93,9 +93,10 @@
             [nous.bitwig          :as bitwig]
             [nous.topology        :as topology]
             [nous.test-rig        :as test-rig]
-            ;; BEAM IPC substrate
+            ;; BEAM IPC substrate + aion session peer
             [nous.txlog-store     :as txlog-store]
-            [nous.jinterface      :as jinterface]))
+            [nous.jinterface      :as jinterface]
+            [nous.aion            :as aion]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle

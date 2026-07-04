@@ -20,6 +20,7 @@
     (delivered by BeamMount post ctrl-write! commit)"
   (:require [ctrl-tree.core    :as ct]
             [ctrl-tree.refs    :as refs]
+            [nous.aion         :as aion]
             [nous.beam-mount   :as bm]
             [nous.txlog-store  :as tx])
   (:import [com.ericsson.otp.erlang
@@ -72,7 +73,10 @@
         :ctrl_write
         (let [{:keys [path value]} msg]
           (when (vector? path)
-            (ct/ctrl-write! path value)))
+            (ct/ctrl-write! path value)
+            (cond
+              (= path [:input :keyboard :key_down]) (aion/note-on!  value)
+              (= path [:input :keyboard :key_up])   (aion/note-off! value))))
         ;; Ignore unrecognised ops
         nil))))
 
