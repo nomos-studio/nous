@@ -21,11 +21,12 @@
     (delivered by BeamMount post ctrl-write! commit)"
   (:require [ctrl-tree.core    :as ct]
             [ctrl-tree.refs    :as refs]
-            [nous.aion         :as aion]
-            [nous.beam-mount   :as bm]
-            [nous.runtime      :as runtime]
-            [nous.sc-keyboard  :as sc-keyboard]
-            [nous.txlog-store  :as tx])
+            [nous.aion          :as aion]
+            [nous.beam-mount    :as bm]
+            [nous.kairos-voice  :as kairos-voice]
+            [nous.runtime       :as runtime]
+            [nous.sc-keyboard   :as sc-keyboard]
+            [nous.txlog-store   :as tx])
   (:import [com.ericsson.otp.erlang
             OtpNode OtpMbox
             OtpErlangAtom OtpErlangBinary OtpErlangList
@@ -78,13 +79,16 @@
           (when (vector? path)
             (ct/ctrl-write! path value)
             (cond
-              (= path [:input :keyboard :key_down]) (do (aion/note-on!       value)
-                                                        (sc-keyboard/key-down! value))
-              (= path [:input :keyboard :key_up])   (do (aion/note-off!       value)
-                                                        (sc-keyboard/key-up!   value)))))
+              (= path [:input :keyboard :key_down]) (do (aion/note-on!          value)
+                                                        (sc-keyboard/key-down!   value)
+                                                        (kairos-voice/note-on!   value))
+              (= path [:input :keyboard :key_up])   (do (aion/note-off!          value)
+                                                        (sc-keyboard/key-up!     value)
+                                                        (kairos-voice/note-off!  value)))))
         :service_down
         (case (:service msg)
-          :sc (runtime/set! [:sc :status] :stopped)
+          :sc     (runtime/set! [:sc :status] :stopped)
+          :kairos (runtime/set! [:kairos :status] :stopped)
           nil)
         ;; Ignore unrecognised ops
         nil))))

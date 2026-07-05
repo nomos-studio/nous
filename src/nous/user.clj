@@ -97,6 +97,7 @@
             [nous.txlog-store     :as txlog-store]
             [nous.jinterface      :as jinterface]
             [nous.aion            :as aion]
+            [nous.kairos-voice    :as kairos-voice]
             [nous.sc-keyboard     :as sc-keyboard]))
 
 ;; ---------------------------------------------------------------------------
@@ -720,6 +721,8 @@
 ;; Graph management
 (def midi-passthrough-plugin-id kairos/midi-passthrough-plugin-id)
 (def midi-passthrough-graph     kairos/midi-passthrough-graph)
+(def surge-xt-plugin-id         kairos/surge-xt-plugin-id)
+(def surge-xt-graph             kairos/surge-xt-graph)
 (def send-graph-load!           kairos/send-graph-load!)
 (def send-graph-reset!          kairos/send-graph-reset!)
 ;; Plugin discovery
@@ -1066,6 +1069,14 @@
 (def on-supervisor-event!   supervisor/on-event!)
 (def off-supervisor-event!  supervisor/off-event!)
 (def restart-loop!          loop-ns/restart-loop!)
+
+;; ---------------------------------------------------------------------------
+;; kairos voice — direct CLAP note dispatch to SurgeXT / kairos plugins
+;; ---------------------------------------------------------------------------
+
+(def kairos-voice-start!    kairos-voice/start!)
+(def kairos-voice-stop!     kairos-voice/stop!)
+(def kairos-voice-started?  kairos-voice/started?)
 
 (def choose-from-scale  scale/choose-from-scale)
 

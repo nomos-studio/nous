@@ -442,6 +442,18 @@
   {:graph/nodes [{:id :pt :plugin "org.nomos-studio.kairos.midi-passthrough"}]
    :graph/edges []})
 
+(def surge-xt-plugin-id
+  "CLAP plugin ID for Surge XT as reported by the kairos plugin scanner.
+  Confirmed from kairos --list-plugins on macOS with Surge XT 1.3.x.
+  Verify with (kairos/list-plugins!) if the scanner returns a different ID."
+  "Surge Synth Team:Surge XT")
+
+(def surge-xt-graph
+  "Minimal plugin graph that drives SurgeXT audio via kairos.
+  Load with (send-graph-load! kairos/surge-xt-graph) after kairos starts."
+  {:graph/nodes [{:id :surge-1 :plugin "Surge Synth Team:Surge XT"}]
+   :graph/edges []})
+
 (defn send-graph-load!
   "Load a plugin graph into kairos.
 
