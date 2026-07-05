@@ -96,9 +96,10 @@
             ;; BEAM IPC substrate + aion session peer
             [nous.txlog-store     :as txlog-store]
             [nous.jinterface      :as jinterface]
-            [nous.aion            :as aion]
-            [nous.kairos-voice    :as kairos-voice]
-            [nous.sc-keyboard     :as sc-keyboard]))
+            [nous.aion             :as aion]
+            [nous.kairos-voice     :as kairos-voice]
+            [nous.sc-keyboard      :as sc-keyboard]
+            [nous.transport-ctrl   :as transport-ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Session lifecycle
@@ -117,6 +118,7 @@
     (session! :bpm 140)"
   [& {:keys [bpm] :or {bpm 120}}]
   (core/start! :bpm bpm)
+  (transport-ctrl/start!)
   (println (str "Session ready — BPM " bpm
                 "\n  (start-kairos! :binary \"/usr/local/bin/kairos\") to connect MIDI output"
                 "\n  (end-session!) to stop"))
@@ -1077,6 +1079,14 @@
 (def kairos-voice-start!    kairos-voice/start!)
 (def kairos-voice-stop!     kairos-voice/stop!)
 (def kairos-voice-started?  kairos-voice/started?)
+
+;; ---------------------------------------------------------------------------
+;; transport-ctrl — Link beat/BPM → ctrl-tree bridge for UI status strip
+;; ---------------------------------------------------------------------------
+
+(def transport-ctrl-start!    transport-ctrl/start!)
+(def transport-ctrl-stop!     transport-ctrl/stop!)
+(def transport-ctrl-started?  transport-ctrl/started?)
 
 (def choose-from-scale  scale/choose-from-scale)
 

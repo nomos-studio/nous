@@ -145,6 +145,10 @@
     (tx/start!)
     (dosync
       (alter refs/mount-table assoc [:input :keyboard]
+             (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:transport]
+             (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:theory]
              (bm/beam-mount mbox beam-node tx/current-beat)))
     (swap! state assoc
            :node       node
@@ -160,7 +164,9 @@
     (when node
       (reset! running-ref false)
       (dosync
-        (alter refs/mount-table dissoc [:input :keyboard]))
+        (alter refs/mount-table dissoc [:input :keyboard])
+        (alter refs/mount-table dissoc [:transport])
+        (alter refs/mount-table dissoc [:theory]))
       (tx/stop!)
       (.close ^OtpNode node)
       (swap! state assoc :node nil :mbox nil :thread nil :running-ref nil)
