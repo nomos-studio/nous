@@ -99,6 +99,7 @@
             [nous.aion             :as aion]
             [nous.kairos-voice     :as kairos-voice]
             [nous.nrepl            :as nrepl]
+            [nous.theory           :as theory]
             [nous.sc-keyboard      :as sc-keyboard]
             [nous.transport-ctrl   :as transport-ctrl]))
 
@@ -131,6 +132,8 @@
     (try (nrepl/start! :port nrepl-port)
          (catch Exception e
            (println (str "[nrepl] could not start: " (.getMessage e))))))
+  ;; Install theory derivation watch (idempotent — replaces on reinstall).
+  (theory/install-theory-watch!)
   (println (str "Session ready — BPM " bpm
                 "\n  nREPL on localhost:" nrepl-port " — M-x cider-connect"
                 "\n  (start-kairos! :binary \"/usr/local/bin/kairos\") to connect MIDI output"
@@ -1137,3 +1140,18 @@
     (progression (make-scale :C 4 :major) [:I :IV :V7 :I])"
   [scale degrees]
   (chord/progression scale degrees))
+
+;; ---------------------------------------------------------------------------
+;; Theory — pitch-class scale and chord helpers (M12)
+;; ---------------------------------------------------------------------------
+
+(def note->pc              theory/note->pc)
+(def pc->note              theory/pc->note)
+(def scale-pcs             theory/scale-pcs)
+(def scale-notes           theory/scale-notes)
+(def in-scale?             theory/in-scale?)
+(def nearest-in-scale      theory/nearest-in-scale)
+(def chord-pcs             theory/chord-pcs)
+(def chord-notes           theory/chord-notes)
+(def install-theory-watch! theory/install-theory-watch!)
+(def remove-theory-watch!  theory/remove-theory-watch!)
