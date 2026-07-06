@@ -132,15 +132,15 @@
 (deftest nearest-in-scale-already-in
   (is (= 0 (theory/nearest-in-scale 0 "C" :major))))
 
-(deftest nearest-in-scale-c-sharp-snaps-to-d
+(deftest nearest-in-scale-c-sharp-snaps-to-c
   ;; C# (1) — nearest in C major: C (0) at distance 1, D (2) at distance 1
-  ;; min-key last-wins on ties → D
-  (is (= 2 (theory/nearest-in-scale 1 "C" :major))))
+  ;; ties prefer lower → C
+  (is (= 0 (theory/nearest-in-scale 1 "C" :major))))
 
-(deftest nearest-in-scale-a-sharp-snaps-to-b
+(deftest nearest-in-scale-a-sharp-snaps-to-a
   ;; A# (10) — nearest in C major: A (9) at d=1, B (11) at d=1
-  ;; min-key last-wins on ties → B
-  (is (= 11 (theory/nearest-in-scale 10 "C" :major))))
+  ;; ties prefer lower → A
+  (is (= 9 (theory/nearest-in-scale 10 "C" :major))))
 
 ;; ---------------------------------------------------------------------------
 ;; chord-pcs

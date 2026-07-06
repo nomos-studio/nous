@@ -122,11 +122,17 @@
   "Return the nearest pitch class in `key`/`mode` to `pc`.
   Ties prefer the lower pitch class."
   [pc key mode]
-  (let [pcs (scale-pcs key mode)]
+  (let [target (mod pc 12)
+        dist   (fn [x] (let [d (Math/abs (- target x))] (min d (- 12 d))))
+        pcs    (scale-pcs key mode)]
     (when (seq pcs)
-      (apply min-key #(let [d (Math/abs (- (mod pc 12) %))]
-                        (min d (- 12 d)))
-             pcs))))
+      (reduce (fn [best candidate]
+                (let [db (dist best) dc (dist candidate)]
+                  (cond
+                    (< dc db) candidate
+                    (= dc db) (min best candidate)
+                    :else     best)))
+              pcs))))
 
 ;; ---------------------------------------------------------------------------
 ;; Chord functions
