@@ -43,8 +43,10 @@
 
 import sys
 import os
+import argparse
 import json
 import io
+import socket as _socket
 
 # Suppress music21's noisy startup banner
 os.environ["MUSIC21_SUPPRESS_STARTUP"] = "1"
@@ -452,38 +454,84 @@ _HANDLERS = {
 }
 
 # ---------------------------------------------------------------------------
-# Main loop — exits on stdin EOF (parent JVM died) or explicit shutdown
+# Request dispatch — shared by stdio and socket modes
 # ---------------------------------------------------------------------------
 
-def main():
-    # Wrap stdin with line buffering. stdout is line-buffered by default
-    # when a ProcessBuilder redirects it; flush= in print() is the safe belt.
-    for raw_line in sys.stdin:
+def _run_loop(reader, writer_fn):
+    """Drive the JSON-lines request loop.
+
+    reader    — iterable of text lines (sys.stdin or socket file)
+    writer_fn — callable(str) that writes one response line and flushes
+    """
+    for raw_line in reader:
         raw_line = raw_line.strip()
         if not raw_line:
             continue
         try:
             req = json.loads(raw_line)
         except json.JSONDecodeError as exc:
-            print(json.dumps({"status": "error", "message": f"bad JSON: {exc}"}), flush=True)
+            writer_fn(json.dumps({"status": "error", "message": f"bad JSON: {exc}"}))
             continue
 
         op = req.get("op", "")
         handler = _HANDLERS.get(op)
-        if handler is None:
-            resp = {"status": "error", "message": f"unknown op: {op!r}"}
-        else:
-            resp = handler(req)
+        resp = handler(req) if handler else {"status": "error", "message": f"unknown op: {op!r}"}
 
-        # Propagate request id for correlation if caller sends one
         req_id = req.get("id")
         if req_id is not None:
             resp["id"] = req_id
 
         shutdown = resp.pop("__shutdown", False)
-        print(json.dumps(resp), flush=True)
+        writer_fn(json.dumps(resp))
         if shutdown:
-            break   # stdin loop ends → process exits
+            break
+
+
+# ---------------------------------------------------------------------------
+# Main — stdio (default) or Unix domain socket (--socket <path>)
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description="nous music21 server")
+    parser.add_argument("--socket", default=None, metavar="PATH",
+                        help="Unix domain socket path; when set, accepts one connection "
+                             "instead of reading from stdin")
+    args = parser.parse_args()
+
+    if args.socket:
+        # Socket mode: BEAM supervises the process; nous.m21 connects as client.
+        # Stale socket from a previous crash is removed before binding.
+        try:
+            os.unlink(args.socket)
+        except FileNotFoundError:
+            pass
+
+        srv = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        srv.bind(args.socket)
+        srv.listen(1)
+
+        # Signal readiness to the Port (BEAM reads stdout).
+        print(json.dumps({"status": "ready", "socket": args.socket}), flush=True)
+
+        conn, _ = srv.accept()
+        reader  = conn.makefile("r", encoding="utf-8")
+        # writer_fn closes over the connection for flushing
+        wfile   = conn.makefile("w", encoding="utf-8")
+        def _write(line):
+            wfile.write(line + "\n")
+            wfile.flush()
+
+        try:
+            _run_loop(reader, _write)
+        finally:
+            conn.close()
+            srv.close()
+    else:
+        # Stdio mode: legacy / standalone use.
+        # Exits on stdin EOF (parent JVM died — OS pipe crash detection).
+        def _write(line):
+            print(line, flush=True)
+        _run_loop(sys.stdin, _write)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@
             [nous.aion          :as aion]
             [nous.beam-mount    :as bm]
             [nous.kairos-voice  :as kairos-voice]
+            [nous.m21           :as m21]
             [nous.runtime       :as runtime]
             [nous.sc-keyboard   :as sc-keyboard]
             [nous.txlog-store   :as tx])
@@ -89,6 +90,8 @@
         (case (:service msg)
           :sc     (runtime/set! [:sc :status] :stopped)
           :kairos (runtime/set! [:kairos :status] :stopped)
+          :m21    (do (m21/disconnect!)
+                      (runtime/set! [:m21 :status] :stopped))
           nil)
         ;; Ignore unrecognised ops
         nil))))

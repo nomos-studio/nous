@@ -3,11 +3,14 @@
   "Unit tests for nous.m21.
 
   All tests run without a Python interpreter or live server.
-  The server subprocess is mocked via with-redefs; on-disk cache tests use
-  a temp directory bound via *cache-dir*."
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [clojure.java.io :as io]
-            [nous.m21 :as m21]))
+  Socket connections are injected via *open-channel*; the request/response
+  layer is mocked via with-redefs; on-disk cache tests use a temp directory
+  bound via *cache-dir*."
+  (:require [clojure.test      :refer [deftest is testing use-fixtures]]
+            [clojure.java.io   :as io]
+            [clojure.data.json :as json]
+            [nous.m21          :as m21])
+  (:import [java.io PipedReader PipedWriter BufferedReader BufferedWriter]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers to access private state
@@ -23,13 +26,36 @@
 (defn- cached-load  [id mode] (#'nous.m21/cached-load id mode))
 
 ;; ---------------------------------------------------------------------------
+;; Pipe-pair helper — synthetic socket for connection tests
+;; ---------------------------------------------------------------------------
+
+(defn- make-pipe-pair
+  "Return {:channel :pipe :writer bw :reader br :server-reader br2 :server-writer bw2}.
+  :channel is a truthy sentinel; nous.m21 calls (boolean ch) to test connected?."
+  []
+  (let [in-reader  (PipedReader.)
+        in-writer  (PipedWriter. in-reader)
+        out-reader (PipedReader.)
+        out-writer (PipedWriter. out-reader)]
+    {:channel       :pipe
+     :writer        (BufferedWriter. in-writer)
+     :reader        (BufferedReader. out-reader)
+     :server-reader (BufferedReader. in-reader)
+     :server-writer (BufferedWriter. out-writer)}))
+
+(defn- inject-open-channel [pipe]
+  (fn [_socket-path]
+    (select-keys pipe [:channel :writer :reader])))
+
+;; ---------------------------------------------------------------------------
 ;; Test fixtures — isolate each test with fresh state
 ;; ---------------------------------------------------------------------------
 
 (defn- reset-state! [f]
   (reset! (mem-atom) {})
-  (reset! (server-atom) {:proc nil :writer nil :reader nil})
+  (m21/disconnect!)
   (f)
+  (m21/disconnect!)
   (reset! (mem-atom) {}))
 
 (use-fixtures :each reset-state!)
@@ -54,16 +80,85 @@
     (is (= 42 (parse-edn "  ; comment\n42")))))
 
 ;; ---------------------------------------------------------------------------
-;; server-running? and server-info — when no server is started
+;; connected? / server-running? (alias) — initial state
 ;; ---------------------------------------------------------------------------
 
 (deftest server-not-running-test
-  (testing "server-running? returns false when proc is nil"
+  (testing "server-running? / connected? false when disconnected"
+    (is (false? (m21/connected?)))
     (is (false? (m21/server-running?)))))
 
 (deftest server-info-nil-when-stopped-test
-  (testing "server-info returns nil when server is not running"
+  (testing "server-info returns nil when not connected"
     (is (nil? (m21/server-info)))))
+
+;; ---------------------------------------------------------------------------
+;; connect! / disconnect! — M9 socket client lifecycle
+;; ---------------------------------------------------------------------------
+
+(deftest connect-and-disconnect-test
+  (let [pipe (make-pipe-pair)]
+    (binding [m21/*open-channel* (inject-open-channel pipe)]
+      (testing "connect! returns true"
+        (is (true? (m21/connect!))))
+
+      (testing "connected? true after connect!"
+        (is (true? (m21/connected?)))
+        (is (true? (m21/server-running?))))
+
+      (testing "server-info returns socket-path"
+        (is (= "/tmp/m21.sock" (:socket-path (m21/server-info)))))
+
+      (testing "double connect! throws"
+        (is (thrown? clojure.lang.ExceptionInfo (m21/connect!))))
+
+      (testing "disconnect! clears state"
+        (m21/disconnect!)
+        (is (false? (m21/connected?)))
+        (is (nil? (m21/server-info))))
+
+      (testing "disconnect! is idempotent"
+        (m21/disconnect!)
+        (is (false? (m21/connected?)))))))
+
+(deftest stop-server-is-disconnect-alias-test
+  (let [pipe (make-pipe-pair)]
+    (binding [m21/*open-channel* (inject-open-channel pipe)]
+      (m21/connect!)
+      (m21/stop-server!)
+      (is (false? (m21/connected?))))))
+
+(deftest ensure-server-auto-connects-test
+  (let [pipe (make-pipe-pair)]
+    (binding [m21/*open-channel* (inject-open-channel pipe)]
+      (is (false? (m21/connected?)))
+      (m21/ensure-server!)
+      (is (true? (m21/connected?)))
+      ;; idempotent
+      (m21/ensure-server!)
+      (is (true? (m21/connected?))))))
+
+(deftest server-call-roundtrip-test
+  (let [pipe (make-pipe-pair)
+        {:keys [server-reader server-writer]} pipe]
+    (binding [m21/*open-channel* (inject-open-channel pipe)]
+      (m21/connect!)
+      (let [result-p (promise)
+            t        (Thread. ^Runnable
+                       #(deliver result-p
+                          (try (m21/server-call! {"op" "ping" "id" 99})
+                               (catch Exception e {:error (.getMessage e)}))))]
+        (.start t)
+        (let [raw (.readLine server-reader)
+              req (json/read-str raw)]
+          (is (= "ping" (get req "op")))
+          (.write server-writer (json/write-str {"status" "ok" "id" 99}))
+          (.newLine server-writer)
+          (.flush server-writer))
+        (.join t 3000)
+        (let [resp (deref result-p 0 :timeout)]
+          (is (= "ok" (:status resp)))
+          (is (= 99  (:id resp))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; eventually! — returns a promise

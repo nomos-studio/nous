@@ -65,25 +65,17 @@
             [clojure.edn        :as edn]
             [clojure.java.io    :as io]
             [clojure.string     :as str]
-            [nous.dirs        :as dirs]
-            [nous.live  :as live]
-            [nous.loop        :as loop-ns])
+            [nous.dirs          :as dirs]
+            [nous.live          :as live]
+            [nous.loop          :as loop-ns])
   (:import  [java.io BufferedReader BufferedWriter InputStreamReader
                      OutputStreamWriter]
-            [java.lang ProcessBuilder ProcessBuilder$Redirect]))
+            [java.net UnixDomainSocketAddress StandardProtocolFamily]
+            [java.nio.channels SocketChannel Channels]))
 
 ;; ---------------------------------------------------------------------------
 ;; Configuration
 ;; ---------------------------------------------------------------------------
-
-(def ^:dynamic *python*
-  "Path to the Python interpreter with music21 installed.
-  Override with (alter-var-root #'m21/*python* (constantly \"/path/to/python\"))
-  or bind per-call with (binding [m21/*python* p] ...)."
-  (let [venv (str (System/getProperty "user.home") "/.venv/music21/bin/python3")]
-    (if (.exists (io/file venv)) venv "python3")))
-
-(def ^:private server-script "script/m21_server.py")
 
 (def ^:dynamic *cache-dir*
   "Directory for on-disk EDN cache files.
@@ -92,71 +84,110 @@
   or set NOUS_DATA to redirect the entire user data tree."
   (str (dirs/corpora-dir) "/m21"))
 
+(def ^:private server-script "script/m21_server.py")
+(def ^:private default-socket-path "/tmp/m21.sock")
+
 ;; ---------------------------------------------------------------------------
-;; Server process state
+;; Socket connection state (M9: BEAM supervises the process)
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private server-state
-  (atom {:proc   nil    ; java.lang.Process
-         :writer nil    ; BufferedWriter (to server stdin)
-         :reader nil})) ; BufferedReader (from server stdout)
+  (atom {:channel nil    ; SocketChannel
+         :writer  nil    ; BufferedWriter (to server socket)
+         :reader  nil})) ; BufferedReader (from server socket)
+
+(defn connected?
+  "True if nous.m21 has an open socket connection to m21_server.py."
+  []
+  (boolean (:channel @server-state)))
 
 (defn server-running?
-  "True if the m21 server subprocess is alive."
+  "Alias for connected? — preserved for call-site compatibility."
   []
-  (boolean (when-let [p (:proc @server-state)]
-             (.isAlive ^Process p))))
+  (connected?))
 
 (defn server-info
-  "Return a map describing the running server, or nil if not running.
-  Keys: :pid, :script."
+  "Return a map describing the active connection, or nil if not connected.
+  Keys: :socket-path."
   []
-  (when (server-running?)
-    (let [p ^Process (:proc @server-state)]
-      {:pid    (.pid p)
-       :script server-script})))
+  (when (connected?)
+    {:socket-path (or (:socket-path @server-state) default-socket-path)}))
 
 ;; ---------------------------------------------------------------------------
-;; Server lifecycle
+;; Connection lifecycle
 ;; ---------------------------------------------------------------------------
 
-(defn- open-server!
-  "Start the Python m21 server subprocess and wire up IO streams."
-  []
-  (let [script (io/file server-script)]
-    (when-not (.exists script)
-      (throw (ex-info "m21_server.py not found"
-                      {:expected (str (.getAbsolutePath script))})))
-    (let [cmd [*python* server-script]
-          pb  (doto (ProcessBuilder. ^java.util.List cmd)
-                (.redirectError ProcessBuilder$Redirect/INHERIT))
-          proc   (.start pb)
-          writer (BufferedWriter.
-                   (OutputStreamWriter. (.getOutputStream proc) "UTF-8"))
-          reader (BufferedReader.
-                   (InputStreamReader. (.getInputStream proc) "UTF-8"))]
-      (reset! server-state {:proc proc :writer writer :reader reader}))))
+(def ^:dynamic *open-channel*
+  "Injected in tests: (fn [socket-path] {:channel ch :writer bw :reader br})
+  Production uses the real Unix domain socket open."
+  nil)
 
-(defn- m21-request!
-  "Send a request map to the server and return the parsed JSON response map.
-  Not thread-safe for concurrent calls — use locking or ensure serial access."
-  [req]
-  (locking server-state
-    (let [{:keys [writer reader]} @server-state]
-      (.write ^BufferedWriter writer ^String (json/write-str req))
-      (.newLine ^BufferedWriter writer)
-      (.flush ^BufferedWriter writer)
-      (json/read-str (.readLine ^BufferedReader reader)))))
+(defn- open-channel! [socket-path retry]
+  (if *open-channel*
+    (*open-channel* socket-path)
+    (let [ch (loop [attempt 0 delay-ms 50]
+                (when (> attempt retry)
+                  (throw (ex-info "Could not connect to m21 server"
+                                  {:socket-path socket-path :attempts attempt})))
+                (or (try
+                      (doto (SocketChannel/open StandardProtocolFamily/UNIX)
+                        (.connect (UnixDomainSocketAddress/of socket-path)))
+                      (catch java.net.ConnectException _ nil)
+                      (catch java.nio.file.NoSuchFileException _ nil))
+                    (do (Thread/sleep delay-ms)
+                        (recur (inc attempt) (min 500 (* 2 delay-ms))))))]
+      (let [out (Channels/newOutputStream ch)
+            in  (Channels/newInputStream ch)]
+        {:channel ch
+         :writer  (BufferedWriter. (OutputStreamWriter. out "UTF-8"))
+         :reader  (BufferedReader. (InputStreamReader. in "UTF-8"))}))))
+
+(defn connect!
+  "Connect to the m21 server socket started by NomosBeam.M21Supervisor.
+
+  Options:
+    :socket-path — Unix domain socket path (default \"/tmp/m21.sock\")
+    :retry       — connection attempts before throwing (default 5)
+
+  Returns true on success."
+  [& {:keys [socket-path retry] :or {socket-path default-socket-path retry 5}}]
+  (when (connected?) (throw (ex-info "m21 already connected — call disconnect! first" {})))
+  (let [{:keys [channel writer reader]} (open-channel! socket-path retry)]
+    (swap! server-state assoc
+           :channel     channel
+           :writer      writer
+           :reader      reader
+           :socket-path socket-path)
+    true))
+
+(defn disconnect!
+  "Close the socket connection to m21_server.py. Does not kill the process."
+  []
+  (when-let [^SocketChannel ch (:channel @server-state)]
+    (try (.close ch) (catch Exception _)))
+  (swap! server-state assoc :channel nil :writer nil :reader nil :socket-path nil)
+  nil)
 
 (defn ensure-server!
-  "Start the m21 server if it is not already running."
+  "Connect to the m21 server socket if not already connected.
+  Retries up to 5 times; throws if the socket is not available."
   []
-  (when-not (server-running?)
-    (open-server!)))
+  (when-not (connected?)
+    (connect!)))
+
+(defn- m21-request!
+  "Send a request map and return the parsed JSON response. Serialised on server-state."
+  [req]
+  (locking server-state
+    (let [{:keys [^BufferedWriter writer ^BufferedReader reader]} @server-state]
+      (.write writer ^String (json/write-str req))
+      (.newLine writer)
+      (.flush writer)
+      (json/read-str (.readLine reader)))))
 
 (defn server-call!
-  "Send an arbitrary op request to the m21 server and return the response map.
-  Ensures the server is running first. Keys are keywordized in the response.
+  "Send an arbitrary op request and return the response with keywordized keys.
+  Ensures a connection is open first.
 
   Used by nous.composition and other namespaces that extend the m21 protocol.
 
@@ -168,18 +199,10 @@
     (into {} (map (fn [[k v]] [(keyword k) v]) resp))))
 
 (defn stop-server!
-  "Send the shutdown op to the m21 server and wait for it to exit.
-  Called automatically by core/stop!. Safe to call if not running."
+  "Disconnect from m21_server.py. Does not stop the OS process (BEAM owns it).
+  Called automatically by core/stop!. Safe to call if not connected."
   []
-  (when (server-running?)
-    (try
-      (m21-request! {"op" "shutdown"})
-      (catch Exception _))
-    (when-let [p ^Process (:proc @server-state)]
-      (.waitFor p 5 java.util.concurrent.TimeUnit/SECONDS)
-      (when (.isAlive p) (.destroyForcibly p))))
-  (reset! server-state {:proc nil :writer nil :reader nil})
-  nil)
+  (disconnect!))
 
 ;; ---------------------------------------------------------------------------
 ;; Cache — in-memory + on-disk EDN cache for extracted corpora
