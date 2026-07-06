@@ -98,6 +98,7 @@
             [nous.jinterface      :as jinterface]
             [nous.aion             :as aion]
             [nous.kairos-voice     :as kairos-voice]
+            [nous.nrepl            :as nrepl]
             [nous.sc-keyboard      :as sc-keyboard]
             [nous.transport-ctrl   :as transport-ctrl]))
 
@@ -106,20 +107,32 @@
 ;; ---------------------------------------------------------------------------
 
 (defn session!
-  "Start a nous session: boot the system clock and print a status summary.
+  "Start a nous session: boot the system clock, start the nREPL server, and
+  print a status summary.
 
   Options:
-    :bpm — initial BPM (default 120)
+    :bpm       — initial BPM (default 120)
+    :nrepl-port — TCP port for the nREPL server (default 7888)
 
   Does nothing if the system is already running (idempotent).
 
   Example:
     (session!)
     (session! :bpm 140)"
-  [& {:keys [bpm] :or {bpm 120}}]
+  [& {:keys [bpm nrepl-port] :or {bpm 120 nrepl-port 7888}}]
   (core/start! :bpm bpm)
   (transport-ctrl/start!)
+  ;; Write the session notes path to ctrl-tree so the browser panel can find it.
+  (when-let [np (core/session-notes-path)]
+    (core/init-session-notes!)
+    (ctrl-tree.core/ctrl-write! [:session :notes_path] np))
+  ;; Start the nREPL server (idempotent guard inside nrepl/start!).
+  (when-not (nrepl/started?)
+    (try (nrepl/start! :port nrepl-port)
+         (catch Exception e
+           (println (str "[nrepl] could not start: " (.getMessage e))))))
   (println (str "Session ready — BPM " bpm
+                "\n  nREPL on localhost:" nrepl-port " — M-x cider-connect"
                 "\n  (start-kairos! :binary \"/usr/local/bin/kairos\") to connect MIDI output"
                 "\n  (end-session!) to stop"))
   nil)
@@ -1087,6 +1100,14 @@
 (def transport-ctrl-start!    transport-ctrl/start!)
 (def transport-ctrl-stop!     transport-ctrl/stop!)
 (def transport-ctrl-started?  transport-ctrl/started?)
+
+;; nREPL — embedded nREPL TCP server (port 7888 by default)
+;; ---------------------------------------------------------------------------
+
+(def nrepl-start!    nrepl/start!)
+(def nrepl-stop!     nrepl/stop!)
+(def nrepl-started?  nrepl/started?)
+(def nrepl-port      nrepl/port)
 
 (def choose-from-scale  scale/choose-from-scale)
 

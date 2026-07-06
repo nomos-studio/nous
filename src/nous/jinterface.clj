@@ -119,6 +119,27 @@
                       (println (str "[nous.jinterface] corpus metadata error: "
                                     (.getMessage e))))))))))
 
+        :repl_eval
+        ;; Evaluate a Clojure form sent from the browser REPL panel.
+        ;; Runs in a future to avoid blocking the receive loop.
+        (let [form (:form msg)]
+          (when (string? form)
+            (future
+              (let [out (java.io.StringWriter.)
+                    err (java.io.StringWriter.)]
+                (let [result
+                      (try
+                        (let [v (binding [*ns*  (or (find-ns 'nous.user) *ns*)
+                                          *out* out
+                                          *err* err]
+                                  (eval (read-string form)))]
+                          {:form form :value (pr-str v) :out (str out) :err (str err)})
+                        (catch Throwable t
+                          {:form form
+                           :error (str (.getSimpleName (class t)) ": " (.getMessage t))
+                           :out (str out) :err (str err)}))]
+                  (ct/ctrl-write! [:repl :last_result] (json/write-str result)))))))
+
         ;; Ignore unrecognised ops
         nil))))
 
@@ -180,6 +201,10 @@
       (alter refs/mount-table assoc [:theory]
              (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:corpus]
+             (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:session]
+             (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:repl]
              (bm/beam-mount mbox beam-node tx/current-beat)))
     (swap! state assoc
            :node       node
@@ -198,7 +223,9 @@
         (alter refs/mount-table dissoc [:input :keyboard])
         (alter refs/mount-table dissoc [:transport])
         (alter refs/mount-table dissoc [:theory])
-        (alter refs/mount-table dissoc [:corpus]))
+        (alter refs/mount-table dissoc [:corpus])
+        (alter refs/mount-table dissoc [:session])
+        (alter refs/mount-table dissoc [:repl]))
       (tx/stop!)
       (.close ^OtpNode node)
       (swap! state assoc :node nil :mbox nil :thread nil :running-ref nil)

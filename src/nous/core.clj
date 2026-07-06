@@ -255,6 +255,26 @@
   []
   (:session-path @system-state))
 
+(defn session-notes-path
+  "Return the session notes file path (*.md alongside the session SQLite),
+  or nil if no session is active."
+  []
+  (when-let [sp (session-path)]
+    (str/replace sp #"\.sqlite$" ".md")))
+
+(def ^:private notes-template
+  "# Session notes\n\n**Date**: \n**Intent**: \n**BPM**: \n**Key**: \n**Gear**: \n\n---\n\n")
+
+(defn init-session-notes!
+  "Write the notes template to the session notes file if it does not yet exist.
+  No-op if no session path is set or the file already exists."
+  []
+  (when-let [path (session-notes-path)]
+    (let [f (clojure.java.io/file path)]
+      (when-not (.exists f)
+        (spit f notes-template))))
+  nil)
+
 ;; ---------------------------------------------------------------------------
 ;; Session export / load
 ;; ---------------------------------------------------------------------------
