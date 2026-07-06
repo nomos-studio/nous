@@ -379,6 +379,22 @@
       (throw (ex-info "m21 server error" {:message (get resp "message")})))
     (vec (get resp "data"))))
 
+(defn chorale-metadata
+  "Return theory metadata for a Bach chorale by BWV number.
+
+  Keys: :bwv, :title, :composer, :key, :mode, :time-sig, :measures
+
+  Example:
+    (m21/chorale-metadata 371)
+    ;;=> {:bwv 371 :title \"\" :composer \"J.S. Bach\"
+    ;;    :key \"G\" :mode \"major\" :time-sig \"4/4\" :measures 42}"
+  [bwv]
+  (ensure-server!)
+  (let [resp (m21-request! {"op" "metadata" "bwv" bwv})]
+    (when (= "error" (get resp "status"))
+      (throw (ex-info "m21 server error" {:bwv bwv :message (get resp "message")})))
+    (into {} (map (fn [[k v]] [(keyword k) v]) resp))))
+
 (defn search-corpus
   "Search the music21 corpus.
 

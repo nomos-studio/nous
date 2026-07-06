@@ -21,6 +21,7 @@
     (delivered by BeamMount post ctrl-write! commit)"
   (:require [ctrl-tree.core    :as ct]
             [ctrl-tree.refs    :as refs]
+            [clojure.data.json  :as json]
             [nous.aion          :as aion]
             [nous.beam-mount    :as bm]
             [nous.kairos-voice  :as kairos-voice]
@@ -93,6 +94,31 @@
           :m21    (do (m21/disconnect!)
                       (runtime/set! [:m21 :status] :stopped))
           nil)
+
+        :corpus_query
+        (let [query (:query msg)]
+          (case query
+            :list_chorales
+            (future
+              (try
+                (let [nums (m21/list-chorales)]
+                  (ct/ctrl-write! [:corpus :chorales] (json/write-str nums)))
+                (catch Exception e
+                  (binding [*out* *err*]
+                    (println (str "[nous.jinterface] corpus list-chorales error: "
+                                  (.getMessage e)))))))
+            ;; {:metadata bwv} — fetch metadata for one chorale
+            (when-let [bwv (:metadata query)]
+              (future
+                (try
+                  (let [meta (m21/chorale-metadata bwv)]
+                    (ct/ctrl-write! [:corpus :selected_metadata]
+                                    (json/write-str meta)))
+                  (catch Exception e
+                    (binding [*out* *err*]
+                      (println (str "[nous.jinterface] corpus metadata error: "
+                                    (.getMessage e))))))))))
+
         ;; Ignore unrecognised ops
         nil))))
 
@@ -152,6 +178,8 @@
       (alter refs/mount-table assoc [:transport]
              (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:theory]
+             (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:corpus]
              (bm/beam-mount mbox beam-node tx/current-beat)))
     (swap! state assoc
            :node       node
@@ -169,7 +197,8 @@
       (dosync
         (alter refs/mount-table dissoc [:input :keyboard])
         (alter refs/mount-table dissoc [:transport])
-        (alter refs/mount-table dissoc [:theory]))
+        (alter refs/mount-table dissoc [:theory])
+        (alter refs/mount-table dissoc [:corpus]))
       (tx/stop!)
       (.close ^OtpNode node)
       (swap! state assoc :node nil :mbox nil :thread nil :running-ref nil)

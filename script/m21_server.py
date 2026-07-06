@@ -361,6 +361,67 @@ def _handle_load_work(req):
     return {"status": "ok", "session": session_key, "edn": edn}
 
 
+def _handle_metadata(req):
+    """Return theory metadata for a Bach chorale by BWV number.
+
+    Request:  {"op":"metadata","bwv":371}
+    Response: {"status":"ok","title":"...","composer":"J.S. Bach",
+               "key":"E","mode":"minor","time-sig":"4/4","measures":16}
+
+    Key/mode are derived via music21's key-finding algorithm (~50–200ms).
+    """
+    bwv = req.get("bwv")
+    if bwv is None:
+        return {"status": "error", "message": "metadata requires 'bwv'"}
+    try:
+        bwv_int = int(bwv)
+        # Files may be bwvN.M.mxl (movement suffix, e.g. bwv1.6.mxl) or bwvN.mxl.
+        import pathlib
+        bach_dir = pathlib.Path(corpus.getComposer("bach")[0]).parent
+        matches  = (sorted(bach_dir.glob(f"bwv{bwv_int}.*.mxl")) or
+                    sorted(bach_dir.glob(f"bwv{bwv_int}.mxl")))
+        if not matches:
+            return {"status": "error", "message": f"bwv{bwv} not found in corpus"}
+        score = corpus.parse(f"bach/{matches[0].name}")
+    except Exception as e:
+        return {"status": "error", "message": f"could not load bwv{bwv}: {e}"}
+
+    try:
+        from music21 import analysis, meter, key as m21key
+
+        md        = score.metadata
+        title     = str(md.title or "") if md else ""
+        composer  = str(md.composer or "J.S. Bach") if md else "J.S. Bach"
+
+        # Key analysis — use music21's key-finding algorithm
+        analyzed  = score.analyze("key")
+        key_name  = analyzed.tonic.name          # e.g. "E"
+        mode_name = analyzed.mode                # "major" or "minor"
+
+        # Time signature from the first measure
+        flat      = score.parts[0].flatten() if score.parts else score.flatten()
+        tsigs     = list(flat.getElementsByClass(meter.TimeSignature))
+        time_sig  = tsigs[0].ratioString if tsigs else "4/4"
+
+        # Measure count from the first part
+        from music21 import stream as m21stream
+        measures  = len(list(score.parts[0].getElementsByClass(m21stream.Measure))) \
+                    if score.parts else 0
+
+        return {
+            "status":   "ok",
+            "title":    title,
+            "composer": composer,
+            "key":      key_name,
+            "mode":     mode_name,
+            "time-sig": time_sig,
+            "measures": measures,
+            "bwv":      bwv_int,
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"metadata extraction failed: {e}"}
+
+
 def _handle_ping(_req):
     return {"status": "ok"}
 
@@ -448,6 +509,7 @@ _HANDLERS = {
     "list":        _handle_list,
     "search":      _handle_search,
     "load-work":   _handle_load_work,
+    "metadata":    _handle_metadata,
     "ping":        _handle_ping,
     "shutdown":    _handle_shutdown,
     "parse-midi":  _handle_parse_midi,
