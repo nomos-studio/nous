@@ -158,6 +158,54 @@
              (mapv #(pc->note % flat?)))))
 
 ;; ---------------------------------------------------------------------------
+;; MIDI quantization
+;; ---------------------------------------------------------------------------
+
+(defn quantize-to-scale
+  "Return the nearest in-scale MIDI note number to `midi-note`.
+  Preserves octave register; ties prefer the lower note.
+  Returns nil if key or mode is unrecognised."
+  [midi-note key mode]
+  (when-let [nearest-pc (nearest-in-scale midi-note key mode)]
+    (let [octave-base (- (long midi-note) (mod (long midi-note) 12))
+          same        (+ octave-base nearest-pc)
+          below       (- same 12)
+          above       (+ same 12)
+          dist        #(Math/abs (- (long midi-note) (long %)))]
+      (-> (reduce (fn [best c]
+                    (let [db (dist best) dc (dist c)]
+                      (cond (< dc db) c
+                            (= dc db) (min best c)
+                            :else     best)))
+                  [below same above])
+          (max 0)
+          (min 127)))))
+
+(defn constrain-event
+  "Constrain the :pitch/midi of `event` to the nearest in-scale MIDI note.
+  Returns the event unchanged when :pitch/midi is absent or key/mode are nil."
+  [event key mode]
+  (if-let [midi (:pitch/midi event)]
+    (if-let [q (quantize-to-scale midi key mode)]
+      (assoc event :pitch/midi q)
+      event)
+    event))
+
+;; ---------------------------------------------------------------------------
+;; Ctrl-tree read helpers
+;; ---------------------------------------------------------------------------
+
+(defn current-key
+  "Return the current theory key from the ctrl-tree, or nil."
+  []
+  (get @refs/tree-state [:theory :key]))
+
+(defn current-mode
+  "Return the current theory mode from the ctrl-tree, or nil."
+  []
+  (get @refs/tree-state [:theory :mode]))
+
+;; ---------------------------------------------------------------------------
 ;; Ctrl-tree derivation hook
 ;; ---------------------------------------------------------------------------
 

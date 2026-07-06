@@ -160,6 +160,21 @@
      :scale (scala/load-scl \"pythagorean.scl\")}"
   nil)
 
+(def ^:dynamic *theory-ctx*
+  "Active theory constraining context for the current thread (M13).
+  A map {:key \"G\" :mode :major}, or nil for no constraining.
+
+  When set, nous.live/play! constrains :pitch/midi to the nearest in-scale
+  note before dispatching.
+
+  Bound per-thread by deflive-loop (from the :theory key in opts) and by
+  nous.live/with-theory. Set at the REPL root with nous.live/use-theory!.
+
+  Example:
+    {:key \"G\" :mode :major}
+    {:key \"Bb\" :mode \"dorian\"}"
+  nil)
+
 (def ^:dynamic *loop-name*
   "Keyword name of the currently executing live loop, or nil outside a loop.
 
@@ -401,6 +416,7 @@
          harmony-ctx#   (:harmony ~opts)
          chord-ctx#     (:chord ~opts)
          tuning-ctx#    (:tuning ~opts)
+         theory-ctx#    (:theory ~opts)
          pause-deps#    (:pause-on-down ~opts)  ; seq of service keywords, or nil
          resume-bar#    (or (:resume-on-bar ~opts) 4) ; bar-snap period on recovery
          loop-fn#       (fn []
@@ -411,6 +427,7 @@
                                     nous.loop/*harmony-ctx*   harmony-ctx#
                                     nous.loop/*chord-ctx*     chord-ctx#
                                     nous.loop/*tuning-ctx*    tuning-ctx#
+                                    nous.loop/*theory-ctx*    theory-ctx#
                                     nous.loop/*loop-name*     ~loop-name]
                             (if (and pause-deps#
                                      (when-let [chk# @nous.loop/-pause-check-fn]

@@ -177,6 +177,81 @@
   (is (= ["Bb" "D" "F"] (theory/chord-notes "F" :major 4))))
 
 ;; ---------------------------------------------------------------------------
+;; quantize-to-scale
+;; ---------------------------------------------------------------------------
+
+(deftest quantize-already-in-scale
+  (is (= 60 (theory/quantize-to-scale 60 "C" :major)))   ;; C4 → C4
+  (is (= 62 (theory/quantize-to-scale 62 "C" :major))))  ;; D4 → D4
+
+(deftest quantize-c-sharp-in-c-major
+  ;; C#4 (61) — nearest in C major: C (60) at d=1, D (62) at d=1 → prefer lower → C4
+  (is (= 60 (theory/quantize-to-scale 61 "C" :major))))
+
+(deftest quantize-f-in-g-major
+  ;; F4 (65) — G major has E4 (64, d=1) and F#4 (66, d=1) → prefer lower → E4
+  (is (= 64 (theory/quantize-to-scale 65 "G" :major))))
+
+(deftest quantize-preserves-octave
+  ;; C#5 (73) in C major → C5 (72)
+  (is (= 72 (theory/quantize-to-scale 73 "C" :major))))
+
+(deftest quantize-b-sharp-wraps-to-nearest
+  ;; B4 (71) in C major — already in scale
+  (is (= 71 (theory/quantize-to-scale 71 "C" :major))))
+
+(deftest quantize-chromatic-is-identity
+  (doseq [n (range 60 73)]
+    (is (= n (theory/quantize-to-scale n "C" :chromatic)))))
+
+(deftest quantize-nil-for-unknown-key
+  (is (nil? (theory/quantize-to-scale 60 "Q" :major))))
+
+(deftest quantize-clamps-to-valid-midi
+  ;; Near MIDI floor — should not return negative
+  (is (>= (theory/quantize-to-scale 1 "B" :major) 0)))
+
+;; ---------------------------------------------------------------------------
+;; constrain-event
+;; ---------------------------------------------------------------------------
+
+(deftest constrain-event-quantizes-pitch
+  (is (= {:pitch/midi 60 :dur/beats 1/4}
+         (theory/constrain-event {:pitch/midi 61 :dur/beats 1/4} "C" :major))))
+
+(deftest constrain-event-already-in-scale
+  (is (= {:pitch/midi 62}
+         (theory/constrain-event {:pitch/midi 62} "C" :major))))
+
+(deftest constrain-event-no-midi-unchanged
+  (is (= {:mod/velocity 80}
+         (theory/constrain-event {:mod/velocity 80} "C" :major))))
+
+(deftest constrain-event-nil-key-unchanged
+  (is (= {:pitch/midi 61}
+         (theory/constrain-event {:pitch/midi 61} nil :major))))
+
+(deftest constrain-event-nil-mode-unchanged
+  (is (= {:pitch/midi 61}
+         (theory/constrain-event {:pitch/midi 61} "C" nil))))
+
+;; ---------------------------------------------------------------------------
+;; current-key / current-mode
+;; ---------------------------------------------------------------------------
+
+(deftest current-key-reads-ctrl-tree
+  (ct/ctrl-write! [:theory :key] "D")
+  (is (= "D" (theory/current-key))))
+
+(deftest current-mode-reads-ctrl-tree
+  (ct/ctrl-write! [:theory :mode] "dorian")
+  (is (= "dorian" (theory/current-mode))))
+
+(deftest current-key-nil-when-unset
+  ;; fixture clears [:theory :key] between tests
+  (is (nil? (theory/current-key))))
+
+;; ---------------------------------------------------------------------------
 ;; Ctrl-tree derivation watch
 ;; ---------------------------------------------------------------------------
 

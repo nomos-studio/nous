@@ -44,7 +44,8 @@
     (use-mod! {[:filter/cutoff] my-lfo}) ; REPL default
     (with-mod {[:filter/cutoff] my-lfo} …) ; scoped
     (tick-mods!)                         ; sample all *mod-ctx* mods → ctrl/send!"
-  (:require [nous.chord  :as chord-ns]
+  (:require [nous.theory  :as theory]
+            [nous.chord  :as chord-ns]
             [nous.clock  :as clock]
             [nous.core  :as core]
             [nous.ctrl  :as ctrl]
@@ -467,6 +468,56 @@
      ~@body))
 
 ;; ---------------------------------------------------------------------------
+;; Theory constraining context (M13)
+;; *theory-ctx* is defined in nous.loop; dsl provides the user-facing API.
+;; ---------------------------------------------------------------------------
+
+(defn- apply-theory
+  "Constrain :pitch/midi to the nearest in-scale note if *theory-ctx* is active.
+  Returns the step map unchanged when *theory-ctx* is nil or has nil key/mode."
+  [step]
+  (if-let [{:keys [key mode]} loop-ns/*theory-ctx*]
+    (if (and key mode)
+      (theory/constrain-event step key mode)
+      step)
+    step))
+
+(defn use-theory!
+  "Set the theory constraining context for all new live loops and REPL play! calls.
+
+  `key`  — note name string (\"G\", \"Bb\", \"F#\", etc.)
+  `mode` — keyword or string (:major, :minor, :dorian, etc.)
+
+  Call with no args or explicit nil to disable:
+    (use-theory! nil nil)   ; or just (use-theory!)
+
+  To pull from the current session ctrl-tree:
+    (use-theory! (theory/current-key) (theory/current-mode))
+
+  Not thread-safe — intended for interactive REPL use. Inside live loops,
+  pass {:theory {:key \"G\" :mode :major}} to the opts map of deflive-loop."
+  ([]
+   (alter-var-root #'loop-ns/*theory-ctx* (constantly nil))
+   nil)
+  ([key mode]
+   (alter-var-root #'loop-ns/*theory-ctx*
+                   (constantly (when (and key mode) {:key key :mode mode})))
+   nil))
+
+(defmacro with-theory
+  "Execute `body` with `key`/`mode` as the active theory constraining context.
+  All play! calls within body will have :pitch/midi constrained to the nearest
+  in-scale note.
+
+  Example:
+    (with-theory \"G\" :major
+      (play! 61)    ; C# → D (nearest in G major)
+      (play! 66))   ; F# → F# (already in G major)"
+  [key mode & body]
+  `(binding [loop-ns/*theory-ctx* (when (and ~key ~mode) {:key ~key :mode ~mode})]
+     ~@body))
+
+;; ---------------------------------------------------------------------------
 ;; play! — normalises all note forms to a step map, merges synth context
 ;; ---------------------------------------------------------------------------
 
@@ -509,6 +560,9 @@
          step (apply-step-mods step)
          ;; Tuning: retune :pitch/midi through *tuning-ctx* KBM+scale if active.
          step (apply-tuning step)
+         ;; Theory: constrain :pitch/midi to nearest in-scale note if *theory-ctx* is active.
+         ;; Runs after tuning so microtonal retuning is not subsequently quantised away.
+         step (apply-theory step)
          d    (or (:dur/beats step) dur *default-dur*)]
      (core/play! (assoc step :dur/beats d)))))
 
