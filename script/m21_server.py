@@ -504,15 +504,115 @@ def _handle_parse_midi(req):
         return {"status": "error", "message": str(e)}
 
 
+# ---------------------------------------------------------------------------
+# Notation export ops — MusicXML and LilyPond source
+# ---------------------------------------------------------------------------
+
+def _score_to_musicxml(score):
+    from music21.musicxml.m21ToXml import GeneralObjectExporter
+    return GeneralObjectExporter(score).parse().decode("utf-8")
+
+
+def _score_to_lilypond(score):
+    import tempfile, os
+    tf_name = None
+    try:
+        tf = tempfile.NamedTemporaryFile(suffix=".ly", delete=False)
+        tf_name = tf.name
+        tf.close()
+        score.write("lily", fp=tf_name)
+        with open(tf_name) as f:
+            return f.read()
+    except Exception:
+        return None
+    finally:
+        if tf_name:
+            try:
+                os.unlink(tf_name)
+            except Exception:
+                pass
+
+
+def _handle_export_corpus(req):
+    """Export a Bach chorale as MusicXML + LilyPond source.
+
+    {"op": "export-corpus", "bwv": 371}
+    → {"status": "ok", "musicxml": "...", "lilypond": "..."|null}
+    """
+    bwv = req.get("bwv")
+    if bwv is None:
+        return {"status": "error", "message": "bwv required"}
+    try:
+        score = _find_score(bwv)
+        return {
+            "status":   "ok",
+            "musicxml": _score_to_musicxml(score),
+            "lilypond": _score_to_lilypond(score),
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def _handle_export_session(req):
+    """Build a Score from note events and export as MusicXML + LilyPond.
+
+    {"op": "export-session",
+     "events": [{"pitch": 60, "start": 0.0, "dur": 0.5}, ...],
+     "tempo": 120.0}
+    → {"status": "ok", "musicxml": "...", "lilypond": "..."|null}
+    """
+    from music21 import stream, note as m21note, tempo as m21tempo
+
+    events    = req.get("events", [])
+    tempo_bpm = float(req.get("tempo", 120.0))
+
+    if not events:
+        return {"status": "error", "message": "no events supplied"}
+
+    part = stream.Part()
+    part.insert(0.0, m21tempo.MetronomeMark(number=tempo_bpm))
+
+    cursor = 0.0
+    for evt in sorted(events, key=lambda e: float(e.get("start", 0.0))):
+        start = float(evt.get("start", 0.0))
+        dur   = float(evt.get("dur",   0.5))
+        midi  = evt.get("pitch")
+        if midi is None:
+            continue
+        gap = start - cursor
+        if gap > 0.05:
+            part.append(m21note.Rest(quarterLength=gap))
+        n = m21note.Note(quarterLength=dur)
+        n.pitch.midi = int(midi)
+        part.append(n)
+        cursor = start + dur
+
+    score = stream.Score()
+    score.insert(0.0, part)
+
+    try:
+        xml = _score_to_musicxml(score)
+    except Exception as e:
+        return {"status": "error", "message": f"MusicXML export failed: {e}"}
+
+    return {
+        "status":   "ok",
+        "musicxml": xml,
+        "lilypond": _score_to_lilypond(score),
+    }
+
+
 _HANDLERS = {
-    "load":        _handle_load,
-    "list":        _handle_list,
-    "search":      _handle_search,
-    "load-work":   _handle_load_work,
-    "metadata":    _handle_metadata,
-    "ping":        _handle_ping,
-    "shutdown":    _handle_shutdown,
-    "parse-midi":  _handle_parse_midi,
+    "load":           _handle_load,
+    "list":           _handle_list,
+    "search":         _handle_search,
+    "load-work":      _handle_load_work,
+    "metadata":       _handle_metadata,
+    "ping":           _handle_ping,
+    "shutdown":       _handle_shutdown,
+    "parse-midi":     _handle_parse_midi,
+    "export-corpus":  _handle_export_corpus,
+    "export-session": _handle_export_session,
 }
 
 # ---------------------------------------------------------------------------

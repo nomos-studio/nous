@@ -26,6 +26,7 @@
             [nous.beam-mount    :as bm]
             [nous.kairos-voice  :as kairos-voice]
             [nous.m21           :as m21]
+            [nous.notation      :as notation]
             [nous.runtime       :as runtime]
             [nous.sc-keyboard   :as sc-keyboard]
             [nous.txlog-store   :as tx])
@@ -139,6 +140,18 @@
                            :error (str (.getSimpleName (class t)) ": " (.getMessage t))
                            :out (str out) :err (str err)}))]
                   (ct/ctrl-write! [:repl :last_result] (json/write-str result)))))))
+
+        :notation_export_corpus
+        (when-let [bwv (:bwv msg)]
+          (notation/export-corpus! bwv))
+
+        :notation_export_session
+        (let [{:keys [beat_from beat_to]} msg]
+          (when (and beat_from beat_to)
+            (notation/export-session! beat_from beat_to)))
+
+        :notation_save_session
+        (notation/save-session!)
 
         ;; Ignore unrecognised ops
         nil))))
