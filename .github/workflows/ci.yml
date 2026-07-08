@@ -45,6 +45,21 @@ jobs:
         with:
           lein: latest
 
+      - name: Check out internal dependencies
+        run: |
+          git clone --depth 1 https://github.com/nomos-studio/nomos-maths    .deps/nomos-maths
+          git clone --depth 1 https://github.com/nomos-studio/nomos-topology  .deps/nomos-topology
+          git clone --depth 1 https://github.com/nomos-studio/protomatter     .deps/protomatter
+          git clone --depth 1 https://github.com/nomos-studio/txlog           .deps/txlog
+          git clone --depth 1 https://github.com/nomos-studio/ctrl-tree       .deps/ctrl-tree
+
+      - name: Install internal dependencies into local Maven
+        run: |
+          (cd .deps/nomos-maths   && lein install)
+          (cd .deps/nomos-topology && lein install)
+          (cd .deps/protomatter   && lein install)
+          (cd .deps/txlog/clj     && lein install)
+          (cd .deps/ctrl-tree     && lein install)
+
       - name: Run test suite
         run: lein test
-
