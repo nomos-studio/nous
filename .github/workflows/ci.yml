@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: EPL-2.0
 #
-# nous CI — Clojure tests + C++ sidecar build
+# nous CI — Clojure tests
 # Runs on push/PR to main across Ubuntu and macOS.
+# C++ sidecar build removed: sidecar is deprecated, replaced by aion/kairos.
 
 name: CI
 
@@ -47,33 +48,3 @@ jobs:
       - name: Run test suite
         run: lein test
 
-  # ---------------------------------------------------------------------------
-  # C++ sidecar build (Link disabled — LGPL-only binary for the nous sidecar)
-  # ---------------------------------------------------------------------------
-  cpp:
-    name: C++ build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install ALSA headers (Linux — required by RtMidi)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev
-
-      - name: Cache cmake FetchContent dependencies
-        uses: actions/cache@v4
-        with:
-          path: build/_deps
-          key: ${{ runner.os }}-cmake-deps-${{ hashFiles('CMakeLists.txt') }}
-          restore-keys: ${{ runner.os }}-cmake-deps-
-
-      - name: Configure (Link disabled — LGPL binary)
-        run: cmake -B build -DNOUS_ENABLE_LINK=OFF -DNOUS_BUILD_TESTS=OFF
-
-      - name: Build
-        run: cmake --build build --parallel
