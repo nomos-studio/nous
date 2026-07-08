@@ -218,6 +218,8 @@
       (alter refs/mount-table assoc [:session]
              (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:repl]
+             (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:notation]
              (bm/beam-mount mbox beam-node tx/current-beat)))
     (swap! state assoc
            :node       node
@@ -238,7 +240,8 @@
         (alter refs/mount-table dissoc [:theory])
         (alter refs/mount-table dissoc [:corpus])
         (alter refs/mount-table dissoc [:session])
-        (alter refs/mount-table dissoc [:repl]))
+        (alter refs/mount-table dissoc [:repl])
+        (alter refs/mount-table dissoc [:notation]))
       (tx/stop!)
       (.close ^OtpNode node)
       (swap! state assoc :node nil :mbox nil :thread nil :running-ref nil)
