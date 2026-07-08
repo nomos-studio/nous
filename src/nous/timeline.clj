@@ -12,8 +12,10 @@
      :beat0-epoch-ms <long>     ; wall-clock ms at the anchor beat
      :beat0-beat     <double>}  ; beat number at the anchor
 
-  When Ableton Link is active, :link-timeline carries the same shape but
-  anchored to the Link session. effective-timeline returns whichever is live.
+  When Ableton Link is active, :link-time-id carries the time identity:
+    {:current <timeline-map>  ; the BPM mapping in effect right now
+     :pending <transition>}   ; deferred BPM change, or nil
+  effective-timeline returns the :current component (or the local timeline).
 
   Key design decisions: Q1 (virtual time), Q59 (beat↔epoch-ms arithmetic),
   Q60 (drift-free LockSupport park)."
@@ -55,13 +57,33 @@
   (when-let [s @system-ref] (:timeline @s)))
 
 (defn- link-timeline []
-  (when-let [s @system-ref] (:link-timeline @s)))
+  (when-let [s @system-ref] (get-in @s [:link-time-id :current])))
 
 (defn effective-timeline
   "Return the active timeline map: Link timeline when Link is active,
   local timeline otherwise.  Returns nil when the system is not started."
   []
   (or (link-timeline) (local-timeline)))
+
+(defn time-identity
+  "Return the full Link time identity map:
+    {:current <timeline-map>   ; BPM mapping in effect right now
+     :pending <transition>}    ; deferred BPM change (or nil)
+  Returns nil before start! or before Link ticks have established a timeline."
+  []
+  (when-let [s @system-ref] (:link-time-id @s)))
+
+(defn pending-timeline
+  "Return the pending timeline map (the BPM mapping that will apply at the next
+  bar boundary), or nil when no deferred transition is scheduled."
+  []
+  (get-in (time-identity) [:pending :timeline]))
+
+(defn pending-apply-at
+  "Return the beat position at which the pending BPM transition will be applied,
+  or nil when no deferred transition is scheduled."
+  []
+  (get-in (time-identity) [:pending :apply-at]))
 
 (defn current-beat
   "Current beat position on the effective timeline.  Returns 0.0 before start!."

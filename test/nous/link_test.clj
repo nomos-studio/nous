@@ -29,6 +29,27 @@
       (when (< i (dec n))
         (Thread/sleep 16)))))
 
+(defn- seed-tick-window!
+  "Seed the tick window so estimate-bpm will return approximately bpm.
+  Uses two entries (oldest, newest) spanning 7 tick increments."
+  [bpm]
+  (let [beat-span   (* 7 (/ 1.0 24.0))
+        ms-span     (long (* beat-span (/ 60000.0 bpm)))
+        now         (System/currentTimeMillis)]
+    (reset! (tick-window-atom) clojure.lang.PersistentQueue/EMPTY)
+    (swap! (tick-window-atom) conj {:beat 0.0            :epoch-ms (- now ms-span)})
+    (swap! (tick-window-atom) conj {:beat (double beat-span) :epoch-ms now})))
+
+(defmacro with-bpm
+  "Temporarily replace the private estimate-bpm fn so on-tick receives a
+  known BPM value. Uses alter-var-root because with-redefs does not accept
+  #'namespace/private-var syntax."
+  [bpm & body]
+  `(let [orig# @#'link/estimate-bpm]
+     (alter-var-root #'link/estimate-bpm (fn [_#] (constantly ~bpm)))
+     (try ~@body
+          (finally (alter-var-root #'link/estimate-bpm (fn [_#] orig#))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Fixtures
 ;; ---------------------------------------------------------------------------
@@ -37,7 +58,7 @@
   (fn [t]
     (core/start! :bpm 120)
     (when-let [s @(system-ref)]
-      (swap! s dissoc :link-state :link-timeline))
+      (swap! s dissoc :link-state :link-time-id))
     (reset! (tick-window-atom) clojure.lang.PersistentQueue/EMPTY)
     (reset! (hooks-atom) {})
     (t)
@@ -207,3 +228,87 @@
     (is (= 4.0 (link/next-quantum-beat 4.0 4))  "beat 4 at quantum 4 → 4 (exact)")
     (is (= 8.0 (link/next-quantum-beat 5.5 4))  "beat 5.5 at quantum 4 → 8")
     (is (= 3.0 (link/next-quantum-beat 2.0 3))  "beat 2 at quantum 3 → 3")))
+
+;; ---------------------------------------------------------------------------
+;; Time identity — :link-time-id pending-state pattern
+;;
+;; Tests use with-redefs on the private estimate-bpm fn to inject specific BPM
+;; values without depending on tick-window timing, then drive on-tick directly.
+;; ---------------------------------------------------------------------------
+
+(defn- state-map
+  "Return the current system state map."
+  []
+  @@(system-ref))
+
+(deftest time-id-first-tick-always-snaps
+  (testing "first tick always snaps regardless of policy: current set, pending nil"
+    (with-redefs [kairos/connected? (constantly true)]
+      (with-bpm 120.0
+        (#'link/on-tick {:beat 1.0 :tick-n 0}))
+      (let [tid (get-in (state-map) [:link-time-id])]
+        (is (some?   (:current tid))        "current should be set after first tick")
+        (is (nil?    (:pending tid))        "pending should be nil after first tick")
+        (is (number? (:bpm (:current tid))) ":bpm should be a number")))))
+
+(deftest time-id-snap-policy-no-pending
+  (testing "snap policy: significant BPM change applies to :current immediately, pending stays nil"
+    (with-redefs [kairos/connected? (constantly true)]
+      (with-bpm 120.0 (#'link/on-tick {:beat 1.0 :tick-n 0}))
+      (link/enable! :policy :snap)
+      (with-bpm 160.0 (#'link/on-tick {:beat 1.042 :tick-n 1}))
+      (let [tid (get-in (state-map) [:link-time-id])]
+        (is (nil? (:pending tid))             "snap policy: pending should be nil")
+        (is (> (:bpm (:current tid)) 140.0)   "current BPM should reflect the new estimate")))))
+
+(deftest time-id-bar-quantize-populates-pending
+  (testing "bar-quantize policy: significant BPM change goes to pending with correct apply-at"
+    (with-redefs [kairos/connected? (constantly true)]
+      (with-bpm 120.0 (#'link/on-tick {:beat 1.0 :tick-n 0}))
+      (link/enable! :policy :bar-quantize)
+      (with-bpm 160.0 (#'link/on-tick {:beat 1.5 :tick-n 1}))
+      (let [tid     (get-in (state-map) [:link-time-id])
+            pending (:pending tid)]
+        (is (some? pending)                     "pending should be populated")
+        (is (= :bar-quantize (:policy pending)) ":policy should be :bar-quantize")
+        (is (number? (:apply-at pending))       ":apply-at should be a number")
+        (is (> (:apply-at pending) 1.5)         ":apply-at should be after current beat")
+        ;; Current BPM stays at the old value; new 160 BPM is deferred
+        (is (< (:bpm (:current tid)) 140.0)    ":current BPM should not have jumped to 160")))))
+
+(deftest time-id-pending-promotion-at-bar-boundary
+  (testing "pending is promoted to current when tick beat crosses apply-at"
+    (with-redefs [kairos/connected? (constantly true)]
+      (with-bpm 120.0 (#'link/on-tick {:beat 1.0 :tick-n 0}))
+      (link/enable! :policy :bar-quantize)
+      (with-bpm 160.0 (#'link/on-tick {:beat 1.5 :tick-n 1}))
+      (let [apply-at (get-in (state-map) [:link-time-id :pending :apply-at])]
+        (is (some? apply-at) "pending should exist before promotion")
+        (with-bpm 160.0 (#'link/on-tick {:beat (+ apply-at 0.5) :tick-n 2}))
+        (let [tid (get-in (state-map) [:link-time-id])]
+          (is (nil? (:pending tid))           "pending should be nil after promotion")
+          (is (> (:bpm (:current tid)) 140.0) "current BPM should now reflect new tempo"))))))
+
+(deftest time-id-multiple-changes-latest-wins
+  (testing "two BPM changes before bar boundary: later pending replaces earlier"
+    (with-redefs [kairos/connected? (constantly true)]
+      (with-bpm 120.0 (#'link/on-tick {:beat 1.0 :tick-n 0}))
+      (link/enable! :policy :bar-quantize)
+      (with-bpm 160.0 (#'link/on-tick {:beat 1.5 :tick-n 1}))
+      (let [apply-at1 (get-in (state-map) [:link-time-id :pending :apply-at])]
+        (with-bpm 170.0 (#'link/on-tick {:beat 2.0 :tick-n 2}))
+        (let [apply-at2 (get-in (state-map) [:link-time-id :pending :apply-at])]
+          (is (some? apply-at1) "first pending had an apply-at")
+          (is (some? apply-at2) "second pending has an apply-at")
+          (is (> apply-at1 1.5) "first apply-at should be after trigger beat 1.5")
+          (is (> apply-at2 2.0) "second apply-at should be after trigger beat 2.0"))))))
+
+(deftest time-id-disable-clears-time-id
+  (testing "disable! clears :link-time-id from system state"
+    (with-redefs [kairos/connected? (constantly true)]
+      (with-bpm 120.0 (#'link/on-tick {:beat 1.0 :tick-n 0}))
+      (is (some? (get-in (state-map) [:link-time-id]))
+          ":link-time-id should exist before disable!")
+      (with-out-str (link/disable!))
+      (is (nil? (get-in (state-map) [:link-time-id]))
+          ":link-time-id should be nil after disable!"))))

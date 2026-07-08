@@ -101,6 +101,7 @@
             [nous.nrepl            :as nrepl]
             [nous.theory           :as theory]
             [nous.sc-keyboard      :as sc-keyboard]
+            [nous.timeline         :as timeline]
             [nous.transport-ctrl   :as transport-ctrl]))
 
 ;; ---------------------------------------------------------------------------
@@ -994,6 +995,9 @@
 (def link-state               link/link-state)
 (def link-timeline            link/link-timeline)
 (def next-quantum-beat        link/next-quantum-beat)
+(def time-identity            timeline/time-identity)
+(def pending-timeline         timeline/pending-timeline)
+(def pending-apply-at         timeline/pending-apply-at)
 
 ;; ---------------------------------------------------------------------------
 ;; Configuration registry (§25)

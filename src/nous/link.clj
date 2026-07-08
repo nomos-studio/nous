@@ -20,8 +20,8 @@
   timeline to each tick, and fires transport-change hooks on start/stop
   transitions.
 
-  nous.loop/sleep! checks (link/active?) and, when true, uses :link-timeline
-  to compute its wall-clock deadline — same contract as before, different source.
+  nous.loop/sleep! checks (link/active?) and, when true, uses link-timeline
+  (the :current component of :link-time-id) to compute its wall-clock deadline.
 
   ## Imperative transport calls
   set-bpm!, start-transport!, stop-transport! send MSG-LINK-SET-TEMPO (0x38),
@@ -30,7 +30,8 @@
   peer and it is always active.
 
   Key design decisions: Q7 (Link integration), §15 of R&R doc."
-  (:require [nous.kairos :as kairos])
+  (:require [nous.clock  :as clock]
+            [nous.kairos :as kairos])
   (:import  [java.util.concurrent.locks LockSupport]))
 
 ;; ---------------------------------------------------------------------------
@@ -57,10 +58,14 @@
 ;; At 24 PPQN, consecutive ticks are (60 / bpm / 24) seconds apart.
 ;; We maintain a rolling window of (beat, epoch-ms) pairs and derive BPM
 ;; from the slope across the window to smooth out jitter.
+;;
+;; bpm-change-threshold — minimum BPM delta that triggers the correction
+;; policy. Changes below this are treated as normal estimation noise.
 ;; ---------------------------------------------------------------------------
 
-(def ^:private tick-window-size 8)
-(def ^:private tick-window      (atom (clojure.lang.PersistentQueue/EMPTY)))
+(def ^:private tick-window-size    8)
+(def ^:private tick-window         (atom (clojure.lang.PersistentQueue/EMPTY)))
+(def ^:private bpm-change-threshold 0.5)
 
 (defn- enqueue-tick-sample [beat epoch-ms]
   (swap! tick-window
@@ -84,6 +89,18 @@
           (* 60.0 (/ db dt-s)))))))
 
 ;; ---------------------------------------------------------------------------
+;; Quantum alignment helpers
+;; ---------------------------------------------------------------------------
+
+(defn next-quantum-beat
+  "Return the beat number of the next quantum boundary strictly after beat.
+  Used by deflive-loop to delay loop start until the next bar boundary."
+  [beat quantum]
+  (let [q (double quantum)
+        b (double beat)]
+    (* q (Math/ceil (/ b q)))))
+
+;; ---------------------------------------------------------------------------
 ;; MSG-TICK subscription
 ;; ---------------------------------------------------------------------------
 
@@ -94,28 +111,84 @@
            (binding [*out* *err*]
              (println "[link] transport hook error:" (.getMessage e)))))))
 
+(defn- next-bar-beat
+  "Return the next bar-boundary beat strictly after current-beat."
+  [current-beat]
+  (let [q (double (or (when-let [s @system-ref]
+                        (get-in @s [:config :link/quantum]))
+                      4))]
+    (next-quantum-beat current-beat q)))
+
 (defn- on-tick
   "Handler called on every 24 PPQN tick pushed by kairos/aion.
-  tick-ev — {:beat N :tick-n N} (plus :mods when modulators are running)."
+  tick-ev — {:beat N :tick-n N} (plus :mods when modulators are running).
+
+  Applies the correction policy stored at [:config :link-correction-policy]:
+    :bar-quantize (default) — significant BPM changes go to :pending until the
+      next bar boundary, then promote to :current. Anchor is updated every tick.
+    :snap — always apply BPM changes immediately; :pending is never populated."
   [{:keys [beat]}]
   (when beat
     (let [now-ms  (System/currentTimeMillis)
           _       (enqueue-tick-sample beat now-ms)
-          est-bpm (estimate-bpm)
-          timeline (when est-bpm
-                     {:bpm            est-bpm
-                      :beat0-beat     beat
-                      :beat0-epoch-ms now-ms})]
+          est-bpm (estimate-bpm)]
       (when-let [s @system-ref]
         (let [prev-bpm (get-in @s [:link-state :bpm])]
           (swap! s (fn [state]
-                     (cond-> state
-                       est-bpm (assoc :link-timeline timeline)
-                       true    (assoc :link-state
-                                      (merge (or (:link-state state) {})
-                                             {:playing true
-                                              :last-tick-ms now-ms}
-                                             (when est-bpm {:bpm est-bpm}))))))
+                     (let [tid        (:link-time-id state)
+                           policy     (get-in state [:config :link-correction-policy]
+                                              :bar-quantize)
+                           first?     (nil? tid)
+                           ;; Use the reported tick beat directly — it is the Link
+                           ;; beat position, more authoritative than wall-clock derive.
+                           ;; Track whether promotion fired so we don't also start a
+                           ;; new pending on the very same tick (the window sample
+                           ;; enqueued before BPM estimation spans the bar boundary,
+                           ;; producing an unreliable estimate for that one tick).
+                           promoted?  (boolean (and tid
+                                                    (:pending tid)
+                                                    (>= beat (:apply-at (:pending tid)))))
+                           tid'       (if promoted?
+                                        {:current (assoc (:timeline (:pending tid))
+                                                         :beat0-beat     beat
+                                                         :beat0-epoch-ms now-ms)
+                                         :pending nil}
+                                        tid)
+                           active-bpm (:bpm (:current tid'))
+                           bpm-changed? (and est-bpm
+                                             active-bpm
+                                             (> (Math/abs (- est-bpm active-bpm))
+                                                bpm-change-threshold))
+                           new-tid    (cond
+                                        (nil? est-bpm)
+                                        tid'
+
+                                        ;; First tick, snap policy, just promoted, or
+                                        ;; change within threshold: apply immediately
+                                        (or first? promoted? (= policy :snap) (not bpm-changed?))
+                                        {:current {:bpm            est-bpm
+                                                   :beat0-beat     beat
+                                                   :beat0-epoch-ms now-ms}
+                                         :pending nil}
+
+                                        ;; Significant BPM change under :bar-quantize:
+                                        ;; update anchor in :current but defer new BPM
+                                        :else
+                                        (-> tid'
+                                            (assoc-in [:current :beat0-beat]     beat)
+                                            (assoc-in [:current :beat0-epoch-ms] now-ms)
+                                            (assoc :pending
+                                                   {:timeline {:bpm            est-bpm
+                                                               :beat0-beat     beat
+                                                               :beat0-epoch-ms now-ms}
+                                                    :policy   :bar-quantize
+                                                    :apply-at (next-bar-beat beat)})))]
+                       (-> state
+                           (assoc :link-time-id new-tid)
+                           (assoc :link-state
+                                  (merge (or (:link-state state) {})
+                                         {:playing true :last-tick-ms now-ms}
+                                         (when est-bpm {:bpm est-bpm})))))))
           (doseq [[_ entry] (:loops @s)]
             (when-let [^Thread t (:thread entry)]
               (LockSupport/unpark t)))
@@ -148,10 +221,11 @@
 (defn link-timeline
   "Return the current beat timeline map, or nil when inactive.
   Shape: {:bpm N :beat0-beat N :beat0-epoch-ms N}
-  Used by nous.loop/sleep! to compute beat→epoch-ms."
+  Returns the :current component of :link-time-id — the in-effect BPM,
+  not any pending deferred value. Used by nous.loop/sleep!."
   []
   (when (active?)
-    (when-let [s @system-ref] (:link-timeline @s))))
+    (when-let [s @system-ref] (get-in @s [:link-time-id :current]))))
 
 (defn link-state
   "Return the most recently derived link state map, or nil."
@@ -183,19 +257,25 @@
 ;; ---------------------------------------------------------------------------
 
 (defn enable!
-  "No-op. kairos/aion own the Link peer; it is always active.
-  Previously: joined or created a Link session via the sidecar."
-  [& _]
-  (println "[link] enable! is vestigial — kairos/aion own the Link peer"))
+  "Store the Link correction policy in system config.
+  kairos/aion own the Link peer; it is always active.
+  Previously: joined or created a Link session via the sidecar.
+
+  Options:
+    :policy — :bar-quantize (default) or :snap"
+  [& {:keys [policy] :or {policy :bar-quantize}}]
+  (println "[link] enable! stores correction policy —" policy)
+  (when-let [s @system-ref]
+    (swap! s assoc-in [:config :link-correction-policy] policy)))
 
 (defn disable!
-  "Clears local :link-state and :link-timeline from system-state.
+  "Clears local :link-state and :link-time-id from system-state.
   Does not stop kairos/aion — the peer continues running.
   Previously: left the Link session via the sidecar."
   []
   (println "[link] disable! is vestigial — clearing local link state only")
   (when-let [s @system-ref]
-    (swap! s dissoc :link-state :link-timeline)))
+    (swap! s dissoc :link-state :link-time-id)))
 
 (defn set-bpm!
   "Propose a new tempo to the Ableton Link session via kairos.
@@ -243,14 +323,3 @@
   []
   @transport-hook-registry)
 
-;; ---------------------------------------------------------------------------
-;; Quantum alignment helpers
-;; ---------------------------------------------------------------------------
-
-(defn next-quantum-beat
-  "Return the beat number of the next quantum boundary strictly after beat.
-  Used by deflive-loop to delay loop start until the next bar boundary."
-  [beat quantum]
-  (let [q (double quantum)
-        b (double beat)]
-    (* q (Math/ceil (/ b q)))))

@@ -212,7 +212,7 @@
                  (assoc :tx-log       [])
                  (assoc :undo-stack   [])
                  (assoc :session-path session-path)
-                 (dissoc :link-state :link-timeline))))
+                 (dissoc :link-state :link-time-id))))
     (loop-ns/-register-system! system-state)
     (ctrl/-register-system! system-state)
     (flux/-register-system! system-state)
