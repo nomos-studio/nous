@@ -82,12 +82,21 @@
           (when (vector? path)
             (ct/ctrl-write! path value)
             (cond
-              (= path [:input :keyboard :key_down]) (do (aion/note-on!          value)
-                                                        (sc-keyboard/key-down!   value)
-                                                        (kairos-voice/note-on!   value))
-              (= path [:input :keyboard :key_up])   (do (aion/note-off!          value)
-                                                        (sc-keyboard/key-up!     value)
-                                                        (kairos-voice/note-off!  value)))))
+              (= path [:input :keyboard :key_down])
+              (do (when-let [note (aion/key->note value)]
+                    (ct/ctrl-write! [:diagnostic :midi :note_on]
+                                    {:note note :velocity 0.8 :channel 0}))
+                  (aion/note-on!         value)
+                  (sc-keyboard/key-down!  value)
+                  (kairos-voice/note-on!  value))
+
+              (= path [:input :keyboard :key_up])
+              (do (when-let [note (aion/key->note value)]
+                    (ct/ctrl-write! [:diagnostic :midi :note_off]
+                                    {:note note :channel 0}))
+                  (aion/note-off!        value)
+                  (sc-keyboard/key-up!   value)
+                  (kairos-voice/note-off! value)))))
         :service_down
         (case (:service msg)
           :sc     (runtime/set! [:sc :status] :stopped)
@@ -220,6 +229,8 @@
       (alter refs/mount-table assoc [:repl]
              (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:notation]
+             (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:diagnostic]
              (bm/beam-mount mbox beam-node tx/current-beat)))
     (swap! state assoc
            :node       node
@@ -241,7 +252,8 @@
         (alter refs/mount-table dissoc [:corpus])
         (alter refs/mount-table dissoc [:session])
         (alter refs/mount-table dissoc [:repl])
-        (alter refs/mount-table dissoc [:notation]))
+        (alter refs/mount-table dissoc [:notation])
+        (alter refs/mount-table dissoc [:diagnostic]))
       (tx/stop!)
       (.close ^OtpNode node)
       (swap! state assoc :node nil :mbox nil :thread nil :running-ref nil)
