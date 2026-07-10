@@ -171,4 +171,12 @@
     (swap! state assoc :channel nil :running-a nil :read-thread nil)
     :disconnected))
 
-(defn connected? [] (boolean (:channel @state)))
+(defn connected?
+  "Returns true only when the channel is open AND the read-thread is alive.
+  A non-nil channel with a dead thread means the connection broke silently."
+  []
+  (boolean
+   (when-let [{:keys [channel read-thread]} @state]
+     (and channel
+          read-thread
+          (.isAlive ^Thread read-thread)))))
