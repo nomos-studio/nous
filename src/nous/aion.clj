@@ -25,9 +25,10 @@
    "f" 65  "t" 66  "g" 67  "y" 68  "h" 69
    "u" 70  "j" 71})
 
-(def ^:private MSG-NOTE-ON  (byte 0x41))
-(def ^:private MSG-NOTE-OFF (byte 0x42))
-(def ^:private MSG-MIDI-DIAG (int 0x54)) ; matches nomos::rt::ipc::msg_midi_diag
+(def ^:private MSG-NOTE-ON   (byte 0x41))
+(def ^:private MSG-NOTE-OFF  (byte 0x42))
+(def ^:private MSG-MIDI-DIAG (int 0x54)) ; nomos::rt::ipc::msg_midi_diag
+(def ^:private MSG-TICK      (int 0x50)) ; nomos::rt::ipc::msg_tick
 
 ;; ---------------------------------------------------------------------------
 ;; Diagnostic dispatch — rebind in tests to capture without touching ctrl-tree
@@ -38,6 +39,37 @@
   Default writes to [:diagnostic :aion :midi_sent].
   Rebind in tests to capture without a running ctrl-tree."
   (fn [data] (ct/ctrl-write! [:diagnostic :aion :midi_sent] data)))
+
+;; ---------------------------------------------------------------------------
+;; Beat tracking
+;;
+;; Updated on every MSG-TICK frame received from aion.  When aion is down,
+;; estimated-beat extrapolates using BPM + wall time so connect-at-next-bar!
+;; can compute a sensible bar boundary even with no live connection.
+;; ---------------------------------------------------------------------------
+
+(defonce ^:private beat-state
+  (atom {:beat 0.0 :bpm 120.0 :wall-ns (System/nanoTime)}))
+
+(defn- update-beat! [beat]
+  (let [now  (System/nanoTime)
+        prev @beat-state
+        dt-s (/ (- now (:wall-ns prev)) 1.0e9)]
+    (when (> dt-s 0.01)
+      (let [bpm (-> (/ (- beat (:beat prev)) dt-s) (* 60.0)
+                    (max 20.0) (min 400.0))]
+        (reset! beat-state {:beat beat :bpm bpm :wall-ns now})))))
+
+(defn estimated-beat
+  "Return the estimated current beat.  Uses wall-time extrapolation when aion is down."
+  []
+  (let [{:keys [beat bpm wall-ns]} @beat-state
+        elapsed-s (/ (- (System/nanoTime) wall-ns) 1.0e9)]
+    (+ beat (* bpm (/ elapsed-s 60.0)))))
+
+(def ^:dynamic *bar-beats*
+  "Bar length in beats for connect-at-next-bar! (default 4)."
+  4)
 
 ;; ---------------------------------------------------------------------------
 ;; State
@@ -107,8 +139,12 @@
     (loop []
       (when @running-a
         (let [{:keys [type payload]} (read-frame ch)]
-          (when (= type MSG-MIDI-DIAG)
-            (handle-diag-frame! payload)))
+          (cond
+            (= type MSG-MIDI-DIAG) (handle-diag-frame! payload)
+            (= type MSG-TICK)      (try
+                                     (when-let [b (:beat (edn/read-string payload))]
+                                       (update-beat! b))
+                                     (catch Exception _))))
         (recur)))
     (catch java.io.EOFException _
       ;; Unexpected disconnect: clear channel so connected? returns false,
@@ -180,3 +216,30 @@
      (and channel
           read-thread
           (.isAlive ^Thread read-thread)))))
+
+(defn connect-at-next-bar!
+  "Reconnect to aion at the next bar boundary.  bar-beats defaults to *bar-beats*.
+
+  Spawns a daemon thread that polls estimated-beat until the target boundary,
+  then calls stop! (clean slate) followed by start!.  Returns immediately."
+  ([] (connect-at-next-bar! *bar-beats*))
+  ([bar-beats]
+   (let [now    (estimated-beat)
+         ;; Require at least 1 beat of look-ahead so a call right on a boundary
+         ;; advances to the next bar rather than reconnecting immediately.
+         target (* (Math/ceil (/ (+ now 1.0) (double bar-beats)))
+                   (double bar-beats))]
+     (doto (Thread.
+            (fn []
+              (loop []
+                (when (< (estimated-beat) target)
+                  (Thread/sleep 20)
+                  (recur)))
+              (stop!)
+              (try (start!)
+                   (catch Exception e
+                     (binding [*out* *err*]
+                       (println (str "[nous.aion] reconnect failed: " (.getMessage e)))))))
+            "nous-aion-reconnect")
+       (.setDaemon true)
+       (.start)))))

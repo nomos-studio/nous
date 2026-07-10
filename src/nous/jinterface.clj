@@ -14,7 +14,9 @@
   ────────────────
   BEAM → nous (ctrl mailbox):
     %{op: :ctrl_write, path: [...atoms...], value: binary}
-    %{op: :service_down, service: :sc}   — ScSynth Port exited; nous marks SC :stopped
+    %{op: :service_down, service: :sc}      — ScSynth Port exited; nous marks SC :stopped
+    %{op: :service_down, service: :aion}    — aion Port exited; nous calls aion/stop!
+    %{op: :aion_reconnect}                  — aion restarted; nous reconnects at next bar
 
   nous → BEAM (:nous_port registered name):
     %{op: :ctrl_write_echo, path: [...atoms...], value: binary}
@@ -103,7 +105,12 @@
           :kairos (runtime/set! [:kairos :status] :stopped)
           :m21    (do (m21/disconnect!)
                       (runtime/set! [:m21 :status] :stopped))
+          :aion   (do (aion/stop!)
+                      (runtime/set! [:aion :status] :stopped))
           nil)
+
+        :aion_reconnect
+        (aion/connect-at-next-bar!)
 
         :corpus_query
         (let [query (:query msg)]
