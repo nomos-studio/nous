@@ -10,7 +10,8 @@
   Tests skip gracefully when the kairos binary is absent so they run safely
   in CI without a built binary."
   (:require [clojure.test :refer [deftest is testing]]
-            [nous.kairos  :as kairos])
+            [nous.kairos  :as kairos]
+            [nous.rt      :as rt])
   (:import [java.io File]))
 
 ;; ---------------------------------------------------------------------------
@@ -173,6 +174,6 @@
         (kairos/send-note-off! 60)
         (let [msg (kairos/await-midi-message note-on? :timeout-ms 3000)]
           (is (some? msg) "kairos echoed the note (pipeline is live)")
-          (let [^java.lang.Process proc (:process @@#'kairos/kairos-state)]
-            (is (some? proc)    "kairos-state holds a Process")
+          (let [^java.lang.Process proc (:process @@#'rt/state)]
+            (is (some? proc)    "rt/state holds a Process")
             (is (.isAlive proc) "kairos is still alive after MIDI events")))))))

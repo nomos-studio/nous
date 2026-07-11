@@ -3,9 +3,10 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.aion-test
   (:require [clojure.test :refer [deftest is testing]]
-            [nous.aion :as aion])
+            [nous.aion :as aion]
+            [nous.rt   :as rt])
   (:import [java.nio ByteBuffer ByteOrder]
-           [java.nio.channels Pipe]))
+           [java.nio.channels Channels Pipe]))
 
 (deftest key->note-mapping
   (testing "chromatic layout starting from middle C"
@@ -68,23 +69,23 @@
           source (.source pipe)
           payload "{:bytes [144 60 101]}"]
       (write-diag-frame sink payload)
-      (let [frame (#'aion/read-frame source)]
+      (let [frame (#'rt/read-frame (Channels/newInputStream source))]
         (is (= 0x54 (:type frame)))
-        (is (= payload (:payload frame)))))))
+        (is (= payload (String. ^bytes (:payload frame) "UTF-8")))))))
 
 (deftest dispatch-diag-calls-dynamic-var
   (testing "*dispatch-diag* is called with parsed EDN on MSG-MIDI-DIAG"
     (let [captured (atom nil)]
-      (binding [aion/*dispatch-diag* #(reset! captured %)]
-        (#'aion/handle-diag-frame! "{:bytes [144 60 101]}"))
+      (binding [rt/*dispatch-diag* #(reset! captured %)]
+        (#'rt/handle-diag-frame! "{:bytes [144 60 101]}"))
       (is (= {:bytes [144 60 101]} @captured))))
 
   (testing "note-on C4 vel=0.8 status byte is 0x90, note=60, vel=101"
     ;; 0.8*127 truncated = 101; routing_matrix ch=(0+1)→ note_on(1,60,101)
     ;; midi_io::note_on ch=(1-1)&0xF=0 → {0x90|0, 60, 101}
     (let [captured (atom nil)]
-      (binding [aion/*dispatch-diag* #(reset! captured %)]
-        (#'aion/handle-diag-frame! "{:bytes [144 60 101]}"))
+      (binding [rt/*dispatch-diag* #(reset! captured %)]
+        (#'rt/handle-diag-frame! "{:bytes [144 60 101]}"))
       (is (= 0x90 (nth (:bytes @captured) 0)))
       (is (= 60   (nth (:bytes @captured) 1)))
       (is (= 101  (nth (:bytes @captured) 2)))))
@@ -92,6 +93,6 @@
   (testing "malformed payload is caught without throwing"
     ;; "[1 2 3" is an unclosed vector — edn/read-string throws, dispatch is not called
     (let [captured (atom :sentinel)]
-      (binding [aion/*dispatch-diag* #(reset! captured %)]
-        (#'aion/handle-diag-frame! "[1 2 3"))
+      (binding [rt/*dispatch-diag* #(reset! captured %)]
+        (#'rt/handle-diag-frame! "[1 2 3"))
       (is (= :sentinel @captured)))))

@@ -93,10 +93,10 @@
             [nous.bitwig          :as bitwig]
             [nous.topology        :as topology]
             [nous.test-rig        :as test-rig]
-            ;; BEAM IPC substrate + aion session peer
+            ;; BEAM IPC substrate + RT connection layer
             [nous.txlog-store     :as txlog-store]
             [nous.jinterface      :as jinterface]
-            [nous.aion             :as aion]
+            [nous.rt               :as rt]
             [nous.kairos-voice     :as kairos-voice]
             [nous.nrepl            :as nrepl]
             [nous.theory           :as theory]
@@ -722,6 +722,13 @@
   (kairos/stop-kairos!))
 
 (def list-midi-ports sidecar/list-midi-ports)
+
+;; ---------------------------------------------------------------------------
+;; RT connection layer (nous.rt) — unified aion/kairos substrate
+;; ---------------------------------------------------------------------------
+
+(def rt-connected?           rt/connected?)
+(def rt-capabilities         rt/capabilities)
 
 ;; ---------------------------------------------------------------------------
 ;; kairos (nous.kairos)

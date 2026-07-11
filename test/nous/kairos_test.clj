@@ -2,7 +2,8 @@
 (ns nous.kairos-test
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
             [clojure.edn   :as edn]
-            [nous.kairos :as kairos])
+            [nous.kairos :as kairos]
+            [nous.rt     :as rt])
   (:import [java.net UnixDomainSocketAddress StandardProtocolFamily]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.channels ServerSocketChannel SocketChannel Channels]
@@ -855,8 +856,8 @@
              (Thread/sleep 20)
              (kairos/send-note-off! 60 :channel 0)
              (Thread/sleep 50)
-             (let [^java.lang.Process proc (:process @#'kairos/kairos-state)]
-               (is (some? proc) "kairos-state should hold a Process")
+             (let [^java.lang.Process proc (:process @@#'rt/state)]
+               (is (some? proc) "rt/state should hold a Process")
                (is (.isAlive proc) "kairos process must still be alive after notes"))))))))
 
 (deftest kairos-reconnect-after-stop-test

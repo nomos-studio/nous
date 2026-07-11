@@ -26,9 +26,9 @@
   (:require [ctrl-tree.core    :as ct]
             [ctrl-tree.refs    :as refs]
             [clojure.data.json  :as json]
-            [nous.aion          :as aion]
             [nous.beam-mount    :as bm]
             [nous.kairos        :as kairos]
+            [nous.rt            :as rt]
             [nous.kairos-voice  :as kairos-voice]
             [nous.m21           :as m21]
             [nous.notation      :as notation]
@@ -88,36 +88,36 @@
             (ct/ctrl-write! path value)
             (cond
               (= path [:input :keyboard :key_down])
-              (do (when-let [note (aion/key->note value)]
+              (do (when-let [note (rt/key->note value)]
                     (ct/ctrl-write! [:diagnostic :midi :note_on]
                                     {:note note :velocity 0.8 :channel 0}))
-                  (aion/note-on!         value)
+                  (rt/note-on!            value)
                   (sc-keyboard/key-down!  value)
                   (kairos-voice/note-on!  value))
 
               (= path [:input :keyboard :key_up])
-              (do (when-let [note (aion/key->note value)]
+              (do (when-let [note (rt/key->note value)]
                     (ct/ctrl-write! [:diagnostic :midi :note_off]
                                     {:note note :channel 0}))
-                  (aion/note-off!        value)
-                  (sc-keyboard/key-up!   value)
+                  (rt/note-off!           value)
+                  (sc-keyboard/key-up!    value)
                   (kairos-voice/note-off! value)))))
         :service_down
         (case (:service msg)
           :sc     (runtime/set! [:sc :status] :stopped)
-          :kairos (do (kairos/disconnect!)
+          :kairos (do (rt/disconnect!)
                       (runtime/set! [:kairos :status] :stopped))
           :m21    (do (m21/disconnect!)
                       (runtime/set! [:m21 :status] :stopped))
-          :aion   (do (aion/stop!)
+          :aion   (do (rt/disconnect!)
                       (runtime/set! [:aion :status] :stopped))
           nil)
 
         :aion_reconnect
-        (aion/connect-at-next-bar!)
+        (rt/connect-at-next-bar!)
 
         :kairos_reconnect
-        (kairos/connect-at-next-bar!)
+        (rt/connect-at-next-bar!)
 
         :corpus_query
         (let [query (:query msg)]
