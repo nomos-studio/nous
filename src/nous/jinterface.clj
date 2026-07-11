@@ -15,8 +15,8 @@
   BEAM → nous (ctrl mailbox):
     %{op: :ctrl_write, path: [...atoms...], value: binary}
     %{op: :service_down, service: :sc}      — ScSynth Port exited; nous marks SC :stopped
-    %{op: :service_down, service: :aion}    — aion Port exited; nous calls aion/stop!
-    %{op: :service_down, service: :kairos}  — kairos Port exited; nous calls kairos/disconnect!
+    %{op: :service_down, service: :aion}    — aion Port exited; nous calls rt/disconnect! → [:rt :status] :disconnected
+    %{op: :service_down, service: :kairos}  — kairos Port exited; nous calls rt/disconnect! → [:rt :status] :disconnected
     %{op: :aion_reconnect}                  — aion restarted; nous.supervisor schedules reconnect at next bar
     %{op: :kairos_reconnect}                — kairos restarted; nous.supervisor schedules reconnect at next bar
 
@@ -106,12 +106,14 @@
         :service_down
         (case (:service msg)
           :sc     (runtime/set! [:sc :status] :stopped)
+          ;; rt/disconnect! publishes [:rt :status] :disconnected, firing register-rt! watcher.
+          ;; [:kairos :status] :stopped is preserved for any tools watching that path directly.
           :kairos (do (rt/disconnect!)
                       (runtime/set! [:kairos :status] :stopped))
+          ;; aion and kairos are the same RT backend; rt/disconnect! handles status publishing.
+          :aion   (rt/disconnect!)
           :m21    (do (m21/disconnect!)
                       (runtime/set! [:m21 :status] :stopped))
-          :aion   (do (rt/disconnect!)
-                      (runtime/set! [:aion :status] :stopped))
           nil)
 
         :aion_reconnect

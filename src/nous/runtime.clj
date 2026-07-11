@@ -7,6 +7,10 @@
   .nous export or crystallize output.
 
   Path convention:
+    [:rt :status]       — :connected :disconnected (canonical nomos-rt backend status;
+                          set by nous.rt/connect! and disconnect!; watched by supervisor)
+    [:kairos :status]   — :starting :connected :disconnected :error :stopped
+                          (kairos-specific; kept for backward compat / UI display)
     [:sc :status]       — :stopped :starting :running :error
     [:sc :errors]       — ring buffer of {:wall-ns :kind :message :cause}
     [:sc :sclang-pid]   — integer PID while sclang is running, nil otherwise

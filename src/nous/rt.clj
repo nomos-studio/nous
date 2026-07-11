@@ -20,9 +20,14 @@
     (capabilities)         ; the map passed to connect!
     (has-capability? :clap)
     (on-tick! handler)     ; register 24 PPQN tick callback
-    (estimated-beat)"
+    (estimated-beat)
+
+  Runtime status: connect! publishes [:rt :status] :connected;
+  disconnect! publishes [:rt :status] :disconnected.
+  nous.supervisor/register-rt! watches this path."
   (:require [clojure.edn    :as edn]
-            [ctrl-tree.core :as ct])
+            [ctrl-tree.core :as ct]
+            [nous.runtime   :as runtime])
   (:import [java.net UnixDomainSocketAddress StandardProtocolFamily]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.channels SocketChannel Channels]
@@ -358,16 +363,19 @@
              :reader-thread reader
              :socket-path   socket-path
              :capabilities  caps)
+      (runtime/set! [:rt :status] :connected)
       true)))
 
 (defn disconnect!
   "Close the connection to nomos-rt.  Preserves :socket-path and :capabilities
   so connect-at-next-bar! can reconnect without being told them again.
-  Does not kill a managed subprocess — use stop-process! for that."
+  Does not kill a managed subprocess — use stop-process! for that.
+  Publishes [:rt :status] :disconnected."
   []
   (when-let [^SocketChannel ch (:channel @state)]
     (try (.close ch) (catch Exception _)))
   (swap! state assoc :channel nil :out nil :in nil :reader-thread nil)
+  (runtime/set! [:rt :status] :disconnected)
   nil)
 
 (defn connect-at-next-bar!

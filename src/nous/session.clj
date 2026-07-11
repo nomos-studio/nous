@@ -41,12 +41,12 @@
     ;; Inspect the translated kairos graph
     (session/session->graph my-session)
 
-    ;; Re-send after kairos restarts (wire into supervisor/register-kairos!)
+    ;; Re-send after kairos restarts (wire into supervisor/register-rt!)
     (session/reload-session!)
 
   ## Supervisor integration
 
-    (supervisor/register-kairos!
+    (supervisor/register-rt!
       :restore-fn #(session/reload-session!))
 
   ## Control tree
@@ -240,7 +240,7 @@
 
   Call this from a supervisor :restore-fn to recover after a kairos restart:
 
-    (supervisor/register-kairos!
+    (supervisor/register-rt!
       :restore-fn #(session/reload-session!))"
   []
   (when-let [{:keys [graph]} @active-session-atom]

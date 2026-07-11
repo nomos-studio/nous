@@ -742,8 +742,10 @@
 (def start-kairos!           kairos/start-kairos!)
 (def stop-kairos!            kairos/stop-kairos!)
 (def restart-kairos!         kairos/restart-kairos!)
-;; Supervisor integration
-(def register-kairos!        supervisor/register-kairos!)
+;; Supervisor integration — unified RT backend
+(def register-rt!            supervisor/register-rt!)
+(def schedule-recovery!      supervisor/schedule-recovery!)
+(def register-kairos!        supervisor/register-kairos!) ; deprecated alias for register-rt!
 ;; Graph management
 (def midi-passthrough-plugin-id kairos/midi-passthrough-plugin-id)
 (def midi-passthrough-graph     kairos/midi-passthrough-graph)

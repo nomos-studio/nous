@@ -253,7 +253,10 @@
   registration covers both aion and kairos — which is running is described by
   capabilities, not the service name.
 
-  Reactive: watches [:kairos :status] in the runtime tree — no poll thread.
+  Reactive: watches [:rt :status] in the runtime tree — no poll thread.
+  nous.rt/connect! publishes :connected; nous.rt/disconnect! publishes
+  :disconnected.  jinterface calls rt/disconnect! on any service_down, which
+  fires this watcher regardless of whether the crashed backend was aion or kairos.
   Tick-silence aware: registers an on-tick! handler tracking the last received
   clock tick.  If tick silence exceeds stale-threshold-ns the service is marked
   :stale and live loops with {:pause-on-down [:rt]} pause at their next sleep
@@ -292,11 +295,11 @@
             (rt/on-tick! (fn [_]
                            (swap! service-state assoc-in [:rt :last-tick-ns]
                                   (System/nanoTime)))))
-    ;; React to BEAM's [:kairos :status] transitions.
+    ;; React to [:rt :status] transitions published by nous.rt/connect! and disconnect!.
     ;; :connected   → :up (also handles :stale → :up after recovery)
     ;; :disconnected/:error/:stopped → :down
     (runtime/unwatch! ::rt-status-watcher)
-    (runtime/watch! [:kairos :status] ::rt-status-watcher
+    (runtime/watch! [:rt :status] ::rt-status-watcher
       (fn [_path _old new-status]
         (let [now-ms (System/currentTimeMillis)
               prev   (get-in @service-state [:rt :status])]
@@ -313,9 +316,9 @@
 (defn schedule-recovery!
   "Called from jinterface when BEAM notifies that the nomos-rt backend has restarted.
   Waits for the next musically appropriate bar boundary, then reconnects using the
-  last known socket-path and capabilities.  On success, sets [:kairos :status]
-  :connected so the register-rt! watcher transitions the service to :up and calls
-  restore-fn.
+  last known socket-path and capabilities.  rt/connect! publishes
+  [:rt :status] :connected on success, which fires the register-rt! watcher
+  → transition-up! → restore-fn.
 
   bar-beats defaults to the value stored by register-rt!, then rt/*bar-beats*.
 
@@ -338,7 +341,6 @@
                 (if socket-path
                   (try
                     (rt/connect! socket-path capabilities)
-                    (runtime/set! [:kairos :status] :connected)
                     (catch Exception e
                       (log "rt recovery connect failed: " (.getMessage e))))
                   (log "rt recovery: no stored socket-path — cannot reconnect"))))
