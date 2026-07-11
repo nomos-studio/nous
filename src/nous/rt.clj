@@ -468,3 +468,13 @@
     (Thread/sleep 100)
     (start-process! binary socket-path capabilities
                     :args args :retry retry :wait-ms wait-ms)))
+
+(defn connection-opts
+  "Return the socket-path and capabilities for the current or most recent connection.
+  Returns {:socket-path \"...\" :capabilities {...}}.
+  Used by nous.supervisor/schedule-recovery! to reconnect without being told the path again."
+  []
+  (let [{:keys [socket-path capabilities last-start-opts]} @state]
+    {:socket-path  (or socket-path (:socket-path last-start-opts))
+     :capabilities (or (when (seq capabilities) capabilities)
+                       (:capabilities last-start-opts) {})}))

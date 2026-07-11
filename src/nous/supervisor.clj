@@ -14,8 +14,9 @@
 
   ## Lifecycle events
 
-    :up            — service transitioned from :down/:unknown to :up
-    :down          — service transitioned from :up/:unknown to :down
+    :up             — service transitioned from :down/:unknown/:stale to :up
+    :down           — service transitioned from :up/:unknown to :down
+    :stale          — RT backend tick silence exceeded threshold (connection open but hung)
     :restore-failed — restore-fn threw after a recovery
 
   ## Quick start
@@ -47,9 +48,9 @@
   (:require [nous.loop    :as loop-ns]
             [nous.core    :as core]
             [nous.kairos  :as kairos]
+            [nous.rt      :as rt]
             [nous.runtime :as runtime]
-            [nous.sc      :as sc]
-))
+            [nous.sc      :as sc]))
 
 ;; ---------------------------------------------------------------------------
 ;; Event bus
@@ -91,14 +92,22 @@
 ;; Service registry
 ;; ---------------------------------------------------------------------------
 
+;; Key returned by rt/on-tick! for the RT tick-heartbeat tracker.
+;; nil means no handler registered yet.
+(defonce ^:private rt-tick-key (atom nil))
+
 (defonce services
   ;; Shape: {service-name {:check-fn :restart-fn :restore-fn}}
   (atom {}))
 
 (defonce service-state
-  ;; Shape: {service-name {:status :up/:down/:unknown
+  ;; Shape: {service-name {:status :up/:down/:unknown/:stale
   ;;                       :last-check-ms 0
-  ;;                       :consecutive-failures 0}}
+  ;;                       :consecutive-failures 0
+  ;;                       ;; RT services also carry:
+  ;;                       :last-tick-ns nil          ; nanoTime of last tick received
+  ;;                       :stale-threshold-ns nil    ; silence before marking :stale
+  ;;                       :resume-bar-beats nil}}    ; bar granularity for reconnect
   (atom {}))
 
 (defn register!
@@ -132,10 +141,11 @@
   (get-in @service-state [service-name :status] :unknown))
 
 (defn any-down?
-  "Return truthy if any of the named services are currently :down.
+  "Return truthy if any of the named services are :down or :stale.
+  :stale means the RT backend has gone quiet (ticks stopped) without crashing.
   Used by the deflive-loop :pause-on-down machinery."
   [service-names]
-  (some #(= :down (service-status %)) service-names))
+  (some #(#{:down :stale} (service-status %)) service-names))
 
 (defn all-statuses
   "Return a map of service-name → status for all registered services."
@@ -185,6 +195,21 @@
   (emit! service-name :down {:service service-name :at now-ms})
   (log (name service-name) " DOWN"))
 
+(defn- check-stale-ticks!
+  "Mark any :up service as :stale when its last-tick-ns is older than stale-threshold-ns.
+  Called from the watchdog loop.  Does not close the connection — the native heartbeat
+  timeout (BEAM side) handles that.  :stale causes live loops to pause."
+  []
+  (doseq [[sname st] @service-state]
+    (let [{:keys [status last-tick-ns stale-threshold-ns]} st]
+      (when (and (= :up status) last-tick-ns stale-threshold-ns)
+        (let [age-ns (- (System/nanoTime) last-tick-ns)]
+          (when (> age-ns stale-threshold-ns)
+            (log (name sname) " tick silence " (long (/ age-ns 1000000)) "ms — :stale")
+            (swap! service-state assoc-in [sname :status] :stale)
+            (emit! sname :stale {:service sname :at (System/currentTimeMillis)
+                                 :silence-ms (long (/ age-ns 1000000))})))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Convenience registrations for built-in services
 ;; ---------------------------------------------------------------------------
@@ -221,53 +246,116 @@
             (try-restart! :sc rfn))
           nil)))))
 
-(defn register-kairos!
-  "Register the kairos audio engine as a supervised service.
+(defn register-rt!
+  "Register the nomos-rt backend (aion or kairos) as a supervised service.
+
+  There is always at most one nomos-rt backend active at a time.  This single
+  registration covers both aion and kairos — which is running is described by
+  capabilities, not the service name.
 
   Reactive: watches [:kairos :status] in the runtime tree — no poll thread.
-  kairos.clj publishes :connected / :disconnected / :starting / :error on every
-  connection state change.
-
-  On :connected   — transitions :kairos to :up, calls restore-fn if supplied.
-                    Use restore-fn to re-load the plugin graph after a restart.
-  On :disconnected/:error — transitions :kairos to :down, calls restart-fn
-                    (default: kairos/restart-kairos! using stored start opts).
-  On :starting    — no transition; intermediate state during process launch.
+  Tick-silence aware: registers an on-tick! handler tracking the last received
+  clock tick.  If tick silence exceeds stale-threshold-ns the service is marked
+  :stale and live loops with {:pause-on-down [:rt]} pause at their next sleep
+  boundary.  Reconnect is NOT triggered by stale detection — the BEAM heartbeat
+  timeout kills and restarts the native process, which then signals recovery
+  via jinterface → schedule-recovery! :rt.
 
   Options:
-    :restart-fn  — override the restart behaviour.  Useful when kairos is
-                   managed externally and restart-kairos! is not appropriate.
-    :restore-fn  — called after recovery to reload the last plugin graph.
+    :restore-fn          — called after recovery to reload plugin graph etc.
+    :stale-threshold-ns  — tick silence in nanoseconds before :stale
+                           (default 10000000000 = 10 s)
+    :resume-bar-beats    — bar length in beats for bar-aligned reconnect
+                           (default rt/*bar-beats*)
 
   Example:
-    ;; Simple: auto-restart using stored start opts
-    (supervisor/register-kairos!)
-
-    ;; With graph restore on recovery
-    (supervisor/register-kairos!
+    (supervisor/register-rt!)
+    ;; or with graph restore:
+    (supervisor/register-rt!
       :restore-fn #(kairos/send-graph-load! @my-graph-atom))"
-  [& {:keys [restart-fn restore-fn]}]
-  (swap! service-state assoc :kairos {:status :unknown :last-check-ms 0 :consecutive-failures 0})
-  (runtime/unwatch! ::kairos-status-watcher)
-  (runtime/watch! [:kairos :status] ::kairos-status-watcher
-    (fn [_path _old new-status]
-      (let [now-ms (System/currentTimeMillis)
-            prev   (get-in @service-state [:kairos :status])
-            rfn    (or restart-fn kairos/restart-kairos!)]
-        (case new-status
-          :connected
-          (when (not= :up prev)
-            (transition-up! :kairos restore-fn now-ms {}))
-          (:disconnected :error)
-          (when (not= :down prev)
-            (transition-down! :kairos now-ms)
-            (try-restart! :kairos rfn))
-          nil)))))
+  [& {:keys [restore-fn stale-threshold-ns resume-bar-beats]}]
+  (let [threshold (or stale-threshold-ns 10000000000)]
+    ;; Remove any existing tick-tracking handler before re-registering.
+    (when-let [k @rt-tick-key]
+      (rt/off-tick! k)
+      (reset! rt-tick-key nil))
+    ;; Initialise service-state with tick-tracking fields.
+    (swap! service-state assoc :rt
+           {:status               :unknown
+            :last-check-ms        0
+            :consecutive-failures 0
+            :last-tick-ns         nil
+            :stale-threshold-ns   threshold
+            :resume-bar-beats     (or resume-bar-beats rt/*bar-beats*)})
+    ;; Track the last tick wall time so check-stale-ticks! can detect silence.
+    (reset! rt-tick-key
+            (rt/on-tick! (fn [_]
+                           (swap! service-state assoc-in [:rt :last-tick-ns]
+                                  (System/nanoTime)))))
+    ;; React to BEAM's [:kairos :status] transitions.
+    ;; :connected   → :up (also handles :stale → :up after recovery)
+    ;; :disconnected/:error/:stopped → :down
+    (runtime/unwatch! ::rt-status-watcher)
+    (runtime/watch! [:kairos :status] ::rt-status-watcher
+      (fn [_path _old new-status]
+        (let [now-ms (System/currentTimeMillis)
+              prev   (get-in @service-state [:rt :status])]
+          (case new-status
+            :connected
+            (when (not= :up prev)
+              (transition-up! :rt restore-fn now-ms {}))
+            (:disconnected :error :stopped)
+            (when (not= :down prev)
+              (transition-down! :rt now-ms))
+            nil))))
+    :rt))
+
+(defn schedule-recovery!
+  "Called from jinterface when BEAM notifies that the nomos-rt backend has restarted.
+  Waits for the next musically appropriate bar boundary, then reconnects using the
+  last known socket-path and capabilities.  On success, sets [:kairos :status]
+  :connected so the register-rt! watcher transitions the service to :up and calls
+  restore-fn.
+
+  bar-beats defaults to the value stored by register-rt!, then rt/*bar-beats*.
+
+  Always returns immediately — the wait + connect runs on a daemon thread."
+  ([service-name] (schedule-recovery! service-name nil))
+  ([service-name bar-beats]
+   (let [bb     (or bar-beats
+                    (get-in @service-state [service-name :resume-bar-beats])
+                    rt/*bar-beats*)
+         now    (rt/estimated-beat)
+         target (* (Math/ceil (/ (+ now 1.0) (double bb))) (double bb))]
+     (doto (Thread.
+            (fn []
+              (loop []
+                (when (< (rt/estimated-beat) target)
+                  (Thread/sleep 20)
+                  (recur)))
+              (rt/disconnect!)
+              (let [{:keys [socket-path capabilities]} (rt/connection-opts)]
+                (if socket-path
+                  (try
+                    (rt/connect! socket-path capabilities)
+                    (runtime/set! [:kairos :status] :connected)
+                    (catch Exception e
+                      (log "rt recovery connect failed: " (.getMessage e))))
+                  (log "rt recovery: no stored socket-path — cannot reconnect"))))
+            "nous-supervisor-rt-recovery")
+       (.setDaemon true)
+       (.start)))))
+
+(defn register-kairos!
+  "Deprecated. Use register-rt! for unified nomos-rt backend supervision.
+  The :restart-fn option is ignored — BEAM owns the native process lifecycle."
+  [& {:keys [restore-fn]}]
+  (register-rt! :restore-fn restore-fn))
 
 (defn register-sidecar!
-  "Deprecated. Delegates to register-kairos! — the sidecar is retired."
+  "Deprecated. Delegates to register-rt! — the sidecar is retired."
   []
-  (register-kairos!))
+  (register-rt!))
 
 (defn- check-service! [service-name]
   (when-let [{:keys [check-fn restart-fn restore-fn]} (get @services service-name)]
@@ -367,6 +455,7 @@
                        (try
                          (doseq [sname (keys @services)]
                            (check-service! sname))
+                         (check-stale-ticks!)
                          (when monitor-loops?
                            (check-loops!))
                          (catch Throwable e

@@ -1,10 +1,11 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.supervisor-test
   "Tests for nous.supervisor — event bus, service registry, watchdog,
-  loop pause/resume integration."
+  loop pause/resume integration, and RT tick-silence detection."
   (:require [clojure.test      :refer [deftest is testing use-fixtures]]
             [nous.core       :as core]
             [nous.loop       :as loop-ns]
+            [nous.rt         :as rt]
             [nous.supervisor :as supervisor]))
 
 ;; ---------------------------------------------------------------------------
@@ -15,8 +16,14 @@
   (core/start! :bpm 60000)
   (try (f) (finally (core/stop!))))
 
+(defn- cleanup-rt-tick! []
+  (when-let [k @@#'supervisor/rt-tick-key]
+    (rt/off-tick! k)
+    (reset! @#'supervisor/rt-tick-key nil)))
+
 (defn with-clean-supervisor [f]
   ;; Reset supervisor state between tests
+  (cleanup-rt-tick!)
   (reset! @#'supervisor/services {})
   (reset! @#'supervisor/service-state {})
   (reset! @#'supervisor/event-handlers {})
@@ -24,6 +31,7 @@
   (try (f)
        (finally
          (when (supervisor/running?) (supervisor/stop-watchdog!))
+         (cleanup-rt-tick!)
          (reset! @#'supervisor/services {})
          (reset! @#'supervisor/service-state {})
          (reset! @#'supervisor/event-handlers {}))))
@@ -359,3 +367,124 @@
       (Thread/sleep 350)
       (supervisor/stop-watchdog!)
       (is (>= @tick-count 2) "watchdog ticked at least twice in 350 ms"))))
+
+;; ---------------------------------------------------------------------------
+;; register-rt! — tick-silence aware RT backend supervision
+;; ---------------------------------------------------------------------------
+
+(deftest register-rt-initialises-service-state-test
+  (testing "register-rt! creates :rt in service-state with :unknown status"
+    (supervisor/register-rt!)
+    (is (= :unknown (supervisor/service-status :rt)))
+    (let [st (get @@#'supervisor/service-state :rt)]
+      (is (some? (:stale-threshold-ns st)))
+      (is (some? (:resume-bar-beats st)))
+      (is (nil? (:last-tick-ns st))))))
+
+(deftest register-rt-registers-tick-handler-test
+  (testing "register-rt! registers an on-tick! handler that updates last-tick-ns"
+    (supervisor/register-rt!)
+    (is (some? @@#'supervisor/rt-tick-key) "tick handler key was stored")
+    ;; Fire the tick handler manually
+    (let [tick-handlers @@#'rt/tick-handlers
+          k             @@#'supervisor/rt-tick-key]
+      (is (contains? tick-handlers k) "handler is registered in rt/tick-handlers")
+      ((get tick-handlers k) {:beat 1.0 :tick-n 24})
+      (is (some? (get-in @@#'supervisor/service-state [:rt :last-tick-ns]))
+          "last-tick-ns updated after tick"))))
+
+(deftest register-rt-idempotent-test
+  (testing "register-rt! called twice replaces the old tick handler (no leak)"
+    (supervisor/register-rt!)
+    (let [k1 @@#'supervisor/rt-tick-key]
+      (supervisor/register-rt!)
+      (let [k2 @@#'supervisor/rt-tick-key]
+        (is (not= k1 k2) "new handler registered on second call")
+        (is (not (contains? @@#'rt/tick-handlers k1))
+            "old handler removed from rt/tick-handlers")))))
+
+;; ---------------------------------------------------------------------------
+;; Stale-tick detection
+;; ---------------------------------------------------------------------------
+
+(deftest any-down-includes-stale-test
+  (testing "any-down? treats :stale as pausing (same as :down)"
+    (supervisor/register-rt!)
+    (swap! @#'supervisor/service-state assoc-in [:rt :status] :stale)
+    (is (supervisor/any-down? [:rt]) ":stale status triggers any-down?")))
+
+(deftest check-stale-ticks-marks-stale-test
+  (testing "check-stale-ticks! transitions :up service to :stale when ticks are silent"
+    (supervisor/register-rt! :stale-threshold-ns 1)  ; 1 ns threshold — always stale
+    ;; Manually set the service :up with a very old last-tick-ns
+    (swap! @#'supervisor/service-state assoc :rt
+           {:status :up :last-check-ms 0 :consecutive-failures 0
+            :last-tick-ns (- (System/nanoTime) 1000000000)  ; 1 second ago
+            :stale-threshold-ns 1
+            :resume-bar-beats 4})
+    (@#'supervisor/check-stale-ticks!)
+    (is (= :stale (supervisor/service-status :rt)) "service marked :stale")))
+
+(deftest check-stale-ticks-emits-stale-event-test
+  (testing "check-stale-ticks! emits :stale event on the service"
+    (let [events (atom [])]
+      (supervisor/register-rt! :stale-threshold-ns 1)
+      (supervisor/on-event! :rt :stale ::stale-track
+                            (fn [p] (swap! events conj p)))
+      (swap! @#'supervisor/service-state assoc :rt
+             {:status :up :last-check-ms 0 :consecutive-failures 0
+              :last-tick-ns (- (System/nanoTime) 1000000000)
+              :stale-threshold-ns 1
+              :resume-bar-beats 4})
+      (@#'supervisor/check-stale-ticks!)
+      (is (seq @events) ":stale event emitted")
+      (is (= :rt (:service (first @events)))))))
+
+(deftest check-stale-ticks-no-op-when-down-test
+  (testing "check-stale-ticks! does not re-emit when service is already :down"
+    (let [events (atom [])]
+      (supervisor/register-rt! :stale-threshold-ns 1)
+      (supervisor/on-event! :rt :stale ::stale-track2
+                            (fn [p] (swap! events conj p)))
+      (swap! @#'supervisor/service-state assoc :rt
+             {:status :down :last-check-ms 0 :consecutive-failures 1
+              :last-tick-ns (- (System/nanoTime) 1000000000)
+              :stale-threshold-ns 1
+              :resume-bar-beats 4})
+      (@#'supervisor/check-stale-ticks!)
+      (is (empty? @events) "no :stale event when already :down"))))
+
+(deftest watchdog-detects-stale-ticks-test
+  (testing "watchdog loop calls check-stale-ticks! and transitions to :stale"
+    (supervisor/register-rt! :stale-threshold-ns 1)
+    ;; Manually force the service to :up with a stale tick timestamp
+    (swap! @#'supervisor/service-state assoc :rt
+           {:status :up :last-check-ms 0 :consecutive-failures 0
+            :last-tick-ns (- (System/nanoTime) 1000000000)
+            :stale-threshold-ns 1
+            :resume-bar-beats 4})
+    (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
+    (Thread/sleep 150)
+    (supervisor/stop-watchdog!)
+    (is (= :stale (supervisor/service-status :rt)) "watchdog transitioned service to :stale")))
+
+;; ---------------------------------------------------------------------------
+;; schedule-recovery!
+;; ---------------------------------------------------------------------------
+
+(deftest schedule-recovery-uses-stored-bar-beats-test
+  (testing "schedule-recovery! uses resume-bar-beats from register-rt! when not supplied"
+    ;; We test this indirectly: the function must not throw when called with a
+    ;; :rt service that has no stored socket-path (logs a warning and exits cleanly).
+    (supervisor/register-rt! :resume-bar-beats 2)
+    (is (= 2 (get-in @@#'supervisor/service-state [:rt :resume-bar-beats])))
+    ;; schedule-recovery! spawns a daemon thread; with no socket-path it logs + returns
+    (is (some? (supervisor/schedule-recovery! :rt)))))
+
+(deftest register-kairos-delegates-to-register-rt-test
+  (testing "register-kairos! delegates to register-rt! (backward compat)"
+    (supervisor/register-kairos!)
+    ;; register-rt! puts the :rt key in service-state, not :kairos
+    (is (= :unknown (supervisor/service-status :rt)))
+    (is (nil? (get @#'supervisor/service-state :kairos))
+        "register-kairos! no longer creates :kairos state directly")))

@@ -17,8 +17,8 @@
     %{op: :service_down, service: :sc}      — ScSynth Port exited; nous marks SC :stopped
     %{op: :service_down, service: :aion}    — aion Port exited; nous calls aion/stop!
     %{op: :service_down, service: :kairos}  — kairos Port exited; nous calls kairos/disconnect!
-    %{op: :aion_reconnect}                  — aion restarted; nous reconnects at next bar
-    %{op: :kairos_reconnect}                — kairos restarted; nous reconnects at next bar
+    %{op: :aion_reconnect}                  — aion restarted; nous.supervisor schedules reconnect at next bar
+    %{op: :kairos_reconnect}                — kairos restarted; nous.supervisor schedules reconnect at next bar
 
   nous → BEAM (:nous_port registered name):
     %{op: :ctrl_write_echo, path: [...atoms...], value: binary}
@@ -29,6 +29,7 @@
             [nous.beam-mount    :as bm]
             [nous.kairos        :as kairos]
             [nous.rt            :as rt]
+            [nous.supervisor    :as supervisor]
             [nous.kairos-voice  :as kairos-voice]
             [nous.m21           :as m21]
             [nous.notation      :as notation]
@@ -114,10 +115,10 @@
           nil)
 
         :aion_reconnect
-        (rt/connect-at-next-bar!)
+        (supervisor/schedule-recovery! :rt)
 
         :kairos_reconnect
-        (rt/connect-at-next-bar!)
+        (supervisor/schedule-recovery! :rt)
 
         :corpus_query
         (let [query (:query msg)]
