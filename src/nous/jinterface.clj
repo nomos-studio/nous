@@ -16,7 +16,9 @@
     %{op: :ctrl_write, path: [...atoms...], value: binary}
     %{op: :service_down, service: :sc}      — ScSynth Port exited; nous marks SC :stopped
     %{op: :service_down, service: :aion}    — aion Port exited; nous calls aion/stop!
+    %{op: :service_down, service: :kairos}  — kairos Port exited; nous calls kairos/disconnect!
     %{op: :aion_reconnect}                  — aion restarted; nous reconnects at next bar
+    %{op: :kairos_reconnect}                — kairos restarted; nous reconnects at next bar
 
   nous → BEAM (:nous_port registered name):
     %{op: :ctrl_write_echo, path: [...atoms...], value: binary}
@@ -26,6 +28,7 @@
             [clojure.data.json  :as json]
             [nous.aion          :as aion]
             [nous.beam-mount    :as bm]
+            [nous.kairos        :as kairos]
             [nous.kairos-voice  :as kairos-voice]
             [nous.m21           :as m21]
             [nous.notation      :as notation]
@@ -102,7 +105,8 @@
         :service_down
         (case (:service msg)
           :sc     (runtime/set! [:sc :status] :stopped)
-          :kairos (runtime/set! [:kairos :status] :stopped)
+          :kairos (do (kairos/disconnect!)
+                      (runtime/set! [:kairos :status] :stopped))
           :m21    (do (m21/disconnect!)
                       (runtime/set! [:m21 :status] :stopped))
           :aion   (do (aion/stop!)
@@ -111,6 +115,9 @@
 
         :aion_reconnect
         (aion/connect-at-next-bar!)
+
+        :kairos_reconnect
+        (kairos/connect-at-next-bar!)
 
         :corpus_query
         (let [query (:query msg)]

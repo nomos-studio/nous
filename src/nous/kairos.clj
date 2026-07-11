@@ -249,6 +249,37 @@
     (.start t)))
 
 ;; ---------------------------------------------------------------------------
+;; Beat tracking — updated via the tick handler system.
+;; When kairos is down, estimated-beat extrapolates using BPM + wall time
+;; so connect-at-next-bar! can compute a bar boundary without a live connection.
+;; ---------------------------------------------------------------------------
+
+(defonce ^:private beat-state
+  (atom {:beat 0.0 :bpm 120.0 :wall-ns (System/nanoTime)}))
+
+(def ^:private _beat-tracker
+  (on-tick! (fn [{:keys [beat]}]
+              (when (number? beat)
+                (let [now  (System/nanoTime)
+                      prev @beat-state
+                      dt-s (/ (- now (:wall-ns prev)) 1.0e9)]
+                  (when (> dt-s 0.01)
+                    (let [bpm (-> (/ (- beat (:beat prev)) dt-s) (* 60.0)
+                                  (max 20.0) (min 400.0))]
+                      (reset! beat-state {:beat beat :bpm bpm :wall-ns now}))))))))
+
+(defn estimated-beat
+  "Return the estimated current beat, extrapolating from the last tick using BPM and wall time."
+  []
+  (let [{:keys [beat bpm wall-ns]} @beat-state
+        elapsed-s (/ (- (System/nanoTime) wall-ns) 1.0e9)]
+    (+ beat (* bpm (/ elapsed-s 60.0)))))
+
+(def ^:dynamic *bar-beats*
+  "Bar length in beats for connect-at-next-bar! (default 4)."
+  4)
+
+;; ---------------------------------------------------------------------------
 ;; Connection management
 ;; ---------------------------------------------------------------------------
 
@@ -301,6 +332,29 @@
   (runtime/set! [:kairos :status] :disconnected)
   (println "[nous.kairos] disconnected")
   nil)
+
+(defn connect-at-next-bar!
+  "Reconnect to kairos at the next bar boundary.  bar-beats defaults to *bar-beats*.
+  Spawns a daemon thread and returns immediately."
+  ([] (connect-at-next-bar! *bar-beats*))
+  ([bar-beats]
+   (let [now    (estimated-beat)
+         target (* (Math/ceil (/ (+ now 1.0) (double bar-beats)))
+                   (double bar-beats))]
+     (doto (Thread.
+            (fn []
+              (loop []
+                (when (< (estimated-beat) target)
+                  (Thread/sleep 20)
+                  (recur)))
+              (disconnect!)
+              (try (connect!)
+                   (catch Exception e
+                     (binding [*out* *err*]
+                       (println (str "[nous.kairos] reconnect failed: " (.getMessage e)))))))
+            "nous-kairos-reconnect")
+       (.setDaemon true)
+       (.start)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Process management
