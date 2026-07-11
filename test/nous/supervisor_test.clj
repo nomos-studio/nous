@@ -419,9 +419,10 @@
     ;; Manually set the service :up with a very old last-tick-ns
     (swap! @#'supervisor/service-state assoc :rt
            {:status :up :last-check-ms 0 :consecutive-failures 0
-            :last-tick-ns (- (System/nanoTime) 1000000000)  ; 1 second ago
+            :last-tick-ns (- (System/nanoTime) 1000000000)
             :stale-threshold-ns 1
-            :resume-bar-beats 4})
+            :resume-bar-beats 4
+            :restore-fn nil})
     (@#'supervisor/check-stale-ticks!)
     (is (= :stale (supervisor/service-status :rt)) "service marked :stale")))
 
@@ -435,7 +436,8 @@
              {:status :up :last-check-ms 0 :consecutive-failures 0
               :last-tick-ns (- (System/nanoTime) 1000000000)
               :stale-threshold-ns 1
-              :resume-bar-beats 4})
+              :resume-bar-beats 4
+              :restore-fn nil})
       (@#'supervisor/check-stale-ticks!)
       (is (seq @events) ":stale event emitted")
       (is (= :rt (:service (first @events)))))))
@@ -450,7 +452,8 @@
              {:status :down :last-check-ms 0 :consecutive-failures 1
               :last-tick-ns (- (System/nanoTime) 1000000000)
               :stale-threshold-ns 1
-              :resume-bar-beats 4})
+              :resume-bar-beats 4
+              :restore-fn nil})
       (@#'supervisor/check-stale-ticks!)
       (is (empty? @events) "no :stale event when already :down"))))
 
@@ -462,11 +465,96 @@
            {:status :up :last-check-ms 0 :consecutive-failures 0
             :last-tick-ns (- (System/nanoTime) 1000000000)
             :stale-threshold-ns 1
-            :resume-bar-beats 4})
+            :resume-bar-beats 4
+            :restore-fn nil})
     (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
     (Thread/sleep 150)
     (supervisor/stop-watchdog!)
     (is (= :stale (supervisor/service-status :rt)) "watchdog transitioned service to :stale")))
+
+;; ---------------------------------------------------------------------------
+;; Stale self-recovery (ticks resume without a crash)
+;; ---------------------------------------------------------------------------
+
+(deftest check-stale-ticks-self-recovery-transitions-up-test
+  (testing "check-stale-ticks! transitions :stale → :up when ticks resume within threshold"
+    (let [restored (atom false)]
+      (supervisor/register-rt! :stale-threshold-ns 1000000000
+                                :restore-fn #(reset! restored true))
+      ;; Service is stale but last-tick-ns is fresh (age << threshold)
+      (swap! @#'supervisor/service-state assoc :rt
+             {:status              :stale
+              :last-check-ms       0
+              :consecutive-failures 0
+              :last-tick-ns        (System/nanoTime)
+              :stale-threshold-ns  1000000000
+              :resume-bar-beats    4
+              :restore-fn          #(reset! restored true)})
+      (@#'supervisor/check-stale-ticks!)
+      (is (= :up (supervisor/service-status :rt)) "transitioned :stale → :up on self-recovery")
+      (is (true? @restored) "restore-fn called on self-recovery"))))
+
+(deftest check-stale-ticks-self-recovery-emits-up-test
+  (testing "check-stale-ticks! emits :up event on self-recovery with :self-recovered marker"
+    (let [up-events (atom [])]
+      (supervisor/register-rt!)
+      (supervisor/on-event! :rt :up ::self-recovery-track
+                            (fn [p] (swap! up-events conj p)))
+      (swap! @#'supervisor/service-state assoc :rt
+             {:status              :stale
+              :last-check-ms       0
+              :consecutive-failures 0
+              :last-tick-ns        (System/nanoTime)
+              :stale-threshold-ns  1000000000
+              :resume-bar-beats    4
+              :restore-fn          nil})
+      (@#'supervisor/check-stale-ticks!)
+      (is (seq @up-events) ":up event emitted on self-recovery")
+      (is (:self-recovered (first @up-events)) "event carries :self-recovered marker"))))
+
+(deftest check-stale-ticks-no-up-from-stale-when-ticks-old-test
+  (testing "check-stale-ticks! does not recover from :stale when ticks are still silent"
+    (supervisor/register-rt! :stale-threshold-ns 1)
+    (swap! @#'supervisor/service-state assoc :rt
+           {:status              :stale
+            :last-check-ms       0
+            :consecutive-failures 0
+            :last-tick-ns        (- (System/nanoTime) 1000000000)  ; 1 second old > 1 ns threshold
+            :stale-threshold-ns  1
+            :resume-bar-beats    4
+            :restore-fn          nil})
+    (@#'supervisor/check-stale-ticks!)
+    (is (= :stale (supervisor/service-status :rt)) "still :stale when ticks remain old")))
+
+(deftest any-down-clears-after-self-recovery-test
+  (testing "any-down? returns nil after self-recovery transitions :stale → :up"
+    (supervisor/register-rt!)
+    (swap! @#'supervisor/service-state assoc :rt
+           {:status              :stale
+            :last-check-ms       0
+            :consecutive-failures 0
+            :last-tick-ns        (System/nanoTime)
+            :stale-threshold-ns  1000000000
+            :resume-bar-beats    4
+            :restore-fn          nil})
+    (@#'supervisor/check-stale-ticks!)
+    (is (nil? (supervisor/any-down? [:rt])) "any-down? is nil after self-recovery")))
+
+(deftest watchdog-self-recovery-test
+  (testing "watchdog transitions :stale → :up when ticks resume"
+    (supervisor/register-rt! :stale-threshold-ns 1000000000)
+    (swap! @#'supervisor/service-state assoc :rt
+           {:status              :stale
+            :last-check-ms       0
+            :consecutive-failures 0
+            :last-tick-ns        (System/nanoTime)
+            :stale-threshold-ns  1000000000
+            :resume-bar-beats    4
+            :restore-fn          nil})
+    (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
+    (Thread/sleep 150)
+    (supervisor/stop-watchdog!)
+    (is (= :up (supervisor/service-status :rt)) "watchdog detected self-recovery")))
 
 ;; ---------------------------------------------------------------------------
 ;; schedule-recovery!

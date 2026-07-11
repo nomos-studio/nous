@@ -107,7 +107,8 @@
   ;;                       ;; RT services also carry:
   ;;                       :last-tick-ns nil          ; nanoTime of last tick received
   ;;                       :stale-threshold-ns nil    ; silence before marking :stale
-  ;;                       :resume-bar-beats nil}}    ; bar granularity for reconnect
+  ;;                       :resume-bar-beats nil      ; bar granularity for reconnect
+  ;;                       :restore-fn nil}}          ; called on recovery (crash or self)
   (atom {}))
 
 (defn register!
@@ -196,19 +197,28 @@
   (log (name service-name) " DOWN"))
 
 (defn- check-stale-ticks!
-  "Mark any :up service as :stale when its last-tick-ns is older than stale-threshold-ns.
-  Called from the watchdog loop.  Does not close the connection — the native heartbeat
-  timeout (BEAM side) handles that.  :stale causes live loops to pause."
+  "Called from the watchdog loop to detect tick silence and self-recovery.
+
+  :up + silence > threshold  → transition to :stale; loops pause.
+  :stale + fresh ticks       → transition back to :up; calls restore-fn.
+                               Handles self-recovery when the backend resumes
+                               ticking without crashing (BEAM never fires)."
   []
   (doseq [[sname st] @service-state]
-    (let [{:keys [status last-tick-ns stale-threshold-ns]} st]
-      (when (and (= :up status) last-tick-ns stale-threshold-ns)
-        (let [age-ns (- (System/nanoTime) last-tick-ns)]
-          (when (> age-ns stale-threshold-ns)
-            (log (name sname) " tick silence " (long (/ age-ns 1000000)) "ms — :stale")
-            (swap! service-state assoc-in [sname :status] :stale)
-            (emit! sname :stale {:service sname :at (System/currentTimeMillis)
-                                 :silence-ms (long (/ age-ns 1000000))})))))))
+    (let [{:keys [status last-tick-ns stale-threshold-ns restore-fn]} st]
+      (when (and last-tick-ns stale-threshold-ns)
+        (let [age-ns (- (System/nanoTime) last-tick-ns)
+              now-ms (System/currentTimeMillis)]
+          (cond
+            (and (= :up status) (> age-ns stale-threshold-ns))
+            (do (log (name sname) " tick silence " (long (/ age-ns 1000000)) "ms — :stale")
+                (swap! service-state assoc-in [sname :status] :stale)
+                (emit! sname :stale {:service sname :at now-ms
+                                     :silence-ms (long (/ age-ns 1000000))}))
+
+            (and (= :stale status) (<= age-ns stale-threshold-ns))
+            (do (log (name sname) " ticks resumed — recovering from :stale")
+                (transition-up! sname restore-fn now-ms {:self-recovered true}))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Convenience registrations for built-in services
@@ -283,13 +293,15 @@
       (rt/off-tick! k)
       (reset! rt-tick-key nil))
     ;; Initialise service-state with tick-tracking fields.
+    ;; restore-fn is stored here so check-stale-ticks! can call it on self-recovery.
     (swap! service-state assoc :rt
            {:status               :unknown
             :last-check-ms        0
             :consecutive-failures 0
             :last-tick-ns         nil
             :stale-threshold-ns   threshold
-            :resume-bar-beats     (or resume-bar-beats rt/*bar-beats*)})
+            :resume-bar-beats     (or resume-bar-beats rt/*bar-beats*)
+            :restore-fn           restore-fn})
     ;; Track the last tick wall time so check-stale-ticks! can detect silence.
     (reset! rt-tick-key
             (rt/on-tick! (fn [_]
