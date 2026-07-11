@@ -352,9 +352,13 @@
               (let [{:keys [socket-path capabilities]} (rt/connection-opts)]
                 (if socket-path
                   (try
-                    (rt/connect! socket-path capabilities)
+                    ;; :retry 20 gives ~9 s of backoff at 500 ms/attempt — enough for
+                    ;; slow CLAP plugin loading after a kairos restart.
+                    (rt/connect! socket-path capabilities :retry 20)
                     (catch Exception e
-                      (log "rt recovery connect failed: " (.getMessage e))))
+                      (log "rt recovery: connect failed after retries — manual restart needed: "
+                           (.getMessage e))
+                      (runtime/set! [:rt :status] :error)))
                   (log "rt recovery: no stored socket-path — cannot reconnect"))))
             "nous-supervisor-rt-recovery")
        (.setDaemon true)

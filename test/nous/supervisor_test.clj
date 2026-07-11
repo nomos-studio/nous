@@ -6,6 +6,7 @@
             [nous.core       :as core]
             [nous.loop       :as loop-ns]
             [nous.rt         :as rt]
+            [nous.runtime    :as runtime]
             [nous.supervisor :as supervisor]))
 
 ;; ---------------------------------------------------------------------------
@@ -576,3 +577,40 @@
     (is (= :unknown (supervisor/service-status :rt)))
     (is (nil? (get @#'supervisor/service-state :kairos))
         "register-kairos! no longer creates :kairos state directly")))
+
+;; ---------------------------------------------------------------------------
+;; schedule-recovery! — retry robustness
+;; ---------------------------------------------------------------------------
+
+(deftest schedule-recovery-passes-retry-20-test
+  (testing "schedule-recovery! passes :retry 20 to rt/connect! for slow-starting backends"
+    (supervisor/register-rt! :resume-bar-beats 4)
+    (let [done       (promise)
+          retry-seen (atom nil)
+          beat-n     (atom 0)]
+      (with-redefs [rt/estimated-beat  (fn [] (if (= 1 (swap! beat-n inc)) 100.0 200.0))
+                    rt/connection-opts (fn [] {:socket-path "/tmp/fake.sock" :capabilities {}})
+                    rt/connect!        (fn [_sp _caps & {:keys [retry]}]
+                                         (reset! retry-seen retry)
+                                         (deliver done :connected)
+                                         true)]
+        (supervisor/schedule-recovery! :rt)
+        (deref done 2000 :timeout))
+      (is (= 20 @retry-seen) "connect! receives :retry 20"))))
+
+(deftest schedule-recovery-sets-error-on-connect-failure-test
+  (testing "schedule-recovery! sets [:rt :status] :error when all connect retries fail"
+    (supervisor/register-rt! :resume-bar-beats 4)
+    (let [done   (promise)
+          beat-n (atom 0)]
+      (with-redefs [rt/estimated-beat  (fn [] (if (= 1 (swap! beat-n inc)) 100.0 200.0))
+                    rt/connection-opts (fn [] {:socket-path "/tmp/fake.sock" :capabilities {}})
+                    rt/connect!        (fn [& _]
+                                         (deliver done :failed)
+                                         (throw (ex-info "connection refused" {})))]
+        (supervisor/schedule-recovery! :rt)
+        (deref done 2000 :timeout))
+      ;; Brief pause for the catch block (deliver + throw + runtime/set! are sequential)
+      (Thread/sleep 50)
+      (is (= :error (runtime/get [:rt :status]))
+          "[:rt :status] set to :error after exhausted retries"))))
