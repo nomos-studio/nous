@@ -100,6 +100,7 @@
             [nous.kairos-voice     :as kairos-voice]
             [nous.nrepl            :as nrepl]
             [nous.theory           :as theory]
+            [nous.tuning           :as tuning]
             [nous.sc-keyboard      :as sc-keyboard]
             [nous.keyboard         :as keyboard]
             [nous.timeline         :as timeline]
@@ -136,6 +137,8 @@
            (println (str "[nrepl] could not start: " (.getMessage e))))))
   ;; Install theory derivation watch (idempotent — replaces on reinstall).
   (theory/install-theory-watch!)
+  ;; Install live tuning + maqam navigation watch (M18; idempotent).
+  (tuning/install-tuning-watch!)
   (println (str "Session ready — BPM " bpm
                 "\n  nREPL on localhost:" nrepl-port " — M-x cider-connect"
                 "\n  (start-kairos! :binary \"/usr/local/bin/kairos\") to connect MIDI output"
@@ -1196,3 +1199,22 @@
 (def current-mode          theory/current-mode)
 (def use-theory!           live/use-theory!)
 (defmacro with-theory [key mode & body] `(live/with-theory ~key ~mode ~@body))
+
+;; ---------------------------------------------------------------------------
+;; Live tuning + maqam navigation (nous.tuning — M18)
+;; ---------------------------------------------------------------------------
+
+(def set-tuning!           tuning/set-tuning!)
+(def load-tuning!          tuning/load-tuning!)
+(def clear-tuning!         tuning/clear-tuning!)
+(def current-tuning        tuning/current-tuning)
+(def register-scale!       tuning/register-scale!)
+(def set-maqam-presets!    tuning/set-maqam-presets!)
+(def maqam-presets         tuning/maqam-presets)
+(def maqam-index           tuning/maqam-index)
+(def maqam-goto!           tuning/maqam-goto!)
+(def maqam-next!           tuning/maqam-next!)
+(def maqam-prev!           tuning/maqam-prev!)
+(def maqam-nav!            tuning/maqam-nav!)
+(def install-tuning-watch! tuning/install-tuning-watch!)
+(def remove-tuning-watch!  tuning/remove-tuning-watch!)
