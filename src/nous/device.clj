@@ -168,7 +168,7 @@
       (ctrl/bind! node-path
                   (cond-> {:type :midi-nrpn :channel channel :nrpn nrpn :bits b :range r}
                     raw (assoc :raw true))
-                  :priority 20))))
+                  :priority 21))))
 
 (defn- register-target-device!
   "Register all CC and NRPN nodes for a :target device."

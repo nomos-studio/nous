@@ -276,43 +276,43 @@
  ;; -------------------------------------------------------------------------
  :midi/nrpn
  [;; Arpeggiator
-  {:nrpn 403 :nrpn-msb 3 :nrpn-lsb 19 :path [:arp :rate]       :range 16384}
-  {:nrpn 404 :nrpn-msb 3 :nrpn-lsb 20 :path [:arp :sync]       :range 2}
-  {:nrpn 405 :nrpn-msb 3 :nrpn-lsb 21 :path [:arp :range]      :range 7}
-  {:nrpn 406 :nrpn-msb 3 :nrpn-lsb 22 :path [:arp :back-forth] :range 2}
-  {:nrpn 407 :nrpn-msb 3 :nrpn-lsb 23 :path [:arp :bf-mode]    :range 2}
-  {:nrpn 408 :nrpn-msb 3 :nrpn-lsb 24 :path [:arp :invert]     :range 2}
-  {:nrpn 409 :nrpn-msb 3 :nrpn-lsb 25 :path [:arp :pattern]    :range 6}
-  {:nrpn 412 :nrpn-msb 3 :nrpn-lsb 28 :path [:arp :gate-len]   :range 16384}
-  {:nrpn 413 :nrpn-msb 3 :nrpn-lsb 29 :path [:arp :clk-div]    :range 21}
+  {:nrpn 403 :nrpn-msb 3 :nrpn-lsb 19 :path [:arp :rate]       :range [0 16384]}
+  {:nrpn 404 :nrpn-msb 3 :nrpn-lsb 20 :path [:arp :sync]       :range [0 1]}
+  {:nrpn 405 :nrpn-msb 3 :nrpn-lsb 21 :path [:arp :range]      :range [0 6]}
+  {:nrpn 406 :nrpn-msb 3 :nrpn-lsb 22 :path [:arp :back-forth] :range [0 1]}
+  {:nrpn 407 :nrpn-msb 3 :nrpn-lsb 23 :path [:arp :bf-mode]    :range [0 1]}
+  {:nrpn 408 :nrpn-msb 3 :nrpn-lsb 24 :path [:arp :invert]     :range [0 1]}
+  {:nrpn 409 :nrpn-msb 3 :nrpn-lsb 25 :path [:arp :pattern]    :range [0 5]}
+  {:nrpn 412 :nrpn-msb 3 :nrpn-lsb 28 :path [:arp :gate-len]   :range [0 16384]}
+  {:nrpn 413 :nrpn-msb 3 :nrpn-lsb 29 :path [:arp :clk-div]    :range [0 20]}
   ;; Glide
-  {:nrpn 417 :nrpn-msb 3 :nrpn-lsb 33 :path [:glide :time]     :range 16384}
-  {:nrpn 418 :nrpn-msb 3 :nrpn-lsb 34 :path [:glide :osc]      :range 3}
-  {:nrpn 419 :nrpn-msb 3 :nrpn-lsb 35 :path [:glide :type]     :range 3}
-  {:nrpn 422 :nrpn-msb 3 :nrpn-lsb 38 :path [:glide :on]       :range 2}
+  {:nrpn 417 :nrpn-msb 3 :nrpn-lsb 33 :path [:glide :time]     :range [0 16384]}
+  {:nrpn 418 :nrpn-msb 3 :nrpn-lsb 34 :path [:glide :osc]      :range [0 2]}
+  {:nrpn 419 :nrpn-msb 3 :nrpn-lsb 35 :path [:glide :type]     :range [0 2]}
+  {:nrpn 422 :nrpn-msb 3 :nrpn-lsb 38 :path [:glide :on]       :range [0 1]}
   ;; LFO 1
-  {:nrpn 423 :nrpn-msb 3 :nrpn-lsb 39 :path [:lfo1 :rate]      :range 16384}
-  {:nrpn 424 :nrpn-msb 3 :nrpn-lsb 40 :path [:lfo1 :range]     :range 3}
-  {:nrpn 425 :nrpn-msb 3 :nrpn-lsb 41 :path [:lfo1 :sync]      :range 2}
-  {:nrpn 426 :nrpn-msb 3 :nrpn-lsb 42 :path [:lfo1 :kb-reset]  :range 2}
-  {:nrpn 427 :nrpn-msb 3 :nrpn-lsb 43 :path [:lfo1 :clk-div]   :range 21}
+  {:nrpn 423 :nrpn-msb 3 :nrpn-lsb 39 :path [:lfo1 :rate]      :range [0 16384]}
+  {:nrpn 424 :nrpn-msb 3 :nrpn-lsb 40 :path [:lfo1 :range]     :range [0 2]}
+  {:nrpn 425 :nrpn-msb 3 :nrpn-lsb 41 :path [:lfo1 :sync]      :range [0 1]}
+  {:nrpn 426 :nrpn-msb 3 :nrpn-lsb 42 :path [:lfo1 :kb-reset]  :range [0 1]}
+  {:nrpn 427 :nrpn-msb 3 :nrpn-lsb 43 :path [:lfo1 :clk-div]   :range [0 20]}
   ;; LFO 2
-  {:nrpn 448 :nrpn-msb 3 :nrpn-lsb 64 :path [:lfo2 :rate]      :range 16384}
-  {:nrpn 449 :nrpn-msb 3 :nrpn-lsb 65 :path [:lfo2 :range]     :range 3}
-  {:nrpn 450 :nrpn-msb 3 :nrpn-lsb 66 :path [:lfo2 :sync]      :range 2}
+  {:nrpn 448 :nrpn-msb 3 :nrpn-lsb 64 :path [:lfo2 :rate]      :range [0 16384]}
+  {:nrpn 449 :nrpn-msb 3 :nrpn-lsb 65 :path [:lfo2 :range]     :range [0 2]}
+  {:nrpn 450 :nrpn-msb 3 :nrpn-lsb 66 :path [:lfo2 :sync]      :range [0 1]}
   ;; Filter
-  {:nrpn 499 :nrpn-msb 3 :nrpn-lsb 115 :path [:filter :cutoff]    :range 16384}
-  {:nrpn 500 :nrpn-msb 3 :nrpn-lsb 116 :path [:filter :resonance] :range 16384}
-  {:nrpn 501 :nrpn-msb 3 :nrpn-lsb 117 :path [:filter :drive]     :range 16384}
-  {:nrpn 502 :nrpn-msb 3 :nrpn-lsb 118 :path [:filter :slope]     :range 4}
-  {:nrpn 503 :nrpn-msb 3 :nrpn-lsb 119 :path [:filter-eg :amount] :range 16384}
+  {:nrpn 499 :nrpn-msb 3 :nrpn-lsb 115 :path [:filter :cutoff]    :range [0 16384]}
+  {:nrpn 500 :nrpn-msb 3 :nrpn-lsb 116 :path [:filter :resonance] :range [0 16384]}
+  {:nrpn 501 :nrpn-msb 3 :nrpn-lsb 117 :path [:filter :drive]     :range [0 16384]}
+  {:nrpn 502 :nrpn-msb 3 :nrpn-lsb 118 :path [:filter :slope]     :range [0 3]}
+  {:nrpn 503 :nrpn-msb 3 :nrpn-lsb 119 :path [:filter-eg :amount] :range [0 16384]}
   ;; Filter EG
-  {:nrpn 505 :nrpn-msb 3 :nrpn-lsb 121 :path [:filter-eg :attack]  :range 16384}
-  {:nrpn 506 :nrpn-msb 3 :nrpn-lsb 122 :path [:filter-eg :decay]   :range 16384}
-  {:nrpn 507 :nrpn-msb 3 :nrpn-lsb 123 :path [:filter-eg :sustain] :range 16384}
-  {:nrpn 508 :nrpn-msb 3 :nrpn-lsb 124 :path [:filter-eg :release] :range 16384}
-  {:nrpn 509 :nrpn-msb 3 :nrpn-lsb 125 :path [:filter-eg :delay]   :range 16384}
-  {:nrpn 510 :nrpn-msb 3 :nrpn-lsb 126 :path [:filter-eg :hold]    :range 16384}]
+  {:nrpn 505 :nrpn-msb 3 :nrpn-lsb 121 :path [:filter-eg :attack]  :range [0 16384]}
+  {:nrpn 506 :nrpn-msb 3 :nrpn-lsb 122 :path [:filter-eg :decay]   :range [0 16384]}
+  {:nrpn 507 :nrpn-msb 3 :nrpn-lsb 123 :path [:filter-eg :sustain] :range [0 16384]}
+  {:nrpn 508 :nrpn-msb 3 :nrpn-lsb 124 :path [:filter-eg :release] :range [0 16384]}
+  {:nrpn 509 :nrpn-msb 3 :nrpn-lsb 125 :path [:filter-eg :delay]   :range [0 16384]}
+  {:nrpn 510 :nrpn-msb 3 :nrpn-lsb 126 :path [:filter-eg :hold]    :range [0 16384]}]
 
  ;; -------------------------------------------------------------------------
  ;; Metadata

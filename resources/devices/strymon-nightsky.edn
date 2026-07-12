@@ -94,7 +94,7 @@
  :midi/expression
  {:cc          7                       ; CC 7 or as configured; verify from MIDI impl
   :range       [0 127]
-  :assignable  true                    ; target parameter is configurable on the pedal}
+  :assignable  true}                   ; target parameter is configurable on the pedal
 
  ;; -------------------------------------------------------------------------
  ;; Notes for nous integration

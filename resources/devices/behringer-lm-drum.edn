@@ -65,13 +65,13 @@
 
    ;; --- Snare / sidestick --------------------------------------------------
    {:note 40 :name "E1"  :voice :snare-drum   :gm-compatible true
-    :note "Snare has 3 sample variations (01/02/03 via button 16 shift); tuned via CC 76"}
+    :description "Snare has 3 sample variations (01/02/03 via button 16 shift); tuned via CC 76"}
    {:note 37 :name "C#1" :voice :sidestick    :gm-compatible true}
    {:note 39 :name "D#1" :voice :claps        :gm-compatible true}
 
    ;; --- Hi-hats ------------------------------------------------------------
    {:note 42 :name "F#1" :voice :closed-hi-hat :gm-compatible true
-    :note "Two sample variants; Random Closed Hat option randomises start point"}
+    :description "Two sample variants; Random Closed Hat option randomises start point"}
    {:note 46 :name "A#1" :voice :open-hi-hat  :gm-compatible true}
 
    ;; --- Toms ---------------------------------------------------------------
@@ -82,13 +82,13 @@
    ;; --- Cymbals ------------------------------------------------------------
    {:note 49 :name "C#2" :voice :crash-cymbal :gm-compatible true}
    {:note 51 :name "D#2" :voice :ride-cymbal  :gm-compatible true
-    :note "Ride has 2 sample variants"}
+    :description "Ride has 2 sample variants"}
 
    ;; --- Percussion ---------------------------------------------------------
    {:note 69 :name "A3"  :voice :cabasa       :gm-compatible true
-    :note "Cabasa has 2 sample variants"}
+    :description "Cabasa has 2 sample variants"}
    {:note 54 :name "F#2" :voice :tambourine   :gm-compatible true
-    :note "Tambourine has 2 sample variants"}
+    :description "Tambourine has 2 sample variants"}
    {:note 63 :name "D#3" :voice :hi-conga     :gm-compatible true}
    {:note 64 :name "E3"  :voice :lo-conga     :gm-compatible true}
    {:note 56 :name "G#2" :voice :cowbell      :gm-compatible true}]}

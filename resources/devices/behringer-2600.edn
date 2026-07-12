@@ -16,7 +16,7 @@
 ;; SysEx: Behringer ID [0x00 0x20 0x32], model [0x00 0x01 0x0B]
 ;; Confidence: High (CC absence confirmed; SysEx pitch-bend cmd confirmed)
 
-{:device/id           :behringer/2600
+{:device/id           :behringer/b-2600
  :device/name         "Behringer 2600"
  :device/aliases      ["Behringer 2600 Grey Meanie" "Behringer 2600 Blue Marvin"]
  :device/manufacturer "Behringer"

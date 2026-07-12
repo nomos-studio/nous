@@ -16,7 +16,7 @@
 ;; Source: MuseKinetics 12Step MIDI Implementation — musekinetics.com
 ;; Confidence: High (LED CC and NRPN from official MIDI implementation doc)
 
-{:device/id           :musekinetics/12step
+{:device/id           :musekinetics/twelve-step
  :device/name         "MuseKinetics 12Step"
  :device/manufacturer "MuseKinetics"
  :device/type         :foot-controller

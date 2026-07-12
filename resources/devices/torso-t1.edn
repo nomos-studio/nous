@@ -91,8 +91,8 @@
         :receives    [:note-on :note-off]       ; T-1 MIDI In is processed by FX tracks
         :sends       [:note-on :note-off :cc]   ; transformed MIDI out on track channel
         :keyboard-layout
-        {:upper-row  [\C# \D# nil \F# \G# \A# nil]   ; black keys
-         :lower-row  [\C  \D  \E  \F  \G  \A  \B]    ; white keys — chromatic octave
+        {:upper-row  ["C#" "D#" nil "F#" "G#" "A#" nil]  ; black keys
+         :lower-row  ["C"  "D"  "E"  "F"  "G"  "A"  "B"] ; white keys — chromatic octave
          :note "In FX track keyboard view the value buttons form a chromatic piano layout.
                 Useful for live note input; scale/root can be set to filter to key."}
         :note "FX tracks monitor MIDI In on all channels. Incoming notes trigger the
@@ -225,7 +225,7 @@
  {:send    {:banks-1-8  {:channel 1 :pc-range [1 128]}
             :banks-9-16 {:channel 2 :pc-range [1 128]}
             :timing     "Issued 1/8th beat before actual pattern change"
-            :default    false  ; Prg.Change Out = Off by default; enable in Config}
+            :default    false}  ; Prg.Change Out = Off by default; enable in Config
   :receive {:note "T-1 can receive PC to change its own patterns (Prg.Change In = Off default)"
             :default false}}
 
