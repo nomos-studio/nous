@@ -193,3 +193,55 @@
   (when running? (reset! running? false))
   (when future   (future-cancel future))
   nil)
+
+;; ---------------------------------------------------------------------------
+;; make-degree-seq — theory-relative step sequencer
+;; ---------------------------------------------------------------------------
+
+(defn make-degree-seq
+  "Build an IStepSequencer from a vector of degree-step maps.
+
+  Each step is a map with:
+    :degree  — 1-indexed scale degree (required); nil or :rest = rest
+    :octave  — octave shift relative to scale root (default 0)
+    :vel     — velocity 0–127 (default 100)
+    :gate    — gate duration in beats (default = beats-per-step × 0.9)
+    :prob    — fire probability 0.0–1.0 (default 1.0)
+
+  Arguments:
+    steps          — vector of step maps
+    beats-per-step — grid step size in beats (e.g. 1/4 for a 16-step bar)
+
+  At each step the sequencer emits a tagged pitch selector
+  {:pitch/degree N :pitch/octave O …} into play!. Resolution against
+  *harmony-ctx* happens at fire time — changing the active scale recolours
+  the next step without restarting the loop.
+
+  Example:
+    (def sq
+      (make-degree-seq
+        [{:degree 1} {:degree 3} {:degree 5 :vel 90} {:degree :rest}
+         {:degree 2} {:degree 4} {:degree 6 :octave 1} {:degree 1 :prob 0.75}]
+        1/4))
+    (deflive-loop :seq {:harmony (scale/scale :C 4 :dorian)}
+      (run-cycle! sq))"
+  [steps beats-per-step]
+  (let [steps (vec steps)
+        cnt   (count steps)
+        pos   (atom 0)]
+    (reify
+      IStepSequencer
+      (next-event [_]
+        (let [i    @pos
+              step (nth steps (mod i cnt))
+              deg  (:degree step)
+              prob (double (:prob step 1.0))]
+          (swap! pos inc)
+          (if (or (nil? deg) (= :rest deg) (> (rand) prob))
+            {:event nil :beats beats-per-step}
+            {:event {:pitch/degree (long deg)
+                     :pitch/octave (long (:octave step 0))
+                     :dur/beats    (or (:gate step) (* beats-per-step 0.9))
+                     :mod/velocity (long (:vel step 100))}
+             :beats beats-per-step})))
+      (seq-cycle-length [_] cnt))))

@@ -10,7 +10,8 @@
             [nomos.maths.phasor :as phasor]
             [nous.pitch :as pitch]
             [nous.scala :as scala]
-            [nous.scale :as scale]))
+            [nous.scale :as scale]
+            [nous.seq   :as sq]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -593,3 +594,149 @@
             (is (integer? (:pitch/midi step)) "midi is an integer")
             (is (number? (:pitch/bend-cents step)) "31-EDO bend added by loop"))))
       (finally (core/stop!)))))
+
+;; ---------------------------------------------------------------------------
+;; resolve-pitch-selectors — tagged pitch selector resolution
+;; ---------------------------------------------------------------------------
+
+(deftest pitch-degree-resolves-via-harmony-ctx-test
+  (testing ":pitch/degree 1 in C major → C4 = MIDI 60"
+    (live/with-harmony (scale/scale :C 4 :major)
+      (let [[step] (capture-play!
+                    #(live/play! {:pitch/degree 1 :dur/beats 1/4}))]
+        (is (= 60 (:pitch/midi step)))
+        (is (nil? (:pitch/degree step)) "selector consumed"))))
+
+  (testing ":pitch/degree 3 in C major → E4 = MIDI 64"
+    (live/with-harmony (scale/scale :C 4 :major)
+      (let [[step] (capture-play!
+                    #(live/play! {:pitch/degree 3 :dur/beats 1/4}))]
+        (is (= 64 (:pitch/midi step))))))
+
+  (testing ":pitch/degree 1 in C dorian → C4 = MIDI 60 (root same)"
+    (live/with-harmony (scale/scale :C 4 :dorian)
+      (let [[step] (capture-play!
+                    #(live/play! {:pitch/degree 3 :dur/beats 1/4}))]
+        ;; C dorian: C D Eb F G A Bb — degree 3 = Eb4 = MIDI 63
+        (is (= 63 (:pitch/midi step))))))
+
+  (testing ":pitch/degree with :pitch/octave 1 shifts up one octave"
+    (live/with-harmony (scale/scale :C 4 :major)
+      (let [[step] (capture-play!
+                    #(live/play! {:pitch/degree 1 :pitch/octave 1 :dur/beats 1/4}))]
+        ;; C major, degree 1, octave +1 → C5 = MIDI 72
+        (is (= 72 (:pitch/midi step)))
+        (is (nil? (:pitch/octave step)) ":pitch/octave consumed"))))
+
+  (testing ":pitch/degree 8 in C major wraps to C5 = MIDI 72"
+    (live/with-harmony (scale/scale :C 4 :major)
+      (let [[step] (capture-play!
+                    #(live/play! {:pitch/degree 8 :dur/beats 1/4}))]
+        (is (= 72 (:pitch/midi step))))))
+
+  (testing ":pitch/degree without *harmony-ctx* throws"
+    (binding [loop-ns/*harmony-ctx* nil]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (capture-play! #(live/play! {:pitch/degree 1 :dur/beats 1/4})))))))
+
+(deftest pitch-pc-resolves-to-midi-test
+  (testing ":pitch/pc :C with :pitch/octave 4 → MIDI 60"
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/pc :C :pitch/octave 4 :dur/beats 1/4}))]
+      (is (= 60 (:pitch/midi step)))
+      (is (nil? (:pitch/pc step)) "selector consumed")))
+
+  (testing ":pitch/pc :G with :pitch/octave 4 → MIDI 67"
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/pc :G :pitch/octave 4 :dur/beats 1/4}))]
+      (is (= 67 (:pitch/midi step)))))
+
+  (testing ":pitch/pc defaults octave to 4"
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/pc :C :dur/beats 1/4}))]
+      (is (= 60 (:pitch/midi step))))))
+
+(deftest pitch-freq-resolves-to-midi-test
+  (testing ":pitch/freq 440.0 → A4 = MIDI 69, no bend"
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/freq 440.0 :dur/beats 1/4}))]
+      (is (= 69 (:pitch/midi step)))
+      (is (nil? (:pitch/bend-cents step)) "exact 12-TET pitch has no bend")))
+
+  (testing ":pitch/freq 493.88 → B4 = MIDI 71, near-zero bend"
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/freq 493.88 :dur/beats 1/4}))]
+      (is (= 71 (:pitch/midi step)))))
+
+  (testing ":pitch/freq between two semitones adds :pitch/bend-cents"
+    ;; ~470 Hz lies between Bb4 (466.16) and B4 (493.88)
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/freq 470.0 :dur/beats 1/4}))]
+      (is (= 70 (:pitch/midi step)))
+      (is (some? (:pitch/bend-cents step)) "fractional Hz adds bend")
+      (is (pos? (:pitch/bend-cents step)) "above Bb4, bend is positive"))))
+
+(deftest pitch-midi-passthrough-test
+  (testing ":pitch/midi passes through resolve-pitch-selectors unchanged"
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/midi 64 :dur/beats 1/4}))]
+      (is (= 64 (:pitch/midi step))))))
+
+;; ---------------------------------------------------------------------------
+;; make-degree-seq integration with play!
+;; ---------------------------------------------------------------------------
+
+(deftest degree-seq-next-event-test
+  (testing "next-event returns tagged pitch event"
+    (let [seq (sq/make-degree-seq [{:degree 1 :vel 90}] 1/4)]
+      (let [{:keys [event beats]} (sq/next-event seq)]
+        (is (= 1 (:pitch/degree event)))
+        (is (= 0 (:pitch/octave event)))
+        (is (= 90 (:mod/velocity event)))
+        (is (= 1/4 beats)))))
+
+  (testing "next-event with :rest returns nil event"
+    (let [seq (sq/make-degree-seq [{:degree :rest}] 1/4)]
+      (let [{:keys [event beats]} (sq/next-event seq)]
+        (is (nil? event))
+        (is (= 1/4 beats)))))
+
+  (testing "next-event with nil :degree returns nil event"
+    (let [seq (sq/make-degree-seq [{:degree nil}] 1/4)]
+      (let [{:keys [event]} (sq/next-event seq)]
+        (is (nil? event)))))
+
+  (testing "seq-cycle-length returns step count"
+    (let [seq (sq/make-degree-seq [{:degree 1} {:degree 2} {:degree 3}] 1/4)]
+      (is (= 3 (sq/seq-cycle-length seq)))))
+
+  (testing "steps cycle — index wraps around"
+    (let [seq (sq/make-degree-seq [{:degree 1} {:degree 5}] 1/4)]
+      (sq/next-event seq)
+      (sq/next-event seq)
+      ;; third call should wrap back to step 0
+      (let [{:keys [event]} (sq/next-event seq)]
+        (is (= 1 (:pitch/degree event))))))
+
+  (testing ":prob 0.0 always produces rest"
+    (let [seq (sq/make-degree-seq [{:degree 1 :prob 0.0}] 1/4)]
+      (dotimes [_ 10]
+        (let [{:keys [event]} (sq/next-event seq)]
+          (is (nil? event))))))
+
+  (testing ":octave key sets :pitch/octave in event"
+    (let [seq (sq/make-degree-seq [{:degree 1 :octave 2}] 1/4)]
+      (let [{:keys [event]} (sq/next-event seq)]
+        (is (= 2 (:pitch/octave event)))))))
+
+(deftest degree-seq-play-integration-test
+  (testing "degree-seq events resolve correctly through play! with harmony"
+    (live/with-harmony (scale/scale :C 4 :major)
+      (let [[step] (capture-play!
+                    #(live/play! (-> (sq/make-degree-seq
+                                       [{:degree 5 :vel 80}] 1/4)
+                                     sq/next-event
+                                     :event)))]
+        ;; C major degree 5 = G4 = MIDI 67
+        (is (= 67 (:pitch/midi step)))
+        (is (= 80 (:mod/velocity step)))))))

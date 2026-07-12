@@ -518,6 +518,62 @@
      ~@body))
 
 ;; ---------------------------------------------------------------------------
+;; Tagged pitch selector resolution — runs before apply-tuning
+;; ---------------------------------------------------------------------------
+
+(defn- resolve-pitch-selectors
+  "Resolve a tagged pitch selector in a step map to :pitch/midi before tuning.
+
+  Dispatches on the first tagged key found:
+
+    :pitch/degree N  — 1-indexed scale degree; requires *harmony-ctx*.
+                       :pitch/octave shifts the result by N additional octaves.
+    :pitch/pc   K   — pitch-class keyword (:C, :C#, :Db, …) combined with
+                       :pitch/octave (default 4) via keyword->pitch.
+    :pitch/freq F   — Hz; nearest MIDI + :pitch/bend-cents for any deviation.
+    :pitch/midi N   — passthrough (no-op).
+
+  After resolution :pitch/degree / :pitch/pc / :pitch/freq are removed and
+  :pitch/midi (and optionally :pitch/bend-cents) are added."
+  [step]
+  (cond
+    (contains? step :pitch/degree)
+    (let [deg    (long (:pitch/degree step))
+          octave (long (:pitch/octave step 0))
+          hctx   loop-ns/*harmony-ctx*]
+      (when-not hctx
+        (throw (ex-info "pitch/degree requires active *harmony-ctx*" {:step step})))
+      (let [n-steps (count (:intervals hctx))
+            idx     (+ (dec deg) (* octave n-steps))
+            p       (scale-ns/pitch-at hctx idx)
+            midi    (pitch/pitch->midi p)
+            mt      (double (:microtone p 0))]
+        (-> (dissoc step :pitch/degree :pitch/octave)
+            (assoc :pitch/midi midi)
+            (cond-> (not (zero? mt)) (assoc :pitch/bend-cents mt)))))
+
+    (contains? step :pitch/pc)
+    (let [pc     (:pitch/pc step)
+          octave (long (:pitch/octave step 4))
+          p      (pitch/keyword->pitch (keyword (str (name pc) octave)))]
+      (when-not p
+        (throw (ex-info "pitch/pc: unrecognised pitch-class keyword"
+                        {:pc pc :octave octave})))
+      (-> (dissoc step :pitch/pc :pitch/octave)
+          (assoc :pitch/midi (pitch/pitch->midi p))))
+
+    (contains? step :pitch/freq)
+    (let [freq   (double (:pitch/freq step))
+          midi-f (+ 69.0 (* 12.0 (/ (Math/log (/ freq 440.0)) (Math/log 2.0))))
+          midi   (long (Math/round midi-f))
+          cents  (* 100.0 (- midi-f (double midi)))]
+      (-> (dissoc step :pitch/freq)
+          (assoc :pitch/midi midi)
+          (cond-> (not (zero? cents)) (assoc :pitch/bend-cents cents))))
+
+    :else step))
+
+;; ---------------------------------------------------------------------------
 ;; play! — normalises all note forms to a step map, merges synth context
 ;; ---------------------------------------------------------------------------
 
@@ -558,6 +614,8 @@
                 step)
          ;; Step-mods are highest priority — sample at *virtual-time* and merge.
          step (apply-step-mods step)
+         ;; Pitch selectors: resolve :pitch/degree / :pitch/pc / :pitch/freq → :pitch/midi.
+         step (resolve-pitch-selectors step)
          ;; Tuning: retune :pitch/midi through *tuning-ctx* KBM+scale if active.
          step (apply-tuning step)
          ;; Theory: constrain :pitch/midi to nearest in-scale note if *theory-ctx* is active.

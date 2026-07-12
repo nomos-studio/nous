@@ -732,6 +732,24 @@
       (is (< (Math/abs (- 0.5 (double d1))) 1e-6) "step 1: 0.5")
       (is (< (Math/abs (- 1.0 (double d2))) 1e-6) "step 2: 1.0"))))
 
+;; ---------------------------------------------------------------------------
+;; pattern-degrees constructor
+;; ---------------------------------------------------------------------------
+
+(deftest pattern-degrees-constructor-test
+  (testing "pattern-degrees creates :scale type Pattern"
+    (let [p (pat/pattern-degrees [1 3 5])]
+      (is (= :scale (:ptype p)))
+      (is (= [1 3 5] (:data p)))))
+
+  (testing "pattern-degrees coerces to vector"
+    (let [p (pat/pattern-degrees (list 2 4 6))]
+      (is (vector? (:data p)))))
+
+  (testing "pattern-degrees rejects empty sequence"
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (pat/pattern-degrees [])))))
+
 (deftest motif-mods-lock-priority-test
   (testing "Locks take priority over :mods at a given step"
     (require '[nous.seq :as sq])

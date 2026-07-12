@@ -140,6 +140,23 @@
       (throw (ex-info "pattern: data must be non-empty" {:tag ptype})))
     (->Pattern ptype data)))
 
+(defn pattern-degrees
+  "Construct a Pattern from 1-indexed scale degree selectors.
+
+  Degrees resolve against *harmony-ctx* at fire time via IScale/pitch-at.
+  A 7-tone scale indexes 1–7; higher indices wrap to the next octave.
+
+  Pairs with make-motif-state for theory-aware melodic figures:
+    (make-motif-state (pattern-degrees [1 3 5]) (rhythm [100 90 80]))
+
+  Example:
+    (def motif (pattern-degrees [1 2 3 4 5]))
+    ;; In C dorian: C4 D4 Eb4 F4 G4 — recolours on context change"
+  [degrees]
+  (when (empty? degrees)
+    (throw (ex-info "pattern-degrees: degrees must be non-empty" {})))
+  (->Pattern :scale (vec degrees)))
+
 (defn rhythm
   "Construct a Rhythm from a velocity vector.
 

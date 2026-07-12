@@ -932,6 +932,12 @@
 (def render-layout      ivk/render-layout)
 
 ;; ---------------------------------------------------------------------------
+;; Pattern constructors (nous.pattern)
+;; ---------------------------------------------------------------------------
+
+(def pattern-degrees    pat/pattern-degrees)
+
+;; ---------------------------------------------------------------------------
 ;; Arpeggiator pattern library (nous.arp)
 ;; ---------------------------------------------------------------------------
 
@@ -950,6 +956,7 @@
 (def run-cycle!         sq/run-cycle!)
 (def seq-loop!          sq/seq-loop!)
 (def stop-seq!          sq/stop-seq!)
+(def make-degree-seq    sq/make-degree-seq)
 
 ;; ---------------------------------------------------------------------------
 ;; Audio target registry (nous.target)
