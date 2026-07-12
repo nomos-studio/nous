@@ -4459,21 +4459,22 @@ journal for session save/restore:
 
 | Function | Description |
 |---|---|
-| `export-session!` | Write live ctrl/schema tree to a `.nous` EDN file |
-| `restore-session!` | Load a `.nous` file and re-apply BPM, devices, params |
-| `export-from-journal!` | Reconstruct final state from a SQLite file → `.nous` |
-| `load-session!` | Open a SQLite journal and restore final state in-process |
+| `export-session!` | Snapshot live session state to a loadable Clojure script (conventionally `.nous`) |
+| `load-session-script!` | Evaluate a session script written by `export-session!` (system must be started) |
+| `restore-session!` | Restore state in-process from a SQLite journal — crash recovery, no export needed |
+| `export-from-journal!` | Reconstruct final state from a SQLite journal → an editable `.clj` script |
 
 ```clojure
 ;; Save the current session
 (export-session! "friday-ambient.nous")
 
-;; Restore it next session
-(restore-session! "friday-ambient.nous")
+;; Reload it next session (must (start!) first)
+(load-session-script! "friday-ambient.nous")
 
-;; Or rebuild from the raw journal if you forgot to export
-(export-from-journal! "/path/to/session.sqlite" "friday-ambient.nous")
-(load-session! "/path/to/session.sqlite")
+;; Or recover from the raw sidecar journal if you never exported:
+(restore-session! "/path/to/session.sqlite")        ; apply the last state in-process, or
+(export-from-journal! "/path/to/session.sqlite")    ; → session.sqlite-export.clj to inspect/edit
+(load-session-script! "/path/to/session.sqlite-export.clj")
 ```
 
 The `.nous` export format is fully-qualified, human-readable Clojure forms

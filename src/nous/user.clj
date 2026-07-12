@@ -162,7 +162,7 @@
 (def export-session!      core/export-session!)
 (def restore-session!     core/restore-session!)
 (def export-from-journal! core/export-from-journal!)
-(def load-session!        core/load-session!)
+(def load-session-script! core/load-session!)
 
 ;; ---------------------------------------------------------------------------
 ;; Transaction journal — read and query
@@ -430,7 +430,7 @@
 (def cancel-learn!         learn/cancel-learn!)
 (def learning?             learn/learning?)
 (def learn-session-state   learn/learn-session-state)
-(def clear-session!        learn/clear-session!)
+(def clear-learn-session!  learn/clear-session!)
 (def export-device-map!    learn/export-device-map!)
 
 ;; ---------------------------------------------------------------------------
@@ -847,7 +847,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defmacro defbook [& args] `(book/defbook ~@args))
-(def next-step!          book/next-step!)
+(def book-next-step!     book/next-step!)
 (def go-page!            book/go-page!)
 (def reset-cell!         book/reset-cell!)
 (def make-book-seq       book/make-book-seq)
