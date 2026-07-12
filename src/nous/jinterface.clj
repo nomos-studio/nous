@@ -249,6 +249,7 @@
              (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:diagnostic]
              (bm/beam-mount mbox beam-node tx/current-beat)))
+    (bm/register-sender! mbox beam-node)
     (swap! state assoc
            :node       node
            :mbox       mbox

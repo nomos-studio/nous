@@ -65,3 +65,31 @@
   beat-fn    — 0-arity fn returning current beat as double (from nous.txlog-store)"
   [^OtpMbox mbox ^String beam-node beat-fn]
   (BeamMount. mbox beam-node beat-fn))
+
+;; ── Note event telemetry ─────────────────────────────────────────────────────
+
+;; Registered by jinterface/start! once the mbox is live.
+(defonce ^:private active-mbox      (atom nil))
+(defonce ^:private active-beam-node (atom nil))
+
+(defn register-sender!
+  "Register the OtpMbox and BEAM node name for fire-and-forget note telemetry.
+  Called by nous.jinterface/start! after the distribution node is created."
+  [^OtpMbox mbox ^String beam-node]
+  (reset! active-mbox mbox)
+  (reset! active-beam-node beam-node))
+
+(defn send-note-event!
+  "Non-blocking: send a :note_event telemetry message to NousPort on BEAM.
+  No-op when not connected. Swallows all exceptions."
+  [midi vel beat dur-beats]
+  (when-let [^OtpMbox mbox @active-mbox]
+    (when-let [^String bn @active-beam-node]
+      (try
+        (.send mbox nous-port-name bn
+               (clj->otp {:op    :note_event
+                           :pitch (long midi)
+                           :vel   (long vel)
+                           :beat  (double beat)
+                           :dur   (double dur-beats)}))
+        (catch Exception _)))))

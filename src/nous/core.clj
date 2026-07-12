@@ -15,7 +15,8 @@
 
   Key design decisions: Q47 (single system-state atom), Q48 (patch system),
   Q11 (live-loop alias), Q1 (virtual time), phase0-readiness.md."
-  (:require [nous.clock           :as clock]
+  (:require [nous.beam-mount       :as bm]
+            [nous.clock           :as clock]
             [nous.conductor       :as conductor]
             [nous.config          :as config]
             [nous.ctrl            :as ctrl]
@@ -644,7 +645,8 @@
                      (kairos/send-note-on!  midi (/ (double velocity) 127.0) :channel channel :beat on-beat)
                      (kairos/send-note-off! midi :channel channel :beat off-beat)
                      (when bend-14bit
-                       (kairos/send-pitch-bend! channel 8192)))
+                       (kairos/send-pitch-bend! channel 8192))
+                     (bm/send-note-event! midi velocity on-beat beats))
                    ;; REPL context (*loop-name* is nil): on-beat and off-beat are
                    ;; anchored to *virtual-time* = 0.0, which is far in the past.
                    ;; The scheduler fires both in the same audio block, so the synth
