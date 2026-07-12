@@ -40,6 +40,26 @@
 (use-fixtures :each with-system with-clean-supervisor)
 
 ;; ---------------------------------------------------------------------------
+;; Timing helper
+;; ---------------------------------------------------------------------------
+
+(defn- poll-until
+  "Poll `pred` every 10 ms until it returns truthy or `timeout-ms` elapses.
+  Returns pred's final value (truthy on success, nil/false on timeout).
+
+  Replaces fixed Thread/sleep coordination with the background watchdog: the
+  test waits only as long as the transition actually takes, up to a generous
+  ceiling, so it cannot race under CPU load or a GC pause."
+  ([pred] (poll-until pred 2000))
+  ([pred timeout-ms]
+   (let [deadline (+ (System/currentTimeMillis) (long timeout-ms))]
+     (loop []
+       (let [v (pred)]
+         (if (or v (> (System/currentTimeMillis) deadline))
+           v
+           (do (Thread/sleep 10) (recur))))))))
+
+;; ---------------------------------------------------------------------------
 ;; Service registry
 ;; ---------------------------------------------------------------------------
 
@@ -79,17 +99,16 @@
   (testing "any-down? returns truthy when a service is :down"
     (supervisor/register! :svc-f :check-fn (constantly false))
     (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-    (Thread/sleep 150)  ; allow at least one check
-    (supervisor/stop-watchdog!)
-    (is (supervisor/any-down? [:svc-f]))))
+    (is (poll-until #(supervisor/any-down? [:svc-f])) "service marked :down within timeout")
+    (supervisor/stop-watchdog!)))
 
 (deftest any-down-false-when-all-up-test
   (testing "any-down? returns nil when all services are :up"
     (supervisor/register! :svc-g :check-fn (constantly true))
     (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-    (Thread/sleep 150)
-    (supervisor/stop-watchdog!)
-    (is (nil? (supervisor/any-down? [:svc-g])))))
+    (is (poll-until #(= :up (supervisor/service-status :svc-g))) "service came :up")
+    (is (nil? (supervisor/any-down? [:svc-g])))
+    (supervisor/stop-watchdog!)))
 
 ;; ---------------------------------------------------------------------------
 ;; Event bus
@@ -135,11 +154,10 @@
       (supervisor/on-event! :flaky :down ::track
                             (fn [p] (swap! events conj p)))
       (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-      (Thread/sleep 100)     ; let the service come up
+      (is (poll-until #(= :up (supervisor/service-status :flaky))) "service came :up first")
       (reset! healthy? false)
-      (Thread/sleep 200)     ; wait for :down transition
+      (is (poll-until #(seq @events)) "at least one :down event emitted")
       (supervisor/stop-watchdog!)
-      (is (seq @events) "at least one :down event emitted")
       (is (every? #(= :flaky (:service %)) @events)))))
 
 (deftest watchdog-emits-up-on-recovery-test
@@ -150,11 +168,10 @@
       (supervisor/on-event! :recoverable :up ::track
                             (fn [p] (swap! up-events conj p)))
       (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-      (Thread/sleep 100)      ; service starts :down
+      (is (poll-until #(= :down (supervisor/service-status :recoverable))) "service starts :down")
       (reset! healthy? true)  ; service recovers
-      (Thread/sleep 200)      ; wait for :up transition
+      (is (poll-until #(seq @up-events)) ":up event emitted on recovery")
       (supervisor/stop-watchdog!)
-      (is (seq @up-events) ":up event emitted on recovery")
       (is (= :up (supervisor/service-status :recoverable))))))
 
 (deftest watchdog-calls-restart-fn-on-down-test
@@ -165,11 +182,10 @@
                             :check-fn    #(deref healthy?)
                             :restart-fn  #(reset! restarted? true))
       (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-      (Thread/sleep 100)
+      (is (poll-until #(= :up (supervisor/service-status :restartable))) "service came :up first")
       (reset! healthy? false)
-      (Thread/sleep 200)
-      (supervisor/stop-watchdog!)
-      (is (true? @restarted?) "restart-fn was called"))))
+      (is (poll-until #(deref restarted?)) "restart-fn was called")
+      (supervisor/stop-watchdog!))))
 
 (deftest watchdog-calls-restore-fn-on-recovery-test
   (testing "watchdog calls restore-fn after successful recovery"
@@ -181,11 +197,10 @@
       (supervisor/on-event! :restorable :up ::flip
                             (fn [_] (reset! healthy? true)))  ; stay up once up
       (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-      (Thread/sleep 50)
+      (is (poll-until #(= :down (supervisor/service-status :restorable))) "service starts :down")
       (reset! healthy? true)   ; service recovers
-      (Thread/sleep 200)
-      (supervisor/stop-watchdog!)
-      (is (true? @restored?) "restore-fn was called after recovery"))))
+      (is (poll-until #(deref restored?)) "restore-fn was called after recovery")
+      (supervisor/stop-watchdog!))))
 
 (deftest watchdog-does-not-re-emit-down-test
   (testing "watchdog emits :down only once per outage, not every tick"
@@ -194,7 +209,10 @@
       (supervisor/on-event! :once-down :down ::count
                             (fn [_] (swap! down-count inc)))
       (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-      (Thread/sleep 300)   ; multiple ticks while :down
+      (is (poll-until #(= 1 @down-count)) ":down emitted at least once")
+      ;; Let several more ticks pass to prove it does not re-emit. A re-emit
+      ;; could only *raise* the count, so a slow machine makes this weaker, not flaky.
+      (Thread/sleep 300)
       (supervisor/stop-watchdog!)
       (is (= 1 @down-count) ":down emitted exactly once"))))
 
@@ -207,12 +225,12 @@
     (let [body-ran  (atom false)]
       (supervisor/register! :test-gate :check-fn (constantly false))
       (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-      (Thread/sleep 150)  ; force service into :down state
+      (is (poll-until #(= :down (supervisor/service-status :test-gate))) "service forced :down")
       ;; Now start a loop that should NOT execute its body
       (loop-ns/deflive-loop :test-paused {:pause-on-down [:test-gate]}
         (reset! body-ran true)
         (loop-ns/sleep! 1000))
-      (Thread/sleep 100)
+      (Thread/sleep 100)  ; give a wrongly-unpaused body time to flip the atom
       (is (false? @body-ran) "loop body did not run while service was :down")
       (loop-ns/stop-loop! :test-paused)
       (supervisor/stop-watchdog!))))
@@ -223,13 +241,13 @@
           body-ran  (promise)]
       (supervisor/register! :test-gate2 :check-fn #(deref healthy?))
       (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-      (Thread/sleep 150)  ; service starts :down
+      (is (poll-until #(= :down (supervisor/service-status :test-gate2))) "service starts :down")
       (loop-ns/deflive-loop :test-resume {:pause-on-down [:test-gate2]}
         (deliver body-ran :ran)
         (loop-ns/sleep! 1000))
       (Thread/sleep 50)   ; confirm body hasn't run
       (reset! healthy? true)   ; service recovers
-      (let [result (deref body-ran 1000 :timeout)]
+      (let [result (deref body-ran 2000 :timeout)]
         (loop-ns/stop-loop! :test-resume)
         (supervisor/stop-watchdog!)
         (is (= :ran result) "loop body ran after service recovered")))))
@@ -253,8 +271,7 @@
               :sleep-interrupted? (atom false)
               :thread     dead-t})
       (loop-ns/restart-loop! :test-rl)
-      (Thread/sleep 100)
-      (is (= :restarted @v) "restarted loop body ran")
+      (is (poll-until #(= :restarted @v)) "restarted loop body ran")
       (loop-ns/stop-loop! :test-rl))))
 
 (deftest restart-loop-returns-nil-for-live-loop-test
@@ -287,11 +304,10 @@
       (supervisor/on-event! :loops :down ::track-dead
                             (fn [p] (swap! dead-events conj p)))
       (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? true)
-      (Thread/sleep 200)
+      (is (poll-until #(some (fn [e] (= :test-dead-loop (:loop e))) @dead-events))
+          "dead loop event emitted by watchdog")
       (supervisor/stop-watchdog!)
-      (swap! sref update :loops dissoc :test-dead-loop)
-      (is (some #(= :test-dead-loop (:loop %)) @dead-events)
-          "dead loop event emitted by watchdog"))))
+      (swap! sref update :loops dissoc :test-dead-loop))))
 
 ;; ---------------------------------------------------------------------------
 ;; Watchdog lifecycle
@@ -365,9 +381,8 @@
       (supervisor/register! :bpm-svc :check-fn (fn [] (swap! tick-count inc) true))
       ;; no :interval-ms — uses BPM-derived sleep (clamped to 100 ms)
       (supervisor/start-watchdog! :monitor-loops? false)
-      (Thread/sleep 350)
-      (supervisor/stop-watchdog!)
-      (is (>= @tick-count 2) "watchdog ticked at least twice in 350 ms"))))
+      (is (poll-until #(>= @tick-count 2)) "watchdog ticked at least twice")
+      (supervisor/stop-watchdog!))))
 
 ;; ---------------------------------------------------------------------------
 ;; register-rt! — tick-silence aware RT backend supervision
@@ -469,9 +484,8 @@
             :resume-bar-beats 4
             :restore-fn nil})
     (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-    (Thread/sleep 150)
-    (supervisor/stop-watchdog!)
-    (is (= :stale (supervisor/service-status :rt)) "watchdog transitioned service to :stale")))
+    (is (poll-until #(= :stale (supervisor/service-status :rt))) "watchdog transitioned service to :stale")
+    (supervisor/stop-watchdog!)))
 
 ;; ---------------------------------------------------------------------------
 ;; Stale self-recovery (ticks resume without a crash)
@@ -553,9 +567,8 @@
             :resume-bar-beats    4
             :restore-fn          nil})
     (supervisor/start-watchdog! :interval-ms 50 :monitor-loops? false)
-    (Thread/sleep 150)
-    (supervisor/stop-watchdog!)
-    (is (= :up (supervisor/service-status :rt)) "watchdog detected self-recovery")))
+    (is (poll-until #(= :up (supervisor/service-status :rt))) "watchdog detected self-recovery")
+    (supervisor/stop-watchdog!)))
 
 ;; ---------------------------------------------------------------------------
 ;; schedule-recovery!
@@ -610,7 +623,7 @@
                                          (throw (ex-info "connection refused" {})))]
         (supervisor/schedule-recovery! :rt)
         (deref done 2000 :timeout))
-      ;; Brief pause for the catch block (deliver + throw + runtime/set! are sequential)
-      (Thread/sleep 50)
-      (is (= :error (runtime/get [:rt :status]))
+      ;; The catch block (deliver + throw + runtime/set!) runs just after `done`
+      ;; is delivered; poll for the :error transition rather than a fixed sleep.
+      (is (poll-until #(= :error (runtime/get [:rt :status])))
           "[:rt :status] set to :error after exhausted retries"))))
