@@ -28,6 +28,7 @@
             [clojure.data.json  :as json]
             [nous.beam-mount    :as bm]
             [nous.kairos        :as kairos]
+            [nous.keyboard      :as keyboard]
             [nous.rt            :as rt]
             [nous.supervisor    :as supervisor]
             [nous.kairos-voice  :as kairos-voice]
@@ -89,20 +90,31 @@
             (ct/ctrl-write! path value)
             (cond
               (= path [:input :keyboard :key_down])
-              (do (when-let [note (rt/key->note value)]
-                    (ct/ctrl-write! [:diagnostic :midi :note_on]
-                                    {:note note :velocity 0.8 :channel 0}))
-                  (rt/note-on!            value)
-                  (sc-keyboard/key-down!  value)
-                  (kairos-voice/note-on!  value))
+              (case (keyboard/keyboard-mode)
+                (:interval :interval-last-note)
+                (keyboard/interval-note-on! value)
+
+                ;; :pitch (default) — absolute piano layout
+                (do (when-let [note (rt/key->note value)]
+                      (ct/ctrl-write! [:diagnostic :midi :note_on]
+                                      {:note note :velocity 0.8 :channel 0}))
+                    (rt/note-on!            value)
+                    (sc-keyboard/key-down!  value)
+                    (kairos-voice/note-on!  value)
+                    (keyboard/record-anchor! value)))
 
               (= path [:input :keyboard :key_up])
-              (do (when-let [note (rt/key->note value)]
-                    (ct/ctrl-write! [:diagnostic :midi :note_off]
-                                    {:note note :channel 0}))
-                  (rt/note-off!           value)
-                  (sc-keyboard/key-up!    value)
-                  (kairos-voice/note-off! value)))))
+              (case (keyboard/keyboard-mode)
+                (:interval :interval-last-note)
+                nil  ; interval mode has no individual note-off semantics (play! fires REPL-style)
+
+                ;; :pitch (default)
+                (do (when-let [note (rt/key->note value)]
+                      (ct/ctrl-write! [:diagnostic :midi :note_off]
+                                      {:note note :channel 0}))
+                    (rt/note-off!           value)
+                    (sc-keyboard/key-up!    value)
+                    (kairos-voice/note-off! value))))))
         :service_down
         (case (:service msg)
           :sc     (runtime/set! [:sc :status] :stopped)
@@ -235,6 +247,8 @@
     (dosync
       (alter refs/mount-table assoc [:input :keyboard]
              (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:keyboard]
+             (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:transport]
              (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:theory]
@@ -265,6 +279,7 @@
       (reset! running-ref false)
       (dosync
         (alter refs/mount-table dissoc [:input :keyboard])
+        (alter refs/mount-table dissoc [:keyboard])
         (alter refs/mount-table dissoc [:transport])
         (alter refs/mount-table dissoc [:theory])
         (alter refs/mount-table dissoc [:corpus])

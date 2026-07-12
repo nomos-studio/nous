@@ -101,6 +101,7 @@
             [nous.nrepl            :as nrepl]
             [nous.theory           :as theory]
             [nous.sc-keyboard      :as sc-keyboard]
+            [nous.keyboard         :as keyboard]
             [nous.timeline         :as timeline]
             [nous.transport-ctrl   :as transport-ctrl]))
 
@@ -957,6 +958,15 @@
 (def seq-loop!          sq/seq-loop!)
 (def stop-seq!          sq/stop-seq!)
 (def make-degree-seq    sq/make-degree-seq)
+
+;; ---------------------------------------------------------------------------
+;; Keyboard mode (nous.keyboard — M16)
+;; ---------------------------------------------------------------------------
+
+(def keyboard-mode      keyboard/keyboard-mode)
+(def set-keyboard-mode! keyboard/set-mode!)
+(def interval-pos       keyboard/current-position)
+(def reset-interval!    keyboard/reset-position!)
 
 ;; ---------------------------------------------------------------------------
 ;; Audio target registry (nous.target)
