@@ -15,9 +15,12 @@
 
 (defn- with-system [f]
   (core/start! :no-log true)
-  ;; Reset keyboard state so tests are independent of execution order.
+  ;; Reset keyboard and recording state so tests are independent of execution order.
   (ctrl/set! [:keyboard :mode] nil)
+  (ctrl/set! [:seq :tone_row_in_progress] nil)
+  (ctrl/set! [:seq :tone_row] nil)
   (keyboard/reset-position!)
+  (when (keyboard/recording?) (keyboard/stop-recording!))
   (try (f)
        (finally (core/stop!))))
 
@@ -134,3 +137,58 @@
       (is (= +3 (dm "h")))
       (is (= +4 (dm "j")))
       (is (= -4 (dm "w"))))))
+
+;; ---------------------------------------------------------------------------
+;; Recording (M17)
+;; ---------------------------------------------------------------------------
+
+(deftest start-recording-clears-buffer-test
+  (testing "start-recording! clears any existing in-progress row"
+    (ctrl/set! [:seq :tone_row_in_progress] [{:interval 1 :vel 100}])
+    (keyboard/start-recording!)
+    (is (= [] (ctrl/get [:seq :tone_row_in_progress])))
+    (is (true? (keyboard/recording?)))))
+
+(deftest interval-note-on-appends-when-recording-test
+  (testing "interval keypress appends {:interval n :vel 100} while recording"
+    (keyboard/start-recording!)
+    (let [hctx (scale/scale :C 4 :major)]
+      (binding [loop-ns/*harmony-ctx* hctx]
+        (capture-play! #(keyboard/interval-note-on! "s"))  ; +1
+        (capture-play! #(keyboard/interval-note-on! "f"))  ; +2
+        (capture-play! #(keyboard/interval-note-on! "a")))) ; -1
+    (let [row (ctrl/get [:seq :tone_row_in_progress])]
+      (is (= 3 (count row)))
+      (is (= {:interval 1 :vel 100} (nth row 0)))
+      (is (= {:interval 2 :vel 100} (nth row 1)))
+      (is (= {:interval -1 :vel 100} (nth row 2))))))
+
+(deftest stop-recording-commits-row-test
+  (testing "stop-recording! commits in-progress row to [:seq :tone_row]"
+    (keyboard/start-recording!)
+    (let [hctx (scale/scale :C 4 :major)]
+      (binding [loop-ns/*harmony-ctx* hctx]
+        (capture-play! #(keyboard/interval-note-on! "s"))
+        (capture-play! #(keyboard/interval-note-on! "f"))))
+    (keyboard/stop-recording!)
+    (is (false? (keyboard/recording?)))
+    (is (= 2 (count (ctrl/get [:seq :tone_row]))))
+    (is (= {:interval 1 :vel 100} (first (ctrl/get [:seq :tone_row]))))))
+
+(deftest no-recording-without-start-test
+  (testing "interval keypresses do NOT append when not recording"
+    (let [hctx (scale/scale :C 4 :major)]
+      (binding [loop-ns/*harmony-ctx* hctx]
+        (capture-play! #(keyboard/interval-note-on! "s"))))
+    (is (nil? (ctrl/get [:seq :tone_row_in_progress])))))
+
+(deftest clear-row-resets-buffer-test
+  (testing "clear-row! empties in-progress buffer, stays in record mode"
+    (keyboard/start-recording!)
+    (let [hctx (scale/scale :C 4 :major)]
+      (binding [loop-ns/*harmony-ctx* hctx]
+        (capture-play! #(keyboard/interval-note-on! "s"))))
+    (is (= 1 (count (ctrl/get [:seq :tone_row_in_progress]))))
+    (keyboard/clear-row!)
+    (is (= [] (ctrl/get [:seq :tone_row_in_progress])))
+    (is (true? (keyboard/recording?)))))

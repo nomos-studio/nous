@@ -958,6 +958,7 @@
 (def seq-loop!          sq/seq-loop!)
 (def stop-seq!          sq/stop-seq!)
 (def make-degree-seq    sq/make-degree-seq)
+(def make-interval-seq  sq/make-interval-seq)
 
 ;; ---------------------------------------------------------------------------
 ;; Keyboard mode (nous.keyboard — M16)
@@ -967,6 +968,10 @@
 (def set-keyboard-mode! keyboard/set-mode!)
 (def interval-pos       keyboard/current-position)
 (def reset-interval!    keyboard/reset-position!)
+(def start-recording!   keyboard/start-recording!)
+(def stop-recording!    keyboard/stop-recording!)
+(def commit-row!        keyboard/commit-row!)
+(def clear-row!         keyboard/clear-row!)
 
 ;; ---------------------------------------------------------------------------
 ;; Audio target registry (nous.target)

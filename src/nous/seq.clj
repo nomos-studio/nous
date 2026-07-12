@@ -58,7 +58,9 @@
     (run-cycle! sq {:xf (compose-xf (harmonize ...) (echo ...))})
 
   See nous.pattern/make-motif-state, nous.arp/make-arp-state."
-  (:require [nous.loop      :as loop-ns]
+  (:require [ctrl-tree.core :as ct]
+            [nous.ctrl      :as ctrl]
+            [nous.loop      :as loop-ns]
             [nous.live      :as live]
             [nous.transform :as xf]))
 
@@ -245,3 +247,95 @@
                      :mod/velocity (long (:vel step 100))}
              :beats beats-per-step})))
       (seq-cycle-length [_] cnt))))
+
+;; ---------------------------------------------------------------------------
+;; make-interval-seq — tone row sequencer (M17)
+;; ---------------------------------------------------------------------------
+
+(defn- interval-step-index
+  "Map cycle position `cp` to a step array index for a row of `n` steps.
+
+  Strategies:
+    :prime   — forward  0, 1, 2, …, n-1, 0, …
+    :retro   — backward n-1, n-2, …, 0, n-1, …
+    :pendulum — bounce  0, 1, …, n-1, n-2, …, 1, 0, 1, …
+    :random  — random pick each step
+    others   — same as :prime"
+  [opt cp n]
+  (case opt
+    :retro    (mod (- (dec n) cp) n)
+    :pendulum (if (<= n 1)
+                0
+                (let [period (long (* 2 (dec n)))
+                      p      (mod cp period)]
+                  (if (< p n) p (- (* 2 (dec n)) p))))
+    :random   (rand-int n)
+    (mod cp n)))  ; :prime and default
+
+(defn make-interval-seq
+  "Build an IStepSequencer from a tone row of interval steps.
+
+  Each step in `steps` is a map with:
+    :interval N   — signed scale step delta (required)
+    :vel      N   — velocity 0–127 (default 100)
+    :gate     F   — duration in beats (default = beats-per-step × 0.9)
+    :prob     F   — fire probability 0.0–1.0 (default 1.0)
+
+  `beats-per-step` — clock duration per step.
+
+  Opts (keyword args):
+    :start-degree N  — initial 1-indexed scale degree (default 1)
+
+  Traversal strategy is read live from [:seq :play_option] at each step:
+    :prime   (default) — forward through the row
+    :retro             — backward
+    :pendulum          — forward then backward
+    :random            — random step each time
+
+  The solfege wheel position ([:keyboard :interval_position]) is written
+  at each step so the BEAM display tracks playback.
+
+  Contour preservation: since *harmony-ctx* is resolved at fire time inside
+  play!, changing [:theory :mode] live recolours all subsequent steps without
+  restarting the loop.
+
+  Example:
+    (def row (make-interval-seq
+               [{:interval +1 :vel 90}
+                {:interval +2}
+                {:interval -1 :vel 80}
+                {:interval +1}]
+               1/4 :start-degree 1))
+    (deflive-loop :row {:harmony (scale/scale :C 4 :major)}
+      (run-cycle! row))"
+  [steps beats-per-step & {:keys [start-degree] :or {start-degree 1}}]
+  (when (empty? steps)
+    (throw (ex-info "make-interval-seq: steps must be non-empty" {})))
+  (let [steps (vec steps)
+        n     (count steps)
+        wheel (atom (dec (long start-degree)))  ; 0-indexed wheel position
+        cp    (atom 0)]                          ; cycle position (always advances)
+    (reify
+      IStepSequencer
+      (next-event [_]
+        (let [opt      (or (ctrl/get [:seq :play_option]) :prime)
+              i        (interval-step-index opt @cp n)
+              step     (nth steps i)
+              prob     (double (:prob step 1.0))
+              delta    (long (:interval step 0))
+              vel      (long (:vel step 100))
+              ;; Advance wheel by interval delta
+              n-scale  (let [hctx loop-ns/*harmony-ctx*]
+                         (if hctx (count (:intervals hctx)) 7))
+              new-pos  (mod (+ @wheel delta) n-scale)]
+          (reset! wheel new-pos)
+          (swap! cp inc)
+          ;; Write solfege wheel position so BEAM display tracks playback
+          (ct/ctrl-write! [:keyboard :interval_position] (inc new-pos))
+          (if (> (rand) prob)
+            {:event nil :beats beats-per-step}
+            {:event {:pitch/degree (inc new-pos)
+                     :dur/beats    (or (:gate step) (* (double beats-per-step) 0.9))
+                     :mod/velocity vel}
+             :beats beats-per-step})))
+      (seq-cycle-length [_] n))))

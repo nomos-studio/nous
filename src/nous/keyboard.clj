@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.keyboard
-  "Keyboard mode dispatch (M16) — pitch, interval, interval-last-note.
+  "Keyboard mode dispatch (M16/M17) — pitch, interval, interval-last-note.
 
   The physical keyboard (12 keys: a w s e d f t g y h u j) has three modes:
 
@@ -9,7 +9,11 @@
     :interval-last-note — interval mode with anchor seeded by last pitch-mode note
 
   Mode is set via (ctrl/set! [:keyboard :mode] :interval) or any ctrl-tree write.
-  Interval state is tracked in a private atom and echoed to [:keyboard :interval-position].
+  Interval state is tracked in a private atom and echoed to [:keyboard :interval_position].
+
+  Tone row recording (M17): start-recording! / stop-recording! toggle capture mode.
+  While recording, each interval keypress appends {:interval n :vel v} to
+  [:seq :tone_row_in_progress]. stop-recording! commits the row to [:seq :tone_row].
 
   Pitch mode note events are handled by the existing rt/kairos-voice chain in
   nous.jinterface; this namespace adds interval dispatch on top and records
@@ -49,6 +53,10 @@
 ;; Invariant: always in [0, n-steps − 1] for the current harmony context.
 (defonce ^:private pos-atom (atom 0))
 
+;; Recording state (M17)
+(defonce ^:private recording-atom (atom false))
+(defonce ^:private row-buffer (atom []))
+
 ;; ---------------------------------------------------------------------------
 ;; Helpers
 ;; ---------------------------------------------------------------------------
@@ -85,16 +93,17 @@
   "Reset the interval wheel to the root position (degree 1). REPL utility."
   []
   (reset! pos-atom 0)
-  (ct/ctrl-write! [:keyboard :interval-position] 1)
+  (ct/ctrl-write! [:keyboard :interval_position] 1)
   nil)
 
 (defn interval-note-on!
   "Navigate the solfege wheel by the interval delta mapped to `key`, then
   fire play! with :pitch/degree. No-op when `key` is not in the interval map.
 
-  Also writes [:keyboard :interval-position] (1-indexed degree) and
-  [:keyboard :interval-note-name] (note-class string) to the ctrl-tree so
-  BEAM can render the solfege wheel display."
+  Writes [:keyboard :interval_position] (1-indexed degree) and
+  [:keyboard :interval_note_name] to the ctrl-tree so BEAM can render the
+  solfege wheel. When recording is active, also appends the interval delta to
+  [:seq :tone_row_in_progress]."
   [key]
   (let [imap  (or (ctrl/get [:keyboard :qwerty-map]) default-interval-map)
         delta (get imap key)]
@@ -107,18 +116,23 @@
               note-name (when hctx
                           (try (step-name (scale-ns/pitch-at hctx pos))
                                (catch Exception _ nil)))]
-          (ct/ctrl-write! [:keyboard :interval-position] deg)
+          (ct/ctrl-write! [:keyboard :interval_position] deg)
           (when note-name
-            (ct/ctrl-write! [:keyboard :interval-note-name] note-name))
+            (ct/ctrl-write! [:keyboard :interval_note_name] note-name))
+          ;; Recording (M17): append {:interval n :vel 100} to in-progress row
+          (when @recording-atom
+            (let [row-step {:interval (long delta) :vel 100}]
+              (swap! row-buffer conj row-step)
+              (ctrl/set! [:seq :tone_row_in_progress] @row-buffer)))
           (live/play! {:pitch/degree deg :dur/beats 1/4}))))))
 
 (defn record-anchor!
   "Record the anchor note after a pitch-mode keypress.
-  Writes [:keyboard :anchor-note] (MIDI integer). Used by :interval-last-note
+  Writes [:keyboard :anchor_note] (MIDI integer). Used by :interval-last-note
   mode so that the wheel position is known relative to the last absolute pitch."
   [key]
   (when-let [midi (pitch-key->midi key)]
-    (ct/ctrl-write! [:keyboard :anchor-note] midi)))
+    (ct/ctrl-write! [:keyboard :anchor_note] midi)))
 
 (defn set-mode!
   "Write [:keyboard :mode] to the ctrl-tree. mode must be one of:
@@ -127,3 +141,45 @@
   {:pre [(#{:pitch :interval :interval-last-note} mode)]}
   (ct/ctrl-write! [:keyboard :mode] mode)
   nil)
+
+;; ---------------------------------------------------------------------------
+;; Tone row recording (M17)
+;; ---------------------------------------------------------------------------
+
+(defn start-recording!
+  "Enter tone row record mode. Clears the in-progress row and arms the
+  interval dispatcher to capture each step to [:seq :tone_row_in_progress]."
+  []
+  (reset! recording-atom true)
+  (reset! row-buffer [])
+  (ct/ctrl-write! [:keyboard :recording] true)
+  (ctrl/set! [:seq :tone_row_in_progress] [])
+  nil)
+
+(defn stop-recording!
+  "Leave record mode and commit the in-progress row to [:seq :tone_row].
+  The committed row is what make-interval-seq reads for playback."
+  []
+  (reset! recording-atom false)
+  (ct/ctrl-write! [:keyboard :recording] false)
+  (ctrl/set! [:seq :tone_row] @row-buffer)
+  nil)
+
+(defn commit-row!
+  "Commit the current in-progress row to [:seq :tone_row] without stopping
+  recording. Use for length-threshold auto-commits."
+  []
+  (ctrl/set! [:seq :tone_row] @row-buffer)
+  nil)
+
+(defn clear-row!
+  "Clear the in-progress recording buffer without leaving record mode."
+  []
+  (reset! row-buffer [])
+  (ctrl/set! [:seq :tone_row_in_progress] [])
+  nil)
+
+(defn recording?
+  "Return true when tone row recording is active."
+  []
+  @recording-atom)
