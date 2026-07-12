@@ -122,3 +122,57 @@
       (is (true? (rt/has-capability? :audio)))
       (rt/disconnect!)
       (.close srv))))
+
+;; ---------------------------------------------------------------------------
+;; Push handler dispatch — diagnostic tap socket roundtrip
+;; ---------------------------------------------------------------------------
+
+(defn- write-ipc-frame
+  "Write a minimal IPC frame [uint32-len][uint8-type][3 reserved][payload] to ch."
+  [^java.nio.channels.WritableByteChannel ch msg-type ^bytes payload]
+  (let [plen (alength payload)
+        hdr  (doto (ByteBuffer/allocate 8)
+               (.order ByteOrder/BIG_ENDIAN)
+               (.putInt plen)
+               (.put (unchecked-byte msg-type))
+               (.put (byte 0)) (.put (byte 0)) (.put (byte 0))
+               (.flip))]
+    (.write ch hdr)
+    (.write ch (ByteBuffer/wrap payload))))
+
+(deftest diag-tap-socket-roundtrip-test
+  (testing "0x54 frame written to socket traverses reader thread to *dispatch-diag*"
+    ;; This exercises the untested glue: _diag-handler-registered wires
+    ;; push-handler 0x54 → handle-diag-frame! → *dispatch-diag*.
+    ;; The prior unit tests call handle-diag-frame! directly; this test goes
+    ;; through the live reader thread and push handler dispatch table.
+    (rt/disconnect!)
+    (let [sock-path (temp-socket-path)
+          captured  (atom nil)
+          srv       (doto (ServerSocketChannel/open StandardProtocolFamily/UNIX)
+                      (.bind (UnixDomainSocketAddress/of sock-path)))]
+      (doto (Thread.
+             (fn []
+               (try
+                 (let [client (.accept srv)]
+                   (write-ipc-frame client 0x54
+                                    (.getBytes "{:bytes [144 60 101]}" "UTF-8")))
+                 (catch Exception _))))
+        (.setDaemon true)
+        .start)
+      (Thread/sleep 30)
+      ;; with-redefs changes the root binding — visible to the reader thread
+      ;; which is a plain Thread and does not inherit dynamic bindings.
+      (with-redefs [rt/*dispatch-diag* #(reset! captured %)]
+        (rt/connect! sock-path {} :retry 3)
+        (let [deadline (+ (System/currentTimeMillis) 2000)]
+          (loop []
+            (when (and (nil? @captured)
+                       (< (System/currentTimeMillis) deadline))
+              (Thread/sleep 10)
+              (recur))))
+        (rt/disconnect!))
+      (.close srv)
+      (is (some? @captured) "push handler dispatched frame within 2 s")
+      (is (= {:bytes [144 60 101]} @captured)
+          "correct EDN delivered to *dispatch-diag*"))))
