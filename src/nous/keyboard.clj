@@ -123,7 +123,8 @@
           (when @recording-atom
             (let [row-step {:interval (long delta) :vel 100}]
               (swap! row-buffer conj row-step)
-              (ctrl/set! [:seq :tone_row_in_progress] @row-buffer)))
+              (ctrl/set! [:seq :tone_row_in_progress] @row-buffer)
+              (ct/ctrl-write! [:keyboard :tone_row_in_progress] @row-buffer)))
           (live/play! {:pitch/degree deg :dur/beats 1/4}))))))
 
 (defn record-anchor!
@@ -153,7 +154,10 @@
   (reset! recording-atom true)
   (reset! row-buffer [])
   (ct/ctrl-write! [:keyboard :recording] true)
+  ;; ctrl/set! keeps [:seq ...] paths readable via ctrl/get (tests);
+  ;; ct/ctrl-write! on [:keyboard ...] paths echoes to BEAM via existing mount.
   (ctrl/set! [:seq :tone_row_in_progress] [])
+  (ct/ctrl-write! [:keyboard :tone_row_in_progress] [])
   nil)
 
 (defn stop-recording!
@@ -163,6 +167,7 @@
   (reset! recording-atom false)
   (ct/ctrl-write! [:keyboard :recording] false)
   (ctrl/set! [:seq :tone_row] @row-buffer)
+  (ct/ctrl-write! [:keyboard :tone_row] @row-buffer)
   nil)
 
 (defn commit-row!
@@ -170,6 +175,7 @@
   recording. Use for length-threshold auto-commits."
   []
   (ctrl/set! [:seq :tone_row] @row-buffer)
+  (ct/ctrl-write! [:keyboard :tone_row] @row-buffer)
   nil)
 
 (defn clear-row!
@@ -177,6 +183,7 @@
   []
   (reset! row-buffer [])
   (ctrl/set! [:seq :tone_row_in_progress] [])
+  (ct/ctrl-write! [:keyboard :tone_row_in_progress] [])
   nil)
 
 (defn recording?
