@@ -3,7 +3,6 @@
   "Unit tests for nous.tuning — live tuning path and maqam preset navigation."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [ctrl-tree.core :as ct]
-            [ctrl-tree.refs :as refs]
             [nous.core   :as core]
             [nous.loop   :as loop-ns]
             [nous.scala  :as scala]
@@ -111,7 +110,7 @@
        {:name "bayati" :scale (scala/parse-scl scl-text-2)}])
     (tuning/maqam-goto! 1)
     (is (= 1 (tuning/maqam-index)))
-    (is (= "bayati" (get @refs/tree-state [:theory :maqam_name])))
+    (is (= "bayati" (ct/ctrl-read [:theory :maqam_name])))
     (is (= (scala/parse-scl scl-text-2) (:scale loop-ns/*tuning-ctx*)))))
 
 (deftest maqam-next-wraps-test
@@ -123,7 +122,7 @@
     (is (= 1 (tuning/maqam-index)))
     (tuning/maqam-next!)          ; 1 → 0 (wrap)
     (is (= 0 (tuning/maqam-index)))
-    (is (= "a" (get @refs/tree-state [:theory :maqam_name])))))
+    (is (= "a" (ct/ctrl-read [:theory :maqam_name])))))
 
 (deftest maqam-prev-wraps-test
   (testing "maqam-prev! steps backward and wraps below zero"
@@ -132,7 +131,7 @@
        {:name "b" :scale (scala/parse-scl scl-text-2)}])
     (tuning/maqam-prev!)          ; 0 → 1 (wrap)
     (is (= 1 (tuning/maqam-index)))
-    (is (= "b" (get @refs/tree-state [:theory :maqam_name])))))
+    (is (= "b" (ct/ctrl-read [:theory :maqam_name])))))
 
 (deftest maqam-goto-empty-list-noop-test
   (testing "maqam-goto! is a no-op when no presets are installed"
@@ -156,4 +155,4 @@
     (is (= 0 (tuning/maqam-index)) "second :next steps (wraps), not dropped")
     (tuning/maqam-nav! :prev)
     (is (= 1 (tuning/maqam-index)) ":prev steps back")
-    (is (= "b" (get @refs/tree-state [:theory :maqam_name])))))
+    (is (= "b" (ct/ctrl-read [:theory :maqam_name])))))

@@ -2,8 +2,8 @@
 (ns nous.interval-seq-test
   "Unit tests for nous.seq/make-interval-seq — tone row traversal and pitch resolution."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
             [nous.core  :as core]
-            [nous.ctrl  :as ctrl]
             [nous.live  :as live]
             [nous.loop  :as loop-ns]
             [nous.scale :as scale]
@@ -15,7 +15,7 @@
 
 (defn- with-system [f]
   (core/start! :no-log true)
-  (ctrl/set! [:seq :play_option] nil)
+  (ct/ctrl-write! [:seq :play_option] nil)
   (try (f)
        (finally (core/stop!))))
 
@@ -81,7 +81,7 @@
     (let [sq   (sq/make-interval-seq
                  [{:interval +1} {:interval +2} {:interval +1}] 1/4)
           hctx (scale/scale :C 4 :major)]
-      (ctrl/set! [:seq :play_option] :retro)
+      (ct/ctrl-write! [:seq :play_option] :retro)
       (binding [loop-ns/*harmony-ctx* hctx]
         (let [events (run-n-steps sq 3)
               ;; step index order for :retro with n=3: 2, 1, 0
@@ -103,7 +103,7 @@
     (let [sq   (sq/make-interval-seq
                  [{:interval +1} {:interval +1} {:interval +1}] 1/4)
           hctx (scale/scale :C 4 :major)]
-      (ctrl/set! [:seq :play_option] :pendulum)
+      (ct/ctrl-write! [:seq :play_option] :pendulum)
       (binding [loop-ns/*harmony-ctx* hctx]
         ;; n=3, period=4: step indices 0,1,2,1 → intervals +1,+1,+1,+1
         ;; Starting at wheel 0:

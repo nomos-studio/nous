@@ -198,12 +198,12 @@
 (defn current-key
   "Return the current theory key from the ctrl-tree, or nil."
   []
-  (get @refs/tree-state [:theory :key]))
+  (ct/ctrl-read [:theory :key]))
 
 (defn current-mode
   "Return the current theory mode from the ctrl-tree, or nil."
   []
-  (get @refs/tree-state [:theory :mode]))
+  (ct/ctrl-read [:theory :mode]))
 
 ;; ---------------------------------------------------------------------------
 ;; Ctrl-tree derivation hook

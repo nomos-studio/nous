@@ -249,6 +249,8 @@
              (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:keyboard]
              (bm/beam-mount mbox beam-node tx/current-beat))
+      (alter refs/mount-table assoc [:seq]
+             (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:transport]
              (bm/beam-mount mbox beam-node tx/current-beat))
       (alter refs/mount-table assoc [:theory]
@@ -280,6 +282,7 @@
       (dosync
         (alter refs/mount-table dissoc [:input :keyboard])
         (alter refs/mount-table dissoc [:keyboard])
+        (alter refs/mount-table dissoc [:seq])
         (alter refs/mount-table dissoc [:transport])
         (alter refs/mount-table dissoc [:theory])
         (alter refs/mount-table dissoc [:corpus])

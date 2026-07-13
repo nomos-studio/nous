@@ -8,18 +8,22 @@
     :interval           — solfege wheel, relative navigation from running position
     :interval-last-note — interval mode with anchor seeded by last pitch-mode note
 
-  Mode is set via (ctrl/set! [:keyboard :mode] :interval) or any ctrl-tree write.
-  Interval state is tracked in a private atom and echoed to [:keyboard :interval_position].
+  All keyboard/sequencer state lives on the ctrl-tree — the single source of
+  truth (see doc/design-ctrl-authority.md). There is no private position or
+  recording state: mode at [:keyboard :mode], wheel position at
+  [:keyboard :interval_position], recording flag at [:keyboard :recording], and
+  the tone row at [:seq :tone_row] / [:seq :tone_row_in_progress]. Reads use
+  ctrl-tree.core/ctrl-read; writes use ctrl-write! (which echoes to BEAM via the
+  mounted [:keyboard] and [:seq] prefixes).
 
-  Tone row recording (M17): start-recording! / stop-recording! toggle capture mode.
-  While recording, each interval keypress appends {:interval n :vel v} to
-  [:seq :tone_row_in_progress]. stop-recording! commits the row to [:seq :tone_row].
+  Tone row recording (M17): start-recording! / stop-recording! toggle capture
+  mode. While recording, each interval keypress appends {:interval n :vel v} to
+  [:seq :tone_row_in_progress]; stop-recording! commits it to [:seq :tone_row].
 
   Pitch mode note events are handled by the existing rt/kairos-voice chain in
   nous.jinterface; this namespace adds interval dispatch on top and records
   the anchor note for :interval-last-note mode."
   (:require [ctrl-tree.core :as ct]
-            [nous.ctrl      :as ctrl]
             [nous.live      :as live]
             [nous.loop      :as loop-ns]
             [nous.pitch     :as pitch]
@@ -46,18 +50,6 @@
   {"a" -1 "s" +1 "d" -2 "f" +2 "g" -3 "h" +3 "j" +4 "w" -4})
 
 ;; ---------------------------------------------------------------------------
-;; Running position state
-;; ---------------------------------------------------------------------------
-
-;; 0-indexed position on the solfege wheel.
-;; Invariant: always in [0, n-steps − 1] for the current harmony context.
-(defonce ^:private pos-atom (atom 0))
-
-;; Recording state (M17)
-(defonce ^:private recording-atom (atom false))
-(defonce ^:private row-buffer (atom []))
-
-;; ---------------------------------------------------------------------------
 ;; Helpers
 ;; ---------------------------------------------------------------------------
 
@@ -82,19 +74,23 @@
   "Return the active keyboard mode keyword (:pitch, :interval, :interval-last-note).
   Defaults to :pitch when unset."
   []
-  (or (ctrl/get [:keyboard :mode]) :pitch))
+  (or (ct/ctrl-read [:keyboard :mode]) :pitch))
 
 (defn current-position
   "Return the current solfege wheel position as a 1-indexed scale degree."
   []
-  (inc @pos-atom))
+  (or (ct/ctrl-read [:keyboard :interval_position]) 1))
 
 (defn reset-position!
   "Reset the interval wheel to the root position (degree 1). REPL utility."
   []
-  (reset! pos-atom 0)
   (ct/ctrl-write! [:keyboard :interval_position] 1)
   nil)
+
+(defn recording?
+  "Return true when tone row recording is active."
+  []
+  (= true (ct/ctrl-read [:keyboard :recording])))
 
 (defn interval-note-on!
   "Navigate the solfege wheel by the interval delta mapped to `key`, then
@@ -105,27 +101,29 @@
   solfege wheel. When recording is active, also appends the interval delta to
   [:seq :tone_row_in_progress]."
   [key]
-  (let [imap  (or (ctrl/get [:keyboard :qwerty-map]) default-interval-map)
+  (let [imap  (or (ct/ctrl-read [:keyboard :qwerty-map]) default-interval-map)
         delta (get imap key)]
     (when delta
       (let [n    (n-steps)
-            pos  (mod (+ @pos-atom (long delta)) n)]
-        (reset! pos-atom pos)
-        (let [deg  (inc pos)
-              hctx loop-ns/*harmony-ctx*
-              note-name (when hctx
-                          (try (step-name (scale-ns/pitch-at hctx pos))
-                               (catch Exception _ nil)))]
-          (ct/ctrl-write! [:keyboard :interval_position] deg)
-          (when note-name
-            (ct/ctrl-write! [:keyboard :interval_note_name] note-name))
-          ;; Recording (M17): append {:interval n :vel 100} to in-progress row
-          (when @recording-atom
-            (let [row-step {:interval (long delta) :vel 100}]
-              (swap! row-buffer conj row-step)
-              (ctrl/set! [:seq :tone_row_in_progress] @row-buffer)
-              (ct/ctrl-write! [:keyboard :tone_row_in_progress] @row-buffer)))
-          (live/play! {:pitch/degree deg :dur/beats 1/4}))))))
+            pos0 (dec (or (ct/ctrl-read [:keyboard :interval_position]) 1))
+            pos  (mod (+ pos0 (long delta)) n)
+            deg  (inc pos)
+            hctx loop-ns/*harmony-ctx*
+            note-name (when hctx
+                        (try (step-name (scale-ns/pitch-at hctx pos))
+                             (catch Exception _ nil)))]
+        (ct/ctrl-write! [:keyboard :interval_position] deg)
+        (when note-name
+          (ct/ctrl-write! [:keyboard :interval_note_name] note-name))
+        ;; Recording (M17): append {:interval n :vel 100} to the in-progress row.
+        ;; Keypress dispatch is single-threaded (JInterface receive loop / REPL),
+        ;; so this read-modify-write on [:seq :tone_row_in_progress] does not race.
+        (when (recording?)
+          (let [row-step {:interval (long delta) :vel 100}
+                row      (conj (or (ct/ctrl-read [:seq :tone_row_in_progress]) [])
+                               row-step)]
+            (ct/ctrl-write! [:seq :tone_row_in_progress] row)))
+        (live/play! {:pitch/degree deg :dur/beats 1/4})))))
 
 (defn record-anchor!
   "Record the anchor note after a pitch-mode keypress.
@@ -151,42 +149,27 @@
   "Enter tone row record mode. Clears the in-progress row and arms the
   interval dispatcher to capture each step to [:seq :tone_row_in_progress]."
   []
-  (reset! recording-atom true)
-  (reset! row-buffer [])
   (ct/ctrl-write! [:keyboard :recording] true)
-  ;; ctrl/set! keeps [:seq ...] paths readable via ctrl/get (tests);
-  ;; ct/ctrl-write! on [:keyboard ...] paths echoes to BEAM via existing mount.
-  (ctrl/set! [:seq :tone_row_in_progress] [])
-  (ct/ctrl-write! [:keyboard :tone_row_in_progress] [])
+  (ct/ctrl-write! [:seq :tone_row_in_progress] [])
   nil)
 
 (defn stop-recording!
   "Leave record mode and commit the in-progress row to [:seq :tone_row].
   The committed row is what make-interval-seq reads for playback."
   []
-  (reset! recording-atom false)
   (ct/ctrl-write! [:keyboard :recording] false)
-  (ctrl/set! [:seq :tone_row] @row-buffer)
-  (ct/ctrl-write! [:keyboard :tone_row] @row-buffer)
+  (ct/ctrl-write! [:seq :tone_row] (or (ct/ctrl-read [:seq :tone_row_in_progress]) []))
   nil)
 
 (defn commit-row!
   "Commit the current in-progress row to [:seq :tone_row] without stopping
   recording. Use for length-threshold auto-commits."
   []
-  (ctrl/set! [:seq :tone_row] @row-buffer)
-  (ct/ctrl-write! [:keyboard :tone_row] @row-buffer)
+  (ct/ctrl-write! [:seq :tone_row] (or (ct/ctrl-read [:seq :tone_row_in_progress]) []))
   nil)
 
 (defn clear-row!
   "Clear the in-progress recording buffer without leaving record mode."
   []
-  (reset! row-buffer [])
-  (ctrl/set! [:seq :tone_row_in_progress] [])
-  (ct/ctrl-write! [:keyboard :tone_row_in_progress] [])
+  (ct/ctrl-write! [:seq :tone_row_in_progress] [])
   nil)
-
-(defn recording?
-  "Return true when tone row recording is active."
-  []
-  @recording-atom)

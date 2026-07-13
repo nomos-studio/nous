@@ -6,8 +6,9 @@
   [:theory :tuning] ctrl-tree path — from the REPL, a surface patch, or a
   cable — retunes all subsequent note events without stopping playback.
 
-  The heavy MicrotonalScale objects live in a private registry; the ctrl-tree
-  path carries only a serialisable descriptor so it echoes cleanly to BEAM:
+  The ctrl-tree at [:theory :tuning] carries the authoritative, serialisable
+  descriptor; the heavy MicrotonalScale objects live in a private derived cache
+  (memoised .scl parses keyed by the descriptor's :name), never on the tree:
 
     {:name \"rast\" :file \"rast.scl\" :period_cents 1200.0 :degree_count 7}
 
@@ -34,7 +35,15 @@
             [nous.scala     :as scala]))
 
 ;; ---------------------------------------------------------------------------
-;; Scale registry — name → MicrotonalScale (kept out of the ctrl-tree)
+;; Scale registry — name → MicrotonalScale
+;;
+;; This is a derived object cache, NOT a second source of truth. The
+;; authoritative tuning is the serialisable descriptor on the ctrl-tree at
+;; [:theory :tuning] ({:name :file :period_cents :degree_count}); a
+;; MicrotonalScale is a pure memoised parse of its :file. It is deliberately
+;; kept off the ctrl-tree because every ctrl-write! is persisted to the SQLite
+;; txlog via pr-str, and a MicrotonalScale record does not round-trip through
+;; read-string. See doc/design-ctrl-authority.md (object-cache carve-out).
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private tuning-registry (atom {}))
@@ -118,7 +127,7 @@
 (defn current-tuning
   "Return the active tuning descriptor from the ctrl-tree, or nil (12-TET)."
   []
-  (get @refs/tree-state [:theory :tuning]))
+  (ct/ctrl-read [:theory :tuning]))
 
 ;; ---------------------------------------------------------------------------
 ;; Maqam preset navigation
@@ -147,12 +156,12 @@
 (defn maqam-presets
   "Return the installed maqam preset list, or nil."
   []
-  (get @refs/tree-state [:theory :maqam_presets]))
+  (ct/ctrl-read [:theory :maqam_presets]))
 
 (defn maqam-index
   "Return the current maqam preset index (0 when unset)."
   []
-  (or (get @refs/tree-state [:theory :maqam_index]) 0))
+  (or (ct/ctrl-read [:theory :maqam_index]) 0))
 
 (defn maqam-goto!
   "Select the maqam preset at index `i` (wrapping), activate its tuning, and

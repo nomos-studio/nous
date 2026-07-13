@@ -2,8 +2,8 @@
 (ns nous.keyboard-test
   "Unit tests for nous.keyboard — mode dispatch and interval navigation."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
             [nous.core     :as core]
-            [nous.ctrl     :as ctrl]
             [nous.keyboard :as keyboard]
             [nous.live     :as live]
             [nous.loop     :as loop-ns]
@@ -15,10 +15,11 @@
 
 (defn- with-system [f]
   (core/start! :no-log true)
-  ;; Reset keyboard and recording state so tests are independent of execution order.
-  (ctrl/set! [:keyboard :mode] nil)
-  (ctrl/set! [:seq :tone_row_in_progress] nil)
-  (ctrl/set! [:seq :tone_row] nil)
+  ;; Reset keyboard and recording state so tests are independent of execution
+  ;; order. All keyboard/seq state is single-store on the ctrl-tree.
+  (ct/ctrl-write! [:keyboard :mode] nil)
+  (ct/ctrl-write! [:seq :tone_row_in_progress] nil)
+  (ct/ctrl-write! [:seq :tone_row] nil)
   (keyboard/reset-position!)
   (when (keyboard/recording?) (keyboard/stop-recording!))
   (try (f)
@@ -43,8 +44,8 @@
     (is (= :pitch (keyboard/keyboard-mode)))))
 
 (deftest keyboard-mode-set-via-ctrl-test
-  (testing "reads :interval after ctrl/set!"
-    (ctrl/set! [:keyboard :mode] :interval)
+  (testing "keyboard-mode reads the mode set-mode! wrote (both on ctrl-tree)"
+    (ct/ctrl-write! [:keyboard :mode] :interval)
     (is (= :interval (keyboard/keyboard-mode)))))
 
 ;; ---------------------------------------------------------------------------
@@ -144,9 +145,9 @@
 
 (deftest start-recording-clears-buffer-test
   (testing "start-recording! clears any existing in-progress row"
-    (ctrl/set! [:seq :tone_row_in_progress] [{:interval 1 :vel 100}])
+    (ct/ctrl-write! [:seq :tone_row_in_progress] [{:interval 1 :vel 100}])
     (keyboard/start-recording!)
-    (is (= [] (ctrl/get [:seq :tone_row_in_progress])))
+    (is (= [] (ct/ctrl-read [:seq :tone_row_in_progress])))
     (is (true? (keyboard/recording?)))))
 
 (deftest interval-note-on-appends-when-recording-test
@@ -157,7 +158,7 @@
         (capture-play! #(keyboard/interval-note-on! "s"))  ; +1
         (capture-play! #(keyboard/interval-note-on! "f"))  ; +2
         (capture-play! #(keyboard/interval-note-on! "a")))) ; -1
-    (let [row (ctrl/get [:seq :tone_row_in_progress])]
+    (let [row (ct/ctrl-read [:seq :tone_row_in_progress])]
       (is (= 3 (count row)))
       (is (= {:interval 1 :vel 100} (nth row 0)))
       (is (= {:interval 2 :vel 100} (nth row 1)))
@@ -172,15 +173,15 @@
         (capture-play! #(keyboard/interval-note-on! "f"))))
     (keyboard/stop-recording!)
     (is (false? (keyboard/recording?)))
-    (is (= 2 (count (ctrl/get [:seq :tone_row]))))
-    (is (= {:interval 1 :vel 100} (first (ctrl/get [:seq :tone_row]))))))
+    (is (= 2 (count (ct/ctrl-read [:seq :tone_row]))))
+    (is (= {:interval 1 :vel 100} (first (ct/ctrl-read [:seq :tone_row]))))))
 
 (deftest no-recording-without-start-test
   (testing "interval keypresses do NOT append when not recording"
     (let [hctx (scale/scale :C 4 :major)]
       (binding [loop-ns/*harmony-ctx* hctx]
         (capture-play! #(keyboard/interval-note-on! "s"))))
-    (is (nil? (ctrl/get [:seq :tone_row_in_progress])))))
+    (is (nil? (ct/ctrl-read [:seq :tone_row_in_progress])))))
 
 (deftest clear-row-resets-buffer-test
   (testing "clear-row! empties in-progress buffer, stays in record mode"
@@ -188,7 +189,7 @@
     (let [hctx (scale/scale :C 4 :major)]
       (binding [loop-ns/*harmony-ctx* hctx]
         (capture-play! #(keyboard/interval-note-on! "s"))))
-    (is (= 1 (count (ctrl/get [:seq :tone_row_in_progress]))))
+    (is (= 1 (count (ct/ctrl-read [:seq :tone_row_in_progress]))))
     (keyboard/clear-row!)
-    (is (= [] (ctrl/get [:seq :tone_row_in_progress])))
+    (is (= [] (ct/ctrl-read [:seq :tone_row_in_progress])))
     (is (true? (keyboard/recording?)))))

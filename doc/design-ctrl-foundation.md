@@ -1,5 +1,8 @@
 # The ctrl tree — foundational framing
 
+*See also `design-ctrl-authority.md` for the operative rule on which store is
+the single source of truth (ctrl-tree) and how `nous.ctrl` is migrated onto it.*
+
 ## What it is
 
 The ctrl tree is a **semantic model of the studio**.

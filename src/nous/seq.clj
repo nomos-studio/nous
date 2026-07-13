@@ -59,7 +59,6 @@
 
   See nous.pattern/make-motif-state, nous.arp/make-arp-state."
   (:require [ctrl-tree.core :as ct]
-            [nous.ctrl      :as ctrl]
             [nous.loop      :as loop-ns]
             [nous.live      :as live]
             [nous.transform :as xf]))
@@ -286,7 +285,8 @@
   Opts (keyword args):
     :start-degree N  — initial 1-indexed scale degree (default 1)
 
-  Traversal strategy is read live from [:seq :play_option] at each step:
+  Traversal strategy is read live from the ctrl-tree at [:seq :play_option]
+  (via ctrl-read) at each step:
     :prime   (default) — forward through the row
     :retro             — backward
     :pendulum          — forward then backward
@@ -318,7 +318,7 @@
     (reify
       IStepSequencer
       (next-event [_]
-        (let [opt      (or (ctrl/get [:seq :play_option]) :prime)
+        (let [opt      (or (ct/ctrl-read [:seq :play_option]) :prime)
               i        (interval-step-index opt @cp n)
               step     (nth steps i)
               prob     (double (:prob step 1.0))
