@@ -30,6 +30,7 @@
             [ctrl-tree.core :as ct]
             [ctrl-tree.refs :as refs]
             [nous.live      :as live]
+            [nous.loop      :as loop-ns]
             [nous.scala     :as scala]))
 
 ;; ---------------------------------------------------------------------------
@@ -74,9 +75,15 @@
 
 (defn- activate!
   "Install `scale` as the live tuning, or nil to return to 12-TET. Synchronous;
-  wraps nous.live/use-tuning!."
+  wraps nous.live/use-tuning!.
+
+  Skips the alter-var-root when *tuning-ctx* already holds the target, so the
+  redundant re-activation triggered by set-tuning!'s own [:theory :tuning] write
+  (via the install watch) is a no-op rather than a second mutation."
   [scale]
-  (live/use-tuning! (when scale {:scale scale}))
+  (let [target (when scale {:scale scale})]
+    (when (not= target loop-ns/*tuning-ctx*)
+      (live/use-tuning! target)))
   nil)
 
 ;; ---------------------------------------------------------------------------
@@ -175,46 +182,50 @@
   (maqam-goto! (dec (maqam-index))))
 
 (defn maqam-nav!
-  "Drive the maqam navigation endpoint. `dir` is :next or :prev. Equivalent to
-  a surface patch or CC writing [:theory :maqam_nav]; the watch performs the
-  step. Provided so cable/footswitch drivers have a single call."
+  "Step the maqam preset list. `dir` is :next or :prev. Dispatches directly and
+  synchronously — a MIDI CC, footswitch, or deflive-loop handler calls this.
+
+  This does NOT round-trip through a ctrl-tree level-keyword endpoint: a level
+  path ([:theory :maqam_nav] = :next/:prev/:idle) silently drops a same-direction
+  press issued before its async reset, because ref watches fire only on value
+  change (Gate 4 finding #6). Cable/patch-driven navigation, once the cable
+  system lands (M20r/M21), will bind through a proper edge/trigger type rather
+  than a level path."
   [dir]
-  (ct/ctrl-write! [:theory :maqam_nav] dir)
-  nil)
+  (case dir
+    :next (maqam-next!)
+    :prev (maqam-prev!)
+    nil))
 
 ;; ---------------------------------------------------------------------------
 ;; Ctrl-tree watch — live tuning install + maqam navigation endpoint
 ;; ---------------------------------------------------------------------------
 
 (defn install-tuning-watch!
-  "Install a watch on the ctrl-tree that (1) activates the tuning whenever
-  [:theory :tuning] changes to a descriptor written by something other than
-  set-tuning!, and (2) steps the maqam preset list when [:theory :maqam_nav]
-  is written :next or :prev.
+  "Install a watch on the ctrl-tree that activates the tuning whenever
+  [:theory :tuning] changes — e.g. an external cable/surface-patch write, or
+  set-tuning!'s own descriptor write (re-activation is guarded to a no-op).
 
-  Idempotent — fixed watch key :nous.tuning/installer replaces any prior watch."
+  Idempotent — fixed watch key :nous.tuning/installer replaces any prior watch.
+
+  Maqam navigation is NOT a watch endpoint: it is driven by calling maqam-nav! /
+  maqam-next! / maqam-prev! directly (see maqam-nav! for why a level-keyword
+  ctrl-tree endpoint was removed — Gate 4 finding #6)."
   []
   (add-watch refs/tree-state :nous.tuning/installer
     (fn [_ _ old new]
       (let [old-tuning (get old [:theory :tuning])
-            new-tuning (get new [:theory :tuning])
-            old-nav    (get old [:theory :maqam_nav])
-            new-nav    (get new [:theory :maqam_nav])]
-        ;; (1) Tuning activation — resolve + install off the STM thread.
+            new-tuning (get new [:theory :tuning])]
+        ;; Tuning activation — run SYNCHRONOUSLY. Ref watches fire after the
+        ;; transaction commits, so calling activate! (alter-var-root via
+        ;; use-tuning!) here is on the committing/REPL thread, never the agent
+        ;; pool. use-tuning! is documented single-thread-only; wrapping this in a
+        ;; future would violate that contract (Gate 4 finding #3).
         (when (not= old-tuning new-tuning)
-          (future
-            (if (nil? new-tuning)
-              (activate! nil)
-              (when-let [scale (resolve-scale new-tuning)]
-                (activate! scale)))))
-        ;; (2) Maqam navigation endpoint — step, then reset the edge.
-        (when (and (not= old-nav new-nav)
-                   (#{:next :prev} new-nav))
-          (future
-            (case new-nav
-              :next (maqam-next!)
-              :prev (maqam-prev!))
-            (ct/ctrl-write! [:theory :maqam_nav] :idle)))))))
+          (if (nil? new-tuning)
+            (activate! nil)
+            (when-let [scale (resolve-scale new-tuning)]
+              (activate! scale))))))))
 
 (defn remove-tuning-watch!
   "Remove the tuning/maqam-navigation watch."

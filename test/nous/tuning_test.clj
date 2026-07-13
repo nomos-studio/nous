@@ -21,11 +21,14 @@
   (ct/ctrl-write! [:theory :maqam_presets] nil)
   (ct/ctrl-write! [:theory :maqam_index] nil)
   (ct/ctrl-write! [:theory :maqam_name] nil)
-  (ct/ctrl-write! [:theory :maqam_nav] :idle)
   (alter-var-root #'loop-ns/*tuning-ctx* (constantly nil))
   (try (f)
        (finally
          (tuning/remove-tuning-watch!)
+         ;; Reset the *tuning-ctx* ROOT binding so an activated tuning cannot
+         ;; leak into a later namespace's play! calls (these tests set it via
+         ;; use-tuning!/alter-var-root, which outlives the dynamic scope).
+         (alter-var-root #'loop-ns/*tuning-ctx* (constantly nil))
          (core/stop!))))
 
 (use-fixtures :each with-system)
@@ -137,15 +140,20 @@
     (is (= 0 (tuning/maqam-index)))))
 
 ;; ---------------------------------------------------------------------------
-;; Navigation endpoint — [:theory :maqam_nav]
+;; maqam-nav! — direct, synchronous, loss-free (Gate 4 finding #6)
 ;; ---------------------------------------------------------------------------
 
-(deftest maqam-nav-endpoint-steps-test
-  (testing "writing :next to the nav endpoint advances the preset via the watch"
+(deftest maqam-nav-steps-directly-test
+  (testing "maqam-nav! steps synchronously and does not drop same-direction presses"
     (tuning/set-maqam-presets!
       [{:name "a" :scale (test-scale)}
        {:name "b" :scale (scala/parse-scl scl-text-2)}])
     (tuning/maqam-nav! :next)
-    (is (some? (wait-for #(= 1 (tuning/maqam-index)))))
-    ;; The endpoint resets to :idle after firing.
-    (is (some? (wait-for #(= :idle (get @refs/tree-state [:theory :maqam_nav])))))))
+    (is (= 1 (tuning/maqam-index)) "first :next steps")
+    ;; A second same-direction press must NOT be dropped — this is the exact
+    ;; interleaving the old level-keyword endpoint lost.
+    (tuning/maqam-nav! :next)
+    (is (= 0 (tuning/maqam-index)) "second :next steps (wraps), not dropped")
+    (tuning/maqam-nav! :prev)
+    (is (= 1 (tuning/maqam-index)) ":prev steps back")
+    (is (= "b" (get @refs/tree-state [:theory :maqam_name])))))

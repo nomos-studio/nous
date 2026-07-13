@@ -682,6 +682,31 @@
                   #(live/play! {:pitch/midi 64 :dur/beats 1/4}))]
       (is (= 64 (:pitch/midi step))))))
 
+(deftest pitch-selector-precedence-test
+  ;; Pins the cond-order precedence in resolve-pitch-selectors so a reshuffle is
+  ;; caught (Gate 4 finding #7). Order is degree > pc > freq > midi; when a step
+  ;; carries more than one selector the higher-precedence one wins and the others
+  ;; are dropped. This is the current contract — locked here, not endorsed as
+  ;; ideal; if conflicting selectors should instead throw, change this test with it.
+  (testing ":pitch/degree wins over a co-present :pitch/midi"
+    (live/with-harmony (scale/scale :C 4 :major)
+      (let [[step] (capture-play!
+                    #(live/play! {:pitch/degree 3 :pitch/midi 100 :dur/beats 1/4}))]
+        (is (= 64 (:pitch/midi step)) "degree 3 (E4) resolved, supplied midi 100 dropped")
+        (is (nil? (:pitch/degree step)) "degree selector consumed"))))
+
+  (testing ":pitch/pc wins over a co-present :pitch/freq and :pitch/midi"
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/pc :G :pitch/octave 4
+                                :pitch/freq 440.0 :pitch/midi 100 :dur/beats 1/4}))]
+      (is (= 67 (:pitch/midi step)) "pc :G4 resolved, freq/midi dropped")
+      (is (nil? (:pitch/pc step)) "pc selector consumed")))
+
+  (testing ":pitch/freq wins over a co-present :pitch/midi"
+    (let [[step] (capture-play!
+                  #(live/play! {:pitch/freq 440.0 :pitch/midi 100 :dur/beats 1/4}))]
+      (is (= 69 (:pitch/midi step)) "freq 440 (A4) resolved, supplied midi 100 dropped"))))
+
 ;; ---------------------------------------------------------------------------
 ;; make-degree-seq integration with play!
 ;; ---------------------------------------------------------------------------
