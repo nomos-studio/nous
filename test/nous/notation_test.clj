@@ -7,7 +7,6 @@
             [clojure.string  :as str]
             [ctrl-tree.core  :as ct]
             [nous.core       :as core]
-            [nous.ctrl       :as ctrl]
             [nous.notation   :as notation])
   (:import [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]))
@@ -26,7 +25,7 @@
   (testing "save-session! reads the LilyPond source export-session! wrote (same store)"
     (let [dir "\\version \"2.24\"\n{ c'4 d'4 e'4 f'4 }"
           out (temp-dir)]
-      (ctrl/set! [:session :dir] out)
+      (ct/ctrl-write! [:session :dir] out)
       ;; Simulate a successful export-session!: it writes via ct/ctrl-write!.
       (ct/ctrl-write! [:notation :session :lilypond] dir)
       (let [ly-path (notation/save-session!)]
@@ -45,6 +44,6 @@
     ;; visible to save-session!. If save-session! read nous.ctrl/get instead,
     ;; this would find nil and return nil even though content exists.
     (ct/ctrl-write! [:notation :session :lilypond] "{ c'1 }")
-    (ctrl/set! [:session :dir] (temp-dir))
+    (ct/ctrl-write! [:session :dir] (temp-dir))
     (is (some? (notation/save-session!))
         "ct/ctrl-write! content is reachable by save-session!")))

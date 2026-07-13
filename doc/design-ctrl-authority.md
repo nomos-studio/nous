@@ -55,7 +55,12 @@ series of scoped increments. Increment 1 (2026-07-13) moved the M14–M18 surfac
 6. **Runtime state is separate and exempt.** `nous.runtime` (process health,
    errors, subsystem status) is ephemeral — never persisted, never part of a
    session export or replay. It uses the same path/watch shape as control state
-   but is not control state and does not belong on `ctrl-tree`.
+   but is not control state and does not belong on `ctrl-tree`. The same applies
+   to high-frequency per-tick modulation state — e.g. `[:spatial <field> :state]`,
+   rewritten ~20 Hz per field by the modulation loop: since every `ctrl-write!`
+   persists to the SQLite replay txlog, such state would bloat the session record
+   for no replay value. It stays off `ctrl-tree` (on `nous.ctrl` for now, pending
+   a dedicated ephemeral store).
 
 7. **Mount coverage is part of the surface.** Any control path that must reach
    BEAM needs a mount registered in `nous.jinterface` `start!`/`stop!`. Paths

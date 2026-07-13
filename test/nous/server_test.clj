@@ -4,6 +4,8 @@
   (:require [clojure.test      :refer [deftest is testing use-fixtures]]
             [clojure.string    :as str]
             [clojure.data.json :as json]
+            [ctrl-tree.core  :as ct]
+            [ctrl-tree.refs  :as refs]
             [nous.core       :as core]
             [nous.ctrl       :as ctrl]
             [nous.loop       :as loop]
@@ -52,7 +54,13 @@
   (try (f)
        (finally
          (server/stop-server!)
-         (core/stop!))))
+         (core/stop!)
+         ;; tree-state is a global STM ref that outlives core/start!/stop!;
+         ;; drop the ctrl-tree keys these tests write so they don't leak.
+         (dosync (alter refs/tree-state
+                        #(apply dissoc % [[:server-test/ct-only]
+                                          [:server-test/ct-dump]
+                                          [:server-test/ct-put]]))))))
 
 (use-fixtures :each with-system)
 
@@ -212,6 +220,37 @@
       (let [entry (first (filter #(= ["server-test/ranged"] (get % "path")) body))]
         (is (some? entry))
         (is (= {"range" [0.0 1.0]} (get entry "meta")))))))
+
+;; ---------------------------------------------------------------------------
+;; Store-agnostic: ctrl-tree paths served/broadcast/written (Increment 2)
+;; ---------------------------------------------------------------------------
+
+(deftest ctrl-get-ctrl-tree-path-test
+  (testing "GET /ctrl/<path> serves a ctrl-tree-only path (value, null type, empty meta)"
+    (ct/ctrl-write! [:server-test/ct-only] 0.9)
+    (let [{:keys [status body]} (http-get "/ctrl/server-test%2Fct-only")]
+      (is (= 200 status))
+      (is (= 0.9 (get body "value")))
+      (is (nil? (get body "type")) "ctrl-tree paths have no typed-node type")
+      (is (= {} (get body "meta"))))))
+
+(deftest ctrl-dump-includes-ctrl-tree-test
+  (testing "GET /ctrl dump unions ctrl-tree paths with nous.ctrl nodes"
+    (ct/ctrl-write! [:server-test/ct-dump] 3)
+    (let [{:keys [status body]} (http-get "/ctrl")
+          entry (first (filter #(= ["server-test/ct-dump"] (get % "path")) body))]
+      (is (= 200 status))
+      (is (some? entry) "dump contains the ctrl-tree path")
+      (is (= 3 (get entry "value")))
+      (is (nil? (get entry "type"))))))
+
+(deftest ctrl-put-routes-to-ctrl-tree-test
+  (testing "PUT to a path already on ctrl-tree writes ctrl-tree (not nous.ctrl)"
+    (ct/ctrl-write! [:server-test/ct-put] 1)
+    (let [put-resp (http-put "/ctrl/server-test%2Fct-put" {"value" 2})]
+      (is (= 200 (:status put-resp))))
+    (is (= 2 (ct/ctrl-read [:server-test/ct-put])) "value landed on ctrl-tree")
+    (is (nil? (ctrl/get [:server-test/ct-put])) "not written to nous.ctrl")))
 
 ;; ---------------------------------------------------------------------------
 ;; Unknown route

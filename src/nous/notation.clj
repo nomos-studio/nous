@@ -11,7 +11,6 @@
   Errors are printed to *err* rather than thrown."
   (:require [clojure.data.json  :as json]
             [ctrl-tree.core     :as ct]
-            [nous.ctrl          :as ctrl]
             [nous.dirs          :as dirs]
             [nous.m21           :as m21]
             [nous.txlog-store   :as tx]))
@@ -88,11 +87,10 @@
   and compile to PDF if the `lilypond` binary is available on PATH.
   Returns the .ly path written, or nil when no LilyPond content is available."
   []
-  ;; Read from the ctrl-tree — the same store export-session! writes to via
-  ;; ct/ctrl-write!. Reading via nous.ctrl/get here would query the *other*
-  ;; store and always find nil.
+  ;; All reads go through the ctrl-tree — the single source of truth and the
+  ;; same store export-session! writes to via ct/ctrl-write!.
   (when-let [ly (ct/ctrl-read [:notation :session :lilypond])]
-    (let [session-dir (or (ctrl/get [:session :dir]) (dirs/sessions-dir))
+    (let [session-dir (or (ct/ctrl-read [:session :dir]) (dirs/sessions-dir))
           ly-path     (str session-dir "/notation.ly")]
       (spit ly-path ly)
       (try

@@ -57,6 +57,8 @@
             [clojure.string    :as str]
             [clojure.data.json :as json]
             [clojure.java.io   :as io]
+            [ctrl-tree.core  :as ct]
+            [ctrl-tree.refs  :as refs]
             [nous.ctrl       :as ctrl]
             [nous.core       :as core]
             [nous.loop       :as loop-ns]
@@ -161,6 +163,43 @@
             segments))))
 
 ;; ---------------------------------------------------------------------------
+;; Store-agnostic ctrl access (transitional: nous.ctrl + ctrl-tree)
+;;
+;; The control state lives across two stores during the nous.ctrl → ctrl-tree
+;; migration. A path lives in exactly one store, so union reads and
+;; ownership-routed writes are unambiguous. See doc/design-ctrl-authority.md.
+;; ---------------------------------------------------------------------------
+
+(defn- read-node
+  "Return {:value :type :node-meta} for `path`, or nil when it exists in neither
+  store. Prefers the nous.ctrl typed node (which carries :type/:node-meta); falls
+  back to ctrl-tree, where a path has a value but no type/meta."
+  [path]
+  (or (ctrl/node-info path)
+      (when (contains? @refs/tree-state path)
+        {:value (ct/ctrl-read path) :type nil :node-meta {}})))
+
+(defn- all-ctrl-entries
+  "Union of every ctrl node across both stores as {:path :value :type :node-meta}
+  maps. nous.ctrl nodes carry type/meta; ctrl-tree paths render with nil/empty."
+  []
+  (let [nc     (ctrl/all-nodes)
+        nc-set (into #{} (map :path) nc)]
+    (into (vec nc)
+          (for [[path value] @refs/tree-state
+                :when (not (contains? nc-set path))]
+            {:path path :value value :type nil :node-meta {}}))))
+
+(defn- route-write!
+  "Write `value` at `path` to whichever store owns it — ctrl-tree when the path
+  is already present there, otherwise nous.ctrl (legacy default for new paths).
+  Logical write only; no hardware dispatch."
+  [path value]
+  (if (contains? @refs/tree-state path)
+    (ct/ctrl-write! path value)
+    (ctrl/set! path value)))
+
+;; ---------------------------------------------------------------------------
 ;; WebSocket broadcast
 ;; ---------------------------------------------------------------------------
 
@@ -173,6 +212,20 @@
                              "value" (->json-safe after)})]
     (doseq [ch @ws-channels]
       (hk/send! ch msg))))
+
+(defn- tree-state->broadcast!
+  "Clojure-ref add-watch callback for ctrl-tree.refs/tree-state. Broadcasts every
+  changed path to WebSocket clients in the same JSON shape as broadcast-ctrl!, so
+  the surface sees ctrl-tree writes as well as nous.ctrl ones during the
+  migration. Each ctrl-write! alters one path, so the diff yields one entry."
+  [_key _ref old new]
+  (doseq [[path value] new
+          :when (not= value (get old path))]
+    (let [msg (json/write-str {"type"  "ctrl"
+                               "path"  (mapv kw->str path)
+                               "value" (->json-safe value)})]
+      (doseq [ch @ws-channels]
+        (hk/send! ch msg)))))
 
 (defn- broadcast-runtime!
   "Send a runtime state change to all connected WebSocket clients."
@@ -193,7 +246,7 @@
                    (try
                      (when-let [{:strs [path value]} (json/read-str msg)]
                        (when (sequential? path)
-                         (ctrl/set! (mapv keyword path) value)))
+                         (route-write! (mapv keyword path) value)))
                      (catch Exception _ nil)))}))
 
 ;; ---------------------------------------------------------------------------
@@ -251,22 +304,22 @@
           (mapv (fn [{:keys [path value type node-meta]}]
                   {"path"  (mapv kw->str path)
                    "value" (->json-safe value)
-                   "type"  (kw->str type)
+                   "type"  (some-> type kw->str)
                    "meta"  (->json-safe node-meta)})
-                (ctrl/all-nodes)))
+                (all-ctrl-entries)))
 
         ;; ---- GET /ctrl/<path> ----
         (and (= :get method) (str/starts-with? path "/ctrl/"))
         (let [ctrl-path (parse-ctrl-path path)]
           (if (nil? ctrl-path)
             (respond 400 {"error" "empty ctrl path"})
-            (let [node (ctrl/node-info ctrl-path)]
+            (let [node (read-node ctrl-path)]
               (if (nil? node)
                 (respond 404 {"error" "not found"})
                 (respond 200
                   {"path"  (mapv kw->str ctrl-path)
                    "value" (->json-safe (:value node))
-                   "type"  (kw->str (:type node))
+                   "type"  (some-> (:type node) kw->str)
                    "meta"  (->json-safe (or (:node-meta node) {}))})))))
 
         ;; ---- PUT /ctrl/<path> ----
@@ -276,7 +329,7 @@
             (respond 400 {"error" "empty ctrl path"})
             (let [data (json/read-str (slurp (:body req)))]
               (if (contains? data "value")
-                (do (ctrl/set! ctrl-path (clojure.core/get data "value"))
+                (do (route-write! ctrl-path (clojure.core/get data "value"))
                     (respond 200 {"ok" true}))
                 (respond 400 {"error" "missing value field"})))))
 
@@ -306,6 +359,7 @@
     (stop-server!))
   (let [stop-fn (hk/run-server #'handler {:port port})]
     (ctrl/watch-global! ::ws-broadcast broadcast-ctrl!)
+    (add-watch refs/tree-state ::ws-broadcast tree-state->broadcast!)
     (runtime/watch-global! ::ws-broadcast broadcast-runtime!)
     (reset! server-atom {:server stop-fn :port port})
     (println (str "[server] started on port " port))
@@ -316,6 +370,7 @@
   []
   (when-let [{:keys [server]} @server-atom]
     (ctrl/unwatch-global! ::ws-broadcast)
+    (remove-watch refs/tree-state ::ws-broadcast)
     (runtime/unwatch-global! ::ws-broadcast)
     (server :timeout 100)
     (reset! server-atom nil)
