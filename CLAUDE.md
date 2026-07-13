@@ -42,7 +42,7 @@ git commit -m "Release vX.Y.Z — <one-line summary>
 
 Suite: N tests, 0 failures.
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 git tag vX.Y.Z
 ```
