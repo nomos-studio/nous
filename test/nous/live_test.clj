@@ -2,6 +2,7 @@
 (ns nous.live-test
   "Unit tests for nous.live — synth context, play!, phrase!, ring/tick!."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
             [nous.clock :as clock]
             [nous.core  :as core]
             [nous.ctrl  :as ctrl]
@@ -262,10 +263,9 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest tick-mods-routes-to-ctrl-test
-  (testing "tick-mods! samples each mod in *mod-ctx* at *virtual-time* and calls ctrl/send!"
+  (testing "tick-mods! samples each mod in *mod-ctx* and writes via ct/ctrl-write!"
     (core/start! :bpm 120)
     (try
-      (ctrl/defnode! [:test/tmod-cutoff] :type :float :value 0.0)
       (let [ph  (clock/->Phasor 1 0)
             lfo (live/ring 0.5)]          ; use a simple value; any ITemporalValue works
         ;; Use a constant ITemporalValue (just a record that returns 0.75)
@@ -275,7 +275,7 @@
           (binding [loop-ns/*mod-ctx*    {[:test/tmod-cutoff] const-mod}
                     loop-ns/*virtual-time* 0.0]
             (live/tick-mods!))
-          (is (= 0.75 (ctrl/get [:test/tmod-cutoff])) "ctrl node updated with sampled value")))
+          (is (= 0.75 (ct/ctrl-read [:test/tmod-cutoff])) "ctrl-tree updated with sampled value")))
       (finally (core/stop!)))))
 
 (deftest tick-mods-noop-when-nil-test

@@ -2,6 +2,7 @@
 (ns nous.mod-test
   "Unit tests for nous.mod — Lfo, envelope, OneShot, and mod-route! runner."
   (:require [clojure.test :refer [deftest is testing]]
+            [ctrl-tree.core :as ct]
             [nous.clock  :as clock]
             [nous.core   :as core]
             [nous.ctrl   :as ctrl]
@@ -97,20 +98,19 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest mod-route-dispatches-to-ctrl-send-test
-  (testing "mod-route! runner calls ctrl/send! with sampled value"
+  (testing "mod-route! runner calls ct/ctrl-write! with the sampled value"
     ;; Use a very fast BPM so the phasor cycles in milliseconds.
     ;; Phasor rate=1, period=1 beat → at 60000 BPM, 1 beat = 1ms.
     (core/start! :bpm 60000)
     (try
-      (ctrl/defnode! [:mod/test-cc] :type :float :meta {:range [0.0 1.0]} :value 0.0)
-      ;; Bind so ctrl/send! doesn't try sidecar dispatch (no sidecar in tests)
-      ;; — defnode! alone is enough; send! still updates the atom even w/o bindings.
-      (let [received  (promise)
-            orig-send ctrl/send!]
-        (with-redefs [ctrl/send! (fn [path value]
-                                   (when (= path [:mod/test-cc])
-                                     (deliver received value))
-                                   (orig-send path value))]
+      ;; The runner now dispatches via ctrl-tree; the root IPC mount would carry
+      ;; it to hardware if the target were bound. Spy the write to capture the value.
+      (let [received   (promise)
+            orig-write ct/ctrl-write!]
+        (with-redefs [ct/ctrl-write! (fn [path value]
+                                       (when (= path [:mod/test-cc])
+                                         (deliver received value))
+                                       (orig-write path value))]
           (mod/mod-route! [:mod/test-cc]
                           (mod/lfo (clock/->Phasor 1 0) phasor/saw-up))
           (let [result (deref received 500 ::timeout)]

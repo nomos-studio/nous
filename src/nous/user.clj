@@ -73,6 +73,7 @@
             [nous.temporal-buffer :as tbuf]
             [nous.ctrl            :as ctrl-ns]
             [nous.ctrl-bridge     :as ctrl-bridge]
+            [nous.ipc-mount       :as ipc-mount]
             [nous.supervisor      :as supervisor]
             [nous.arp             :as arp-ns]
             [nous.seq             :as sq]
@@ -140,6 +141,9 @@
   (theory/install-theory-watch!)
   ;; Install live tuning + maqam navigation watch (M18; idempotent).
   (tuning/install-tuning-watch!)
+  ;; Install the root nomos-rt IPC mount so bound ctrl-tree paths dispatch to
+  ;; hardware (idempotent; inert until kairos/aion is connected).
+  (ipc-mount/install!)
   (println (str "Session ready — BPM " bpm
                 "\n  nREPL on localhost:" nrepl-port " — M-x cider-connect"
                 "\n  (start-kairos! :binary \"/usr/local/bin/kairos\") to connect MIDI output"
@@ -149,6 +153,7 @@
 (defn end-session!
   "Stop all loops and shut down the system."
   []
+  (ipc-mount/uninstall!)
   (core/stop!)
   nil)
 
@@ -1219,3 +1224,7 @@
 (def maqam-nav!            tuning/maqam-nav!)
 (def install-tuning-watch! tuning/install-tuning-watch!)
 (def remove-tuning-watch!  tuning/remove-tuning-watch!)
+
+;; Root nomos-rt IPC mount (hardware output dispatch through ctrl-tree)
+(def install-ipc-mount!   ipc-mount/install!)
+(def uninstall-ipc-mount! ipc-mount/uninstall!)

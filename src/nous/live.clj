@@ -44,7 +44,8 @@
     (use-mod! {[:filter/cutoff] my-lfo}) ; REPL default
     (with-mod {[:filter/cutoff] my-lfo} …) ; scoped
     (tick-mods!)                         ; sample all *mod-ctx* mods → ctrl/send!"
-  (:require [nous.theory  :as theory]
+  (:require [ctrl-tree.core :as ct]
+            [nous.theory  :as theory]
             [nous.chord  :as chord-ns]
             [nous.clock  :as clock]
             [nous.core  :as core]
@@ -387,7 +388,8 @@
 
   Intended to be called once per loop iteration, typically at the top of a
   deflive-loop body. Each entry in *mod-ctx* is {path -> ITemporalValue};
-  tick-mods! calls (ctrl/send! path (clock/sample mod beat)) for each.
+  tick-mods! calls (ct/ctrl-write! path (clock/sample mod beat)) for each; the
+  root IPC mount dispatches to hardware when the target path is bound.
 
   No-op if *mod-ctx* is nil.
 
@@ -400,7 +402,7 @@
   (when-let [ctx loop-ns/*mod-ctx*]
     (let [beat (double loop-ns/*virtual-time*)]
       (doseq [[path mod] ctx]
-        (ctrl/send! path (clock/sample mod beat))))))
+        (ct/ctrl-write! path (clock/sample mod beat))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Tuning context management (§ microtonal)

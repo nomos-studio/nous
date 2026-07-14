@@ -53,3 +53,21 @@
                     kairos/send-cc!   (fn [& _] (swap! calls conj :sent))]
         (ct/ctrl-write! [:ipc-test :cc3] 0.5))
       (is (= [] @calls)))))
+
+(deftest install-root-mount-dispatches-any-bound-path-test
+  (testing "install! registers the root [] mount so any bound path dispatches"
+    (ipc-mount/install!)
+    (try
+      ;; A path under no more-specific mount → falls to the root IpcMount.
+      (ctrl/defnode! [:ipc-root :cc4] :type :float :value 0.0)
+      (ctrl/bind! [:ipc-root :cc4] {:type :midi-cc :channel 3 :cc-num 20 :range [0.0 1.0]})
+      (is (contains? @refs/mount-table []) "root mount registered")
+      (let [calls (atom [])]
+        (with-redefs [kairos/connected? (constantly true)
+                      kairos/send-cc!   (fn [ch cc v & _] (swap! calls conj [ch cc v]))]
+          (ct/ctrl-write! [:ipc-root :cc4] 1.0))
+        (is (= [[3 20 127]] @calls) "root mount dispatched the bound CC"))
+      (finally
+        (ipc-mount/uninstall!)
+        (is (not (contains? @refs/mount-table [])) "uninstall! removed the root mount")
+        (dosync (alter refs/tree-state dissoc [:ipc-root :cc4]))))))

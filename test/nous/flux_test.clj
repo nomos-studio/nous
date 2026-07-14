@@ -2,6 +2,7 @@
 (ns nous.flux-test
   "Unit tests for nous.flux — step buffer, heads, CORRUPT, and inspection API."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
             [nous.clock  :as clock]
             [nous.core   :as core]
             [nous.ctrl   :as ctrl]
@@ -160,13 +161,12 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest read-head-routes-to-ctrl-test
-  (testing "read head calls ctrl/send! on the output path each step"
-    (ctrl/defnode! [:test/flux-out] :type :int :value 0)
+  (testing "read head writes the step value to the output path via ct/ctrl-write!"
     (flux/defflux :test/route {:steps 4 :init 72
                                 :read  {:clock (clock/->Phasor 1 0)}
                                 :output {:target [:test/flux-out]}})
     (Thread/sleep 50)   ; wait for at least one read tick at 60000 BPM
-    (is (= 72 (ctrl/get [:test/flux-out])) "ctrl node updated with step value")
+    (is (= 72 (ct/ctrl-read [:test/flux-out])) "ctrl-tree updated with step value")
     (flux/stop! :test/route)))
 
 ;; ---------------------------------------------------------------------------
@@ -279,7 +279,7 @@
                                 :read  {:clock (clock/->Phasor 1 0)}
                                 :output {:target [:test/scale-out]}})
     (Thread/sleep 50)
-    (let [v (ctrl/get [:test/scale-out])]
+    (let [v (ct/ctrl-read [:test/scale-out])]
       (is (some #{v} [60 62]) "C# quantized to C or D in major scale"))
     (flux/stop! :test/scale)))
 

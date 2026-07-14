@@ -51,7 +51,8 @@
   Key design decisions: Q53 (concurrency — vector of atoms), Q54 (scale as
   ITemporalValue), §26 Flux Sequence Architecture."
   (:refer-clojure :exclude [peek reset!])
-  (:require [nous.clock :as clock]
+  (:require [ctrl-tree.core :as ct]
+            [nous.clock :as clock]
             [nous.ctrl  :as ctrl]
             [nous.loop  :as loop-ns])
   (:import  [java.util.concurrent.locks LockSupport]))
@@ -173,7 +174,7 @@
       (println (format "[flux] value=%d" (int value)))
 
       (vector? target)
-      (ctrl/send! target value))))
+      (ct/ctrl-write! target value))))
 
 ;; ---------------------------------------------------------------------------
 ;; Step buffer initialisation
@@ -495,7 +496,7 @@
   Example:
     (flux/on-corrupt! :melody
       (fn [idx old new]
-        (ctrl/send! [:env/trig] 1)))"
+        (ct/ctrl-write! [:env/trig] 1)))"
   [flux-name callback-fn]
   (when-let [entry (clojure.core/get @registry flux-name)]
     (swap! (:listeners entry) conj callback-fn))

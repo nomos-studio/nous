@@ -20,6 +20,7 @@
   Mounts fire post-commit (never inside the STM transaction), so the blocking
   IPC send is safe here."
   (:require [protomatter.protocols :as p]
+            [ctrl-tree.refs :as refs]
             [nous.ctrl     :as ctrl]
             [nous.dispatch :as dispatch]
             [nous.kairos   :as kairos]))
@@ -46,3 +47,19 @@
   prefix so writes below that prefix dispatch to nomos-rt."
   []
   (IpcMount.))
+
+(defn install!
+  "Register an IpcMount at the root prefix [] so any bound ctrl-tree path
+  dispatches to nomos-rt. The root prefix matches every path and sorts last in
+  the longest-prefix resolution, so it is the fallback for writes not caught by a
+  more-specific mount (e.g. the BeamMounts on [:keyboard], [:seq], …). Idempotent.
+  The mount itself gates on kairos/connected?, so it is inert until nomos-rt is up."
+  []
+  (dosync (alter refs/mount-table assoc [] (ipc-mount)))
+  nil)
+
+(defn uninstall!
+  "Remove the root IpcMount installed by install!."
+  []
+  (dosync (alter refs/mount-table dissoc []))
+  nil)

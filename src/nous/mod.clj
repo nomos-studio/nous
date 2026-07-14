@@ -44,8 +44,8 @@
   When a one-shot's `next-edge` returns ##Inf the runner auto-stops.
 
   Key design decisions: R&R §28.7, Q30 (LFO rate — empirical during impl)."
-  (:require [nous.clock      :as clock]
-            [nous.ctrl       :as ctrl]
+  (:require [ctrl-tree.core  :as ct]
+            [nous.clock      :as clock]
             [nous.loop       :as loop-ns]
             [nous.modulator  :as modulator]
             [nomos.maths.phasor :as phasor])
@@ -307,7 +307,7 @@
               (let [beat' (current-beat)
                     mod'  (:mod (get @routes path))]
                 (when mod'
-                  (ctrl/send! path (clock/sample mod' beat')))))
+                  (ct/ctrl-write! path (clock/sample mod' beat')))))
             (recur)))))))
 
 ;; ---------------------------------------------------------------------------
