@@ -2,6 +2,7 @@
 (ns nous.arc-test
   "Tests for ctrl watcher API and nous.arc fan-out routing."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
             [nous.arc  :as arc]
             [nous.core :as core]
             [nous.ctrl :as ctrl]))
@@ -12,7 +13,9 @@
 
 (defn with-system [f]
   (core/start! :bpm 120)
-  (try (f) (finally (core/stop!))))
+  ;; arc-bind! adds a watch on the global tree-state ref — guarantee cleanup
+  ;; even if a test throws, so watches never leak across tests.
+  (try (f) (finally (arc/arc-unbind-all!) (core/stop!))))
 
 (use-fixtures :each with-system)
 
@@ -111,92 +114,55 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest arc-bind-fans-out-test
-  (testing "arc-bind! fans out to all downstream paths on ctrl/send!"
-    (ctrl/defnode! [:arc/test-tension] :type :float :node-meta {:range [0.0 1.0]})
-    (ctrl/defnode! [:arc/out-cutoff]   :type :float)
-    (ctrl/defnode! [:arc/out-res]      :type :float)
-    (let [cutoff-vals (atom [])
-          res-vals    (atom [])]
-      (ctrl/watch! [:arc/out-cutoff] ::capture (fn [tx _] (swap! cutoff-vals conj (tx-val tx))))
-      (ctrl/watch! [:arc/out-res]    ::capture (fn [tx _] (swap! res-vals conj (tx-val tx))))
-      (arc/arc-bind! [:arc/test-tension]
-                     {[:arc/out-cutoff] {:range [0.3 1.0]}
-                      [:arc/out-res]    {:range [0.0 0.6]}})
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (arc/arc-send! [:arc/test-tension] 0.0)
-        (arc/arc-send! [:arc/test-tension] 1.0))
-      (is (= [0.3 1.0] @cutoff-vals) "cutoff: 0→0.3, 1→1.0")
-      (is (= [0.0 0.6] @res-vals)    "resonance: 0→0.0, 1→0.6")
-      (arc/arc-unbind! [:arc/test-tension])
-      (ctrl/unwatch-all! [:arc/out-cutoff])
-      (ctrl/unwatch-all! [:arc/out-res]))))
+  (testing "arc-bind! fans out to all downstream paths on each arc-send!"
+    (arc/arc-bind! [:arc/test-tension]
+                   {[:arc/out-cutoff] {:range [0.3 1.0]}
+                    [:arc/out-res]    {:range [0.0 0.6]}})
+    ;; Fan-out is synchronous (tree-state watch fires post-commit); read targets back.
+    (arc/arc-send! [:arc/test-tension] 0.0)
+    (is (= 0.3 (ct/ctrl-read [:arc/out-cutoff])) "cutoff 0 → 0.3")
+    (is (= 0.0 (ct/ctrl-read [:arc/out-res]))    "resonance 0 → 0.0")
+    (arc/arc-send! [:arc/test-tension] 1.0)
+    (is (= 1.0 (ct/ctrl-read [:arc/out-cutoff])) "cutoff 1 → 1.0")
+    (is (= 0.6 (ct/ctrl-read [:arc/out-res]))    "resonance 1 → 0.6")
+    (arc/arc-unbind! [:arc/test-tension])))
 
 (deftest arc-bind-midpoint-scaling-test
   (testing "arc-bind! scales midpoint value correctly"
-    (ctrl/defnode! [:arc/mid-src] :type :float)
-    (ctrl/defnode! [:arc/mid-dst] :type :float)
-    (let [seen (atom nil)]
-      (ctrl/watch! [:arc/mid-dst] ::cap (fn [tx _] (reset! seen (tx-val tx))))
-      (arc/arc-bind! [:arc/mid-src]
-                     {[:arc/mid-dst] {:range [0.0 100.0]}})
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (arc/arc-send! [:arc/mid-src] 0.5))
-      (is (= 50.0 @seen) "0.5 maps to midpoint of [0, 100]")
-      (arc/arc-unbind! [:arc/mid-src])
-      (ctrl/unwatch-all! [:arc/mid-dst]))))
+    (arc/arc-bind! [:arc/mid-src] {[:arc/mid-dst] {:range [0.0 100.0]}})
+    (arc/arc-send! [:arc/mid-src] 0.5)
+    (is (= 50.0 (ct/ctrl-read [:arc/mid-dst])) "0.5 maps to midpoint of [0, 100]")
+    (arc/arc-unbind! [:arc/mid-src])))
 
 (deftest arc-bind-default-range-test
   (testing "arc-bind! with no :range passes value through unchanged"
-    (ctrl/defnode! [:arc/passthru-src] :type :float)
-    (ctrl/defnode! [:arc/passthru-dst] :type :float)
-    (let [seen (atom nil)]
-      (ctrl/watch! [:arc/passthru-dst] ::cap (fn [tx _] (reset! seen (tx-val tx))))
-      (arc/arc-bind! [:arc/passthru-src] {[:arc/passthru-dst] {}})
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (arc/arc-send! [:arc/passthru-src] 0.73))
-      (is (= 0.73 @seen) "no :range → value passes through [0, 1] identity")
-      (arc/arc-unbind! [:arc/passthru-src])
-      (ctrl/unwatch-all! [:arc/passthru-dst]))))
+    (arc/arc-bind! [:arc/passthru-src] {[:arc/passthru-dst] {}})
+    (arc/arc-send! [:arc/passthru-src] 0.73)
+    (is (= 0.73 (ct/ctrl-read [:arc/passthru-dst])) "no :range → identity over [0, 1]")
+    (arc/arc-unbind! [:arc/passthru-src])))
 
 (deftest arc-rebind-replaces-routes-test
   (testing "re-calling arc-bind! replaces downstream routes without duplicating watchers"
-    (ctrl/defnode! [:arc/rebind-src] :type :float)
-    (ctrl/defnode! [:arc/rebind-dst-a] :type :float)
-    (ctrl/defnode! [:arc/rebind-dst-b] :type :float)
-    (let [calls-a (atom 0) calls-b (atom 0)]
-      (ctrl/watch! [:arc/rebind-dst-a] ::cap (fn [_ _s] (swap! calls-a inc)))
-      (ctrl/watch! [:arc/rebind-dst-b] ::cap (fn [_ _s] (swap! calls-b inc)))
-      ;; First bind: only dst-a
-      (arc/arc-bind! [:arc/rebind-src] {[:arc/rebind-dst-a] {}})
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (arc/arc-send! [:arc/rebind-src] 0.5))
-      (is (= 1 @calls-a) "dst-a receives first send")
-      (is (= 0 @calls-b) "dst-b not yet bound")
-      ;; Rebind: only dst-b
-      (arc/arc-bind! [:arc/rebind-src] {[:arc/rebind-dst-b] {}})
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (arc/arc-send! [:arc/rebind-src] 0.5))
-      (is (= 1 @calls-a) "dst-a no longer receives after rebind")
-      (is (= 1 @calls-b) "dst-b now receives")
-      (arc/arc-unbind! [:arc/rebind-src])
-      (ctrl/unwatch-all! [:arc/rebind-dst-a])
-      (ctrl/unwatch-all! [:arc/rebind-dst-b]))))
+    ;; First bind: only dst-a
+    (arc/arc-bind! [:arc/rebind-src] {[:arc/rebind-dst-a] {}})
+    (arc/arc-send! [:arc/rebind-src] 0.5)
+    (is (= 0.5 (ct/ctrl-read [:arc/rebind-dst-a])) "dst-a receives first send")
+    (is (nil? (ct/ctrl-read [:arc/rebind-dst-b])) "dst-b not yet bound")
+    ;; Rebind: only dst-b (routes replaced; the single watch persists)
+    (arc/arc-bind! [:arc/rebind-src] {[:arc/rebind-dst-b] {}})
+    (arc/arc-send! [:arc/rebind-src] 0.8)
+    (is (= 0.5 (ct/ctrl-read [:arc/rebind-dst-a])) "dst-a unchanged after rebind (no longer routed)")
+    (is (= 0.8 (ct/ctrl-read [:arc/rebind-dst-b])) "dst-b now receives")
+    (arc/arc-unbind! [:arc/rebind-src])))
 
 (deftest arc-unbind-stops-fan-out-test
   (testing "arc-unbind! stops further fan-out to downstream paths"
-    (ctrl/defnode! [:arc/stop-src] :type :float)
-    (ctrl/defnode! [:arc/stop-dst] :type :float)
-    (let [count (atom 0)]
-      (ctrl/watch! [:arc/stop-dst] ::cap (fn [_ _s] (swap! count inc)))
-      (arc/arc-bind! [:arc/stop-src] {[:arc/stop-dst] {}})
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (arc/arc-send! [:arc/stop-src] 0.5))
-      (is (= 1 @count) "fires before unbind")
-      (arc/arc-unbind! [:arc/stop-src])
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (arc/arc-send! [:arc/stop-src] 0.8))
-      (is (= 1 @count) "does not fire after unbind")
-      (ctrl/unwatch-all! [:arc/stop-dst]))))
+    (arc/arc-bind! [:arc/stop-src] {[:arc/stop-dst] {}})
+    (arc/arc-send! [:arc/stop-src] 0.5)
+    (is (= 0.5 (ct/ctrl-read [:arc/stop-dst])) "fires before unbind")
+    (arc/arc-unbind! [:arc/stop-src])
+    (arc/arc-send! [:arc/stop-src] 0.8)
+    (is (= 0.5 (ct/ctrl-read [:arc/stop-dst])) "target unchanged after unbind — fan-out stopped")))
 
 (deftest arc-routes-reflects-current-state-test
   (testing "arc-routes returns current binding table"
@@ -214,11 +180,9 @@
     (arc/arc-unbind-all!)
     (is (empty? (arc/arc-routes)))))
 
-(deftest arc-send-fires-set-watcher-test
-  (testing "arc-send! updates arc node value in ctrl tree"
-    (ctrl/defnode! [:arc/val-check] :type :float)
+(deftest arc-send-updates-source-value-test
+  (testing "arc-send! writes the arc node value to the ctrl-tree"
     (arc/arc-bind! [:arc/val-check] {})
-    (with-redefs [nous.kairos/connected? (constantly false)]
-      (arc/arc-send! [:arc/val-check] 0.42))
-    (is (= 0.42 (ctrl/get [:arc/val-check])) "ctrl/get reflects sent value")
+    (arc/arc-send! [:arc/val-check] 0.42)
+    (is (= 0.42 (ct/ctrl-read [:arc/val-check])) "ctrl-tree reflects the sent value")
     (arc/arc-unbind! [:arc/val-check])))

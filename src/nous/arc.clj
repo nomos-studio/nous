@@ -2,11 +2,11 @@
 (ns nous.arc
   "Arc type routing — fan-out from abstract arc nodes to device parameters.
 
-  An arc node (e.g. [:arc/tension]) is an abstract ctrl tree value in [0.0, 1.0].
+  An arc node (e.g. [:arc/tension]) is an abstract ctrl-tree value in [0.0, 1.0].
   `arc-bind!` connects it to one or more downstream ctrl paths, each with an
-  optional per-path output range. Whenever the arc value changes (via ctrl/send!
-  or ctrl/set! — including from a trajectory routed through mod-route!), all
-  downstream paths are updated automatically.
+  optional per-path output range. Whenever the arc value changes on the ctrl-tree
+  (via arc-send! or a trajectory routed through mod-route!), a tree-state watch
+  fans the scaled value out to all downstream paths automatically.
 
   ## Workflow
 
@@ -37,7 +37,8 @@
     [:arc/gravity]    — tonal pull toward tonic; 0=away, 1=strong cadential
 
   Key design decisions: R&R §31 (trajectory/arc vocabulary)."
-  (:require [nous.ctrl :as ctrl]))
+  (:require [ctrl-tree.core :as ct]
+            [ctrl-tree.refs :as refs]))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state
@@ -60,7 +61,7 @@
   [source-path value]
   (doseq [[target-path opts] (get @routes source-path)]
     (let [[lo hi] (or (:range opts) [0.0 1.0])]
-      (ctrl/send! target-path (scale-value value lo hi)))))
+      (ct/ctrl-write! target-path (scale-value value lo hi)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Public API
@@ -73,10 +74,11 @@
                  :range [lo hi] — output range for this target (default [0.0 1.0])
 
   The source arc value (0.0–1.0 by convention) is linearly mapped to each
-  target's :range before being dispatched via ctrl/send!.
+  target's :range before being written via ct/ctrl-write! (the root IPC mount
+  carries it to hardware when the target path is bound).
 
   Re-calling arc-bind! with the same source replaces its downstream routes.
-  Installs a ctrl/watch! callback on source-path the first time; subsequent
+  Installs a tree-state watch on source-path the first time; subsequent
   calls update the routes atom (the watcher reads routes dynamically).
 
   Example:
@@ -87,10 +89,14 @@
   (let [first-bind? (not (contains? @routes source-path))]
     (swap! routes assoc source-path bindings)
     (when first-bind?
-      (ctrl/watch! source-path ::arc-fan-out
-                   (fn [tx _state]
-                     (let [{:keys [path after]} (first (:tx/changes tx))]
-                       (fan-out! path after))))))
+      ;; Watch the ctrl-tree (single source of truth). add-watch on the global
+      ;; tree-state ref fires on every write, so key uniquely per source and
+      ;; filter for a change at source-path.
+      (add-watch refs/tree-state [::arc-fan-out source-path]
+                 (fn [_ _ old new]
+                   (let [v (get new source-path)]
+                     (when (not= v (get old source-path))
+                       (fan-out! source-path v)))))))
   nil)
 
 (defn arc-unbind!
@@ -98,7 +104,7 @@
   The ctrl watcher is removed; subsequent changes to source-path will not fan out."
   [source-path]
   (swap! routes dissoc source-path)
-  (ctrl/unwatch-all! source-path)
+  (remove-watch refs/tree-state [::arc-fan-out source-path])
   nil)
 
 (defn arc-unbind-all!
@@ -116,10 +122,10 @@
 (defn arc-send!
   "Set `source-path` to `value` and trigger its downstream fan-out.
 
-  Equivalent to (ctrl/send! source-path value) but makes intent explicit.
+  Equivalent to (ct/ctrl-write! source-path value) but makes intent explicit.
   Use this to manually drive an arc at the REPL without a trajectory.
 
   Example:
     (arc-send! [:arc/tension] 0.75)"
   [source-path value]
-  (ctrl/send! source-path value))
+  (ct/ctrl-write! source-path value))

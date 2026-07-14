@@ -40,7 +40,8 @@
 
     ;; Slow filter journey over 64 bars
     (berlin/filter-journey! [:filter :cutoff] 74 1 0 127 64 :breathe)"
-  (:require [nous.clock           :as clock]
+  (:require [ctrl-tree.core       :as ct]
+            [nous.clock           :as clock]
             [nous.ctrl            :as ctrl]
             [nous.loop            :as loop-ns]
             [nous.random          :as random]
@@ -201,7 +202,7 @@
 
 (defmethod apply-mutation :tension-arc
   [{:keys [tension-path mutation-rate] :as state}]
-  (let [tension (or (and tension-path (ctrl/get tension-path)) 0.5)
+  (let [tension (or (and tension-path (ct/ctrl-read tension-path)) 0.5)
         bias    (if (> tension 0.5) :up :down)]
     (apply-mutation (assoc state :mode :random-walk :drift bias
                                  :mutation-rate (* mutation-rate (+ 0.5 tension))))))
@@ -426,7 +427,7 @@
        (let [b             @bar-beat
              elapsed-beats (* b 4.0)
              val           (long (Math/round ^double (clock/sample traj elapsed-beats)))]
-         (ctrl/send! ctrl-path val)
+         (ct/ctrl-write! ctrl-path val)
          (swap! bar-beat inc)
          (when (>= @bar-beat bars)
            (loop-ns/stop-loop! loop-name))
