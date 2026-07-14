@@ -60,7 +60,8 @@
 
   Key design decisions: Q4, Q8, Q9, Q10, Q47, Q48."
   (:refer-clojure :exclude [get])
-  (:require [nous.kairos    :as kairos]
+  (:require [nous.dispatch  :as dispatch]
+            [nous.kairos    :as kairos]
             [nous.timeline  :as timeline]))
 
 ;; ---------------------------------------------------------------------------
@@ -320,45 +321,12 @@
           node           (get-node new-state path)]
     (doseq [binding (:bindings node)]
       (case (:type binding)
-        :midi-cc
-        (let [ch      (int (or (:channel binding) 1))
-              cc-num  (int (:cc-num binding))
-              [lo hi] (or (:range binding) [0 127])
-              lo      (double lo)
-              hi      (double hi)
-              raw     (double value)
-              pct     (/ (- raw lo) (- hi lo))
-              scaled  (long (Math/round (* pct 127.0)))]
-          (if (kairos/connected?)
-            (kairos/send-cc! ch cc-num (max 0 (min 127 scaled)))
-            (*dispatch-warn-fn* path :midi-cc)))
-
-        :midi-nrpn
-        (let [ch        (int (or (:channel binding) 1))
-              nrpn      (int (:nrpn binding))
-              bits      (int (or (:bits binding) 14))
-              max-val   (if (= 14 bits) 16383 127)
-              ;; :raw true → bypass range scaling; use value directly
-              clamped   (if (:raw binding)
-                          (max 0 (min max-val (long value)))
-                          (let [[lo hi] (or (:range binding) [0 max-val])
-                                pct     (/ (- (double value) (double lo))
-                                           (- (double hi)   (double lo)))]
-                            (max 0 (min max-val (long (Math/round (* pct (double max-val))))))))
-              param-msb (bit-and (bit-shift-right nrpn 7) 0x7F)
-              param-lsb (bit-and nrpn 0x7F)
-              ;; Full 14-bit NRPN wire encoding: CC6=MSB, CC38=LSB.
-              ;; Wire value = CC6*128 + CC38; :bits only controls value clamping range.
-              data-msb  (bit-and (bit-shift-right clamped 7) 0x7F)
-              data-lsb  (bit-and clamped 0x7F)]
-          (if (kairos/connected?)
-            ;; kairos IPC preserves insertion order; no ns-offset needed.
-            (do
-              (kairos/send-cc! ch 99 param-msb)
-              (kairos/send-cc! ch 98 param-lsb)
-              (kairos/send-cc! ch  6 data-msb)
-              (kairos/send-cc! ch 38 data-lsb))
-            (*dispatch-warn-fn* path :midi-nrpn)))
+        (:midi-cc :midi-nrpn)
+        ;; Shared scale-and-emit (nous.dispatch) — also drives the ctrl-tree
+        ;; nomos-rt IPC mount. The connection gate + warn stay here.
+        (if (kairos/connected?)
+          (dispatch/dispatch-binding! binding value)
+          (*dispatch-warn-fn* path (:type binding)))
 
         ;; Other binding types: log and skip
         (binding [*out* *err*]
