@@ -351,10 +351,10 @@ Returns the result value, or an error if the peer is unreachable."
   (eval->tool code))
 
 (defmethod call-tool "get-ctrl" [_ {:strs [path]}]
-  (eval->tool (str "(pr-str (nous.ctrl/get-in " path "))")))
+  (eval->tool (str "(pr-str (nous.ctrl-bridge/read-value " path "))")))
 
 (defmethod call-tool "set-ctrl" [_ {:strs [path value]}]
-  (eval->tool (str "(do (nous.ctrl/set-in! " path " " value ") :ok)")))
+  (eval->tool (str "(do (nous.ctrl-bridge/write-any " path " " value ") :ok)")))
 
 (defmethod call-tool "get-harmony-ctx" [_ _]
   (eval->tool "(pr-str @nous.loop/*harmony-ctx*)"))
@@ -394,7 +394,7 @@ Returns the result value, or an error if the peer is unreachable."
   (eval->tool (str "(do (nous.config/set-config! " key " " value ") :ok)")))
 
 (defmethod call-tool "get-score" [_ _]
-  (eval->tool "(pr-str (nous.ctrl/all))"))
+  (eval->tool "(pr-str (nous.ctrl-bridge/snapshot))"))
 
 (defmethod call-tool "ingest-midi" [_ {:strs [path structure resolution resolution-bars]}]
   (let [opts (cond-> {}

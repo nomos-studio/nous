@@ -72,6 +72,7 @@
             [nous.berlin          :as berlin]
             [nous.temporal-buffer :as tbuf]
             [nous.ctrl            :as ctrl-ns]
+            [nous.ctrl-bridge     :as ctrl-bridge]
             [nous.supervisor      :as supervisor]
             [nous.arp             :as arp-ns]
             [nous.seq             :as sq]

@@ -57,9 +57,9 @@
             [clojure.string    :as str]
             [clojure.data.json :as json]
             [clojure.java.io   :as io]
-            [ctrl-tree.core  :as ct]
             [ctrl-tree.refs  :as refs]
             [nous.ctrl       :as ctrl]
+            [nous.ctrl-bridge :as bridge]
             [nous.core       :as core]
             [nous.loop       :as loop-ns]
             [nous.runtime    :as runtime])
@@ -163,43 +163,6 @@
             segments))))
 
 ;; ---------------------------------------------------------------------------
-;; Store-agnostic ctrl access (transitional: nous.ctrl + ctrl-tree)
-;;
-;; The control state lives across two stores during the nous.ctrl → ctrl-tree
-;; migration. A path lives in exactly one store, so union reads and
-;; ownership-routed writes are unambiguous. See doc/design-ctrl-authority.md.
-;; ---------------------------------------------------------------------------
-
-(defn- read-node
-  "Return {:value :type :node-meta} for `path`, or nil when it exists in neither
-  store. Prefers the nous.ctrl typed node (which carries :type/:node-meta); falls
-  back to ctrl-tree, where a path has a value but no type/meta."
-  [path]
-  (or (ctrl/node-info path)
-      (when (contains? @refs/tree-state path)
-        {:value (ct/ctrl-read path) :type nil :node-meta {}})))
-
-(defn- all-ctrl-entries
-  "Union of every ctrl node across both stores as {:path :value :type :node-meta}
-  maps. nous.ctrl nodes carry type/meta; ctrl-tree paths render with nil/empty."
-  []
-  (let [nc     (ctrl/all-nodes)
-        nc-set (into #{} (map :path) nc)]
-    (into (vec nc)
-          (for [[path value] @refs/tree-state
-                :when (not (contains? nc-set path))]
-            {:path path :value value :type nil :node-meta {}}))))
-
-(defn- route-write!
-  "Write `value` at `path` to whichever store owns it — ctrl-tree when the path
-  is already present there, otherwise nous.ctrl (legacy default for new paths).
-  Logical write only; no hardware dispatch."
-  [path value]
-  (if (contains? @refs/tree-state path)
-    (ct/ctrl-write! path value)
-    (ctrl/set! path value)))
-
-;; ---------------------------------------------------------------------------
 ;; WebSocket broadcast
 ;; ---------------------------------------------------------------------------
 
@@ -246,7 +209,7 @@
                    (try
                      (when-let [{:strs [path value]} (json/read-str msg)]
                        (when (sequential? path)
-                         (route-write! (mapv keyword path) value)))
+                         (bridge/write-any (mapv keyword path) value)))
                      (catch Exception _ nil)))}))
 
 ;; ---------------------------------------------------------------------------
@@ -306,14 +269,14 @@
                    "value" (->json-safe value)
                    "type"  (some-> type kw->str)
                    "meta"  (->json-safe node-meta)})
-                (all-ctrl-entries)))
+                (bridge/all-entries)))
 
         ;; ---- GET /ctrl/<path> ----
         (and (= :get method) (str/starts-with? path "/ctrl/"))
         (let [ctrl-path (parse-ctrl-path path)]
           (if (nil? ctrl-path)
             (respond 400 {"error" "empty ctrl path"})
-            (let [node (read-node ctrl-path)]
+            (let [node (bridge/read-node ctrl-path)]
               (if (nil? node)
                 (respond 404 {"error" "not found"})
                 (respond 200
@@ -329,7 +292,7 @@
             (respond 400 {"error" "empty ctrl path"})
             (let [data (json/read-str (slurp (:body req)))]
               (if (contains? data "value")
-                (do (route-write! ctrl-path (clojure.core/get data "value"))
+                (do (bridge/write-any ctrl-path (clojure.core/get data "value"))
                     (respond 200 {"ok" true}))
                 (respond 400 {"error" "missing value field"})))))
 

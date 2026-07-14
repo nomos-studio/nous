@@ -165,7 +165,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest get-ctrl-test
-  (testing "get-ctrl evals the correct ctrl/get-in form"
+  (testing "get-ctrl evals a store-agnostic ctrl-bridge/read-value form"
     (let [called  (atom nil)
           eval-fn (fn [code]
                     (reset! called code)
@@ -176,11 +176,11 @@
                               "arguments" {"path" "[:config :bpm]"}})]
                    eval-fn)]
       (is (false? (get-in resp ["result" "isError"])))
-      (is (re-find #"ctrl/get-in" @called))
+      (is (re-find #"ctrl-bridge/read-value" @called))
       (is (re-find #"\[:config :bpm\]" @called)))))
 
 (deftest set-ctrl-test
-  (testing "set-ctrl evals a ctrl/set-in! form"
+  (testing "set-ctrl evals a store-agnostic ctrl-bridge/write-any form"
     (let [called  (atom nil)
           eval-fn (fn [code]
                     (reset! called code)
@@ -191,7 +191,7 @@
                               "arguments" {"path" "[:config :bpm]" "value" "140"}})]
                    eval-fn)]
       (is (false? (get-in resp ["result" "isError"])))
-      (is (re-find #"set-in!" @called)))))
+      (is (re-find #"ctrl-bridge/write-any" @called)))))
 
 (deftest get-harmony-ctx-test
   (testing "get-harmony-ctx evals *harmony-ctx*"
