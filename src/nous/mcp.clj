@@ -360,7 +360,7 @@ Returns the result value, or an error if the peer is unreachable."
   (eval->tool "(pr-str @nous.loop/*harmony-ctx*)"))
 
 (defmethod call-tool "get-spectral" [_ _]
-  (eval->tool "(pr-str (nous.ctrl/get-in [:spectral :state]))"))
+  (eval->tool "(pr-str (ctrl-tree.core/ctrl-read [:spectral :state]))"))
 
 (defmethod call-tool "get-loops" [_ _]
   (eval->tool

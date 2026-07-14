@@ -60,7 +60,9 @@
          (dosync (alter refs/tree-state
                         #(apply dissoc % [[:server-test/ct-only]
                                           [:server-test/ct-dump]
-                                          [:server-test/ct-put]]))))))
+                                          [:server-test/ct-put]
+                                          [:ensemble :harmony-ctx]
+                                          [:spectral :state]]))))))
 
 (use-fixtures :each with-system)
 
@@ -291,7 +293,7 @@
                :harmony/intervals [2 1 2 2 2 1 2]
                :harmony/tension   0.65
                :ensemble/density  0.4}]
-      (ctrl/set! [:ensemble :harmony-ctx] ctx))
+      (ct/ctrl-write! [:ensemble :harmony-ctx] ctx))
     (let [{:keys [status body]} (http-get "/ctrl/ensemble/harmony-ctx")]
       (is (= 200 status))
       (let [v (get body "value")]
@@ -307,7 +309,7 @@
     (let [ctx {:harmony/root      "C"
                :harmony/octave    4
                :harmony/intervals [2 2 1 2 2 2 1]}]
-      (ctrl/set! [:ensemble :harmony-ctx] ctx))
+      (ct/ctrl-write! [:ensemble :harmony-ctx] ctx))
     (let [{:keys [status body]} (http-get "/ctrl/ensemble/harmony-ctx")
           v (get body "value")]
       (is (= 200 status))
@@ -324,7 +326,7 @@
     (let [state {:spectral/centroid 880.0
                  :spectral/flux     0.3
                  :spectral/density  0.7}]
-      (ctrl/set! [:spectral :state] state))
+      (ct/ctrl-write! [:spectral :state] state))
     (let [{:keys [status body]} (http-get "/ctrl/spectral/state")]
       (is (= 200 status))
       (let [v (get body "value")]

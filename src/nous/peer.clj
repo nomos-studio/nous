@@ -67,7 +67,7 @@
   Peers expire 15 s after their last beacon."
   (:require [clojure.edn       :as edn]
             [clojure.data.json :as json]
-            [nous.ctrl       :as ctrl]
+            [ctrl-tree.core  :as ct]
             [nous.pitch      :as pitch-ns]
             [nous.scale      :as scale-ns])
   (:import [java.net DatagramSocket DatagramPacket InetAddress
@@ -226,7 +226,7 @@
       {:scale :D-dorian :bpm 120 :synths [:blade :prophet]})"
   [profile]
   (try
-    (ctrl/set! [:session :profile] profile)
+    (ct/ctrl-write! [:session :profile] profile)
     (catch Exception e
       (binding [*out* *err*]
         (println "[peer] publish-session-profile! error:" (.getMessage e)))))
@@ -491,7 +491,7 @@
   (when-let [resp (*http-get* (str base-url ctrl-path))]
     (when-let [v (get resp "value")]
       (let [kv (keywordize-keys v)]
-        (try (ctrl/set! local-path kv) (catch Exception _ nil))
+        (try (ct/ctrl-write! local-path kv) (catch Exception _ nil))
         kv))))
 
 (defn- poll-peer!
@@ -565,7 +565,7 @@
   (when-let [{:keys [^Thread thread]} (get @mount-registry peer-node-id)]
     (.interrupt thread))
   (swap! mount-registry dissoc peer-node-id)
-  (try (ctrl/set! [:peers peer-node-id] nil) (catch Exception _ nil))
+  (try (ct/ctrl-write! [:peers peer-node-id] nil) (catch Exception _ nil))
   nil)
 
 (defn mounted-peers
@@ -586,7 +586,7 @@
     (peer/serial->scale (peer/peer-harmony-ctx :ubuntu))
     ;; => Scale{:root D3 :intervals [2 1 2 2 2 1 2]}"
   [peer-node-id]
-  (try (ctrl/get [:peers peer-node-id :ensemble :ctx]) (catch Exception _ nil)))
+  (try (ct/ctrl-read [:peers peer-node-id :ensemble :ctx]) (catch Exception _ nil)))
 
 (defn peer-spectral-ctx
   "Return the most recently polled spectral state for `peer-node-id`, or nil.
@@ -595,4 +595,4 @@
     (peer/peer-spectral-ctx :ubuntu)
     ;; => {:spectral/density 0.58 :spectral/centroid 0.52 :spectral/blur 0.0}"
   [peer-node-id]
-  (try (ctrl/get [:peers peer-node-id :spectral :ctx]) (catch Exception _ nil)))
+  (try (ct/ctrl-read [:peers peer-node-id :spectral :ctx]) (catch Exception _ nil)))

@@ -45,9 +45,9 @@
                                   [:sin-osc :freq]] 0.0]]})
     (sc/send-synthdef! :my-pad)"
   (:require [clojure.string  :as str]
+            [ctrl-tree.refs :as refs]
             [nous.clock    :as clock]
             [nous.core     :as core]
-            [nous.ctrl     :as ctrl]
             [nous.fm       :as fm]
             [nous.loop     :as loop-ns]
             [nous.osc      :as osc]
@@ -842,13 +842,16 @@
     (cancel!)"
   [node-id param spectral-key transform-fn]
   (let [watch-key [::spectral-bind node-id param]]
-    (ctrl/watch! [:spectral :state] watch-key
-                 (fn [tx _state]
-                   (when (sc-connected?)
-                     (let [spectral-state (:after (first (:tx/changes tx)))]
-                       (when-let [v (get spectral-state spectral-key)]
-                         (set-param! node-id param (transform-fn v)))))))
-    (fn [] (ctrl/unwatch! [:spectral :state] watch-key))))
+    ;; Watch the ctrl-tree (single source of truth). add-watch on the tree-state
+    ;; ref fires on every write, so filter for a change at [:spectral :state].
+    (add-watch refs/tree-state watch-key
+               (fn [_ _ old new]
+                 (let [st (get new [:spectral :state])]
+                   (when (and (not= st (get old [:spectral :state]))
+                              (sc-connected?))
+                     (when-let [v (get st spectral-key)]
+                       (set-param! node-id param (transform-fn v)))))))
+    (fn [] (remove-watch refs/tree-state watch-key))))
 
 (defn unbind-spectral!
   "Remove a spectral binding registered by bind-spectral!.
@@ -856,7 +859,7 @@
 
   `node-id` and `param` must match the original bind-spectral! call."
   [node-id param]
-  (ctrl/unwatch! [:spectral :state] [::spectral-bind node-id param]))
+  (remove-watch refs/tree-state [::spectral-bind node-id param]))
 
 ;; ---------------------------------------------------------------------------
 ;; core/play! dispatch — register SC backend at namespace load time

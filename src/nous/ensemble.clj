@@ -57,8 +57,8 @@
   Key detection requires at least 3 distinct pitch classes; below that
   threshold :harmony/key and :harmony/chord are omitted from the returned
   context."
-  (:require [nous.analyze         :as analyze]
-            [nous.ctrl            :as ctrl]
+  (:require [ctrl-tree.core       :as ct]
+            [nous.analyze         :as analyze]
             [nous.live  :as live]
             [nous.loop            :as loop-ns]
             [nous.scale           :as scale-ns]
@@ -140,8 +140,8 @@
   :harmony/intervals fields. Drops :harmony/chord (contains Pitch records) and
   :harmony/pcs (pitch-class distribution — large, not needed by peers).
 
-  The result is safe for ctrl/set! and round-trips through the HTTP server's
-  ->json-safe encoder without falling back to pr-str."
+  The result is a plain serialisable map (round-trips pr-str for the ctrl-tree
+  txlog, and the HTTP server's ->json-safe encoder without pr-str fallback)."
   [ctx]
   (let [key  (:harmony/key ctx)
         base (dissoc ctx :harmony/key :harmony/chord :harmony/pcs)]
@@ -162,9 +162,10 @@
     (when pub
       (reset! last-ctx pub)
       (live/use-harmony! pub)
-      ;; Publish serializable form for peer sharing via HTTP server.
-      ;; Wrapped in try so ctrl not being started does not break the ear.
-      (try (ctrl/set! [:ensemble :harmony-ctx] (ctx->serial pub))
+      ;; Publish serialisable form to the ctrl-tree for peer sharing via the
+      ;; HTTP server. Wrapped in try so ctrl-tree not being ready cannot break
+      ;; the ear.
+      (try (ct/ctrl-write! [:ensemble :harmony-ctx] (ctx->serial pub))
            (catch Exception _ nil))
       (when on-ctx (on-ctx pub)))
     pub))

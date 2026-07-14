@@ -4,6 +4,8 @@
   (:require [clojure.test   :refer [deftest is testing]]
             [clojure.set    :as set]
             [clojure.string :as str]
+            [ctrl-tree.core :as ct]
+            [ctrl-tree.refs :as refs]
             [nous.synth   :as synth]
             [nous.core    :as core]
             [nous.osc     :as osc]
@@ -513,3 +515,28 @@
         (swap! @#'sc/sc-state assoc :sclang-binary nil)
         (is (thrown? clojure.lang.ExceptionInfo
                      (sc/sc-restart!)))))))
+
+;; ---------------------------------------------------------------------------
+;; bind-spectral! — ctrl-tree watch adaptation (Increment 3)
+;; ---------------------------------------------------------------------------
+
+(deftest bind-spectral-fires-on-ctrl-tree-write-test
+  (testing "bind-spectral! drives set-param! from a [:spectral :state] ctrl-tree write"
+    (let [calls  (atom [])
+          cancel (atom nil)]
+      (try
+        (ct/ctrl-write! [:spectral :state] nil)
+        (with-redefs [sc/sc-connected? (constantly true)
+                      sc/set-param!    (fn [node param v] (swap! calls conj [node param v]))]
+          (reset! cancel (sc/bind-spectral! 1000 :cutoff :spectral/centroid
+                                            (fn [v] (+ 200 (* v 3.0)))))
+          ;; A write with the watched key fires the transform.
+          (ct/ctrl-write! [:spectral :state] {:spectral/centroid 100.0})
+          (is (= [[1000 :cutoff 500.0]] @calls) "transform applied and set-param! called")
+          ;; Cancelling removes the watch — a further write does nothing.
+          (@cancel)
+          (ct/ctrl-write! [:spectral :state] {:spectral/centroid 999.0})
+          (is (= 1 (count @calls)) "no further set-param! after cancel"))
+        (finally
+          (when-let [c @cancel] (c))
+          (ct/ctrl-write! [:spectral :state] nil))))))

@@ -289,7 +289,7 @@
                              "harmony/tension" 0.65}
                    "type" "data"}]
       (binding [peer/*http-get* (fn [_] resp)]
-        (with-redefs [nous.ctrl/set! (fn [path v] (reset! written {:path path :value v}) nil)]
+        (with-redefs [ctrl-tree.core/ctrl-write! (fn [path v] (reset! written {:path path :value v}) nil)]
           (#'peer/poll-ctrl-node! "http://10.0.0.1:7177"
                                   "/ctrl/ensemble/harmony-ctx"
                                   [:peers :ubuntu :ensemble :ctx])))
@@ -301,7 +301,7 @@
   (testing "poll-ctrl-node! returns nil when *http-get* returns nil"
     (let [written (atom ::not-called)]
       (binding [peer/*http-get* (constantly nil)]
-        (with-redefs [nous.ctrl/set! (fn [_ v] (reset! written v) nil)]
+        (with-redefs [ctrl-tree.core/ctrl-write! (fn [_ v] (reset! written v) nil)]
           (let [r (#'peer/poll-ctrl-node! "http://10.0.0.1:7177"
                                           "/ctrl/ensemble/harmony-ctx"
                                           [:peers :ubuntu :ensemble :ctx])]
@@ -313,7 +313,7 @@
     (let [written (atom ::not-called)
           resp    {"path" ["ensemble" "harmony-ctx"] "type" "data"}]
       (binding [peer/*http-get* (constantly resp)]
-        (with-redefs [nous.ctrl/set! (fn [_ v] (reset! written v) nil)]
+        (with-redefs [ctrl-tree.core/ctrl-write! (fn [_ v] (reset! written v) nil)]
           (#'peer/poll-ctrl-node! "http://10.0.0.1:7177"
                                   "/ctrl/ensemble/harmony-ctx"
                                   [:peers :ubuntu :ensemble :ctx])))
