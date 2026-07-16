@@ -51,6 +51,8 @@
   Q55 (defdevice design — see inline notes in device.clj prior sprint)."
   (:require [clojure.java.io :as io]
             [clojure.edn     :as edn]
+            [ctrl-tree.core  :as ct]
+            [nous.binding-registry :as breg]
             [nous.ctrl     :as ctrl]
             [nous.dirs     :as dirs]))
 
@@ -147,8 +149,8 @@
                       (seq values) (assoc :values (mapv :label values))
                       bipolar      (assoc :bipolar true :center (or center 64)))
           node-type (if (seq values) :enum :int)]
-      (ctrl/defnode! node-path :type node-type :node-meta meta)
-      (ctrl/bind! node-path
+      (breg/register-node! node-path :type node-type :node-meta meta)
+      (breg/bind! node-path
                   {:type :midi-cc :channel channel :cc-num cc :range r}
                   :priority 20))))
 
@@ -164,8 +166,8 @@
           b         (int (or bits 14))
           max-val   (if (= 14 b) 16383 127)
           r         (or range [0 max-val])]
-      (ctrl/defnode! node-path :type :int :node-meta {:range r})
-      (ctrl/bind! node-path
+      (breg/register-node! node-path :type :int :node-meta {:range r})
+      (breg/bind! node-path
                   (cond-> {:type :midi-nrpn :channel channel :nrpn nrpn :bits b :range r}
                     raw (assoc :raw true))
                   :priority 21))))
@@ -185,7 +187,7 @@
   [device-id]
   (when-let [reg (clojure.core/get @device-registry device-id)]
     (doseq [path (concat (:cc-paths reg) (:nrpn-paths reg))]
-      (ctrl/unbind! (into [device-id] path) :all))))
+      (breg/unregister-path! (into [device-id] path)))))
 
 ;; ---------------------------------------------------------------------------
 ;; defdevice
@@ -261,7 +263,7 @@
                                           :known-labels (keys (clojure.core/get-in reg [:resolvers path]))}))
                          lv))
                      value)]
-      (ctrl/send! (into [device-id] path) resolved))))
+      (ct/ctrl-write! (into [device-id] path) resolved))))
 
 ;; ---------------------------------------------------------------------------
 ;; device-bind! — controller device source → ctrl tree binding

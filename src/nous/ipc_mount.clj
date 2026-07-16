@@ -11,16 +11,18 @@
   nomos-rt IPC.
 
   ## Transitional hybrid (during the nous.ctrl → ctrl-tree migration)
-  The *value* lives on the ctrl-tree (this write triggered the mount), but the
-  *binding* is still read from the legacy nous.ctrl node's :bindings — exactly
-  as nous.server reads both stores. This lets dispatch move onto ctrl-tree
-  before the binding/device-map model migrates (later increments will move
-  bindings to a Clojure-side registry this mount consults directly).
+  The *value* lives on the ctrl-tree (this write triggered the mount). Bindings
+  are read from the union of two sources: the Clojure-side nous.binding-registry
+  (where migrated declarers — device.clj etc. — register) and the legacy
+  nous.ctrl node's :bindings (where schema/berlin still declare). Both dispatch;
+  the sources migrate to the registry one increment at a time, after which the
+  nous.ctrl read is dropped.
 
   Mounts fire post-commit (never inside the STM transaction), so the blocking
   IPC send is safe here."
   (:require [protomatter.protocols :as p]
             [ctrl-tree.refs :as refs]
+            [nous.binding-registry :as breg]
             [nous.ctrl     :as ctrl]
             [nous.dispatch :as dispatch]
             [nous.kairos   :as kairos]))
@@ -33,7 +35,8 @@
     ;; not break the committing write.
     (try
       (when (kairos/connected?)
-        (doseq [binding (:bindings (ctrl/node-info path))]
+        (doseq [binding (concat (breg/bindings-for path)
+                                (:bindings (ctrl/node-info path)))]
           (dispatch/dispatch-binding! binding value)))
       (catch Exception e
         (binding [*out* *err*]

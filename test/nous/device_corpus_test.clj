@@ -27,6 +27,7 @@
             [nous.core     :as core]
             [nous.ctrl     :as ctrl]
             [nous.device   :as device]
+            [nous.ipc-mount :as ipc-mount]
             [nous.rt       :as rt]
             [nous.kairos   :as kairos])
   (:import [java.net UnixDomainSocketAddress StandardProtocolFamily]
@@ -143,8 +144,12 @@
     (Thread/sleep 30)
     (with-redefs [rt/*dispatch-diag* #(.offer echo-queue %)]
       (rt/connect! socket-path {} :retry 3)
+      ;; device-send! now writes via ct/ctrl-write!; the root IPC mount carries a
+      ;; bound path to nomos-rt. session! installs it in production; install it here.
+      (ipc-mount/install!)
       (try (f)
            (finally
+             (ipc-mount/uninstall!)
              (rt/disconnect!)
              (stop-fn)
              (reset! server-state nil)

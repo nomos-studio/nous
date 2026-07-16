@@ -5,6 +5,7 @@
   (:require [clojure.test    :refer [deftest is testing use-fixtures]]
             [ctrl-tree.core  :as ct]
             [ctrl-tree.refs  :as refs]
+            [nous.binding-registry :as breg]
             [nous.core       :as core]
             [nous.ctrl       :as ctrl]
             [nous.ipc-mount  :as ipc-mount]
@@ -71,3 +72,20 @@
         (ipc-mount/uninstall!)
         (is (not (contains? @refs/mount-table [])) "uninstall! removed the root mount")
         (dosync (alter refs/tree-state dissoc [:ipc-root :cc4]))))))
+
+(deftest mount-reads-binding-registry-test
+  (testing "the mount dispatches a binding registered in nous.binding-registry (not nous.ctrl)"
+    (dosync (alter refs/mount-table assoc [:reg-test] (ipc-mount/ipc-mount)))
+    (try
+      ;; Binding lives ONLY in the registry — nous.ctrl has no node here.
+      (breg/bind! [:reg-test :cc] {:type :midi-cc :channel 2 :cc-num 30 :range [0.0 1.0]})
+      (is (nil? (ctrl/node-info [:reg-test :cc])) "no nous.ctrl node — registry is the only source")
+      (let [calls (atom [])]
+        (with-redefs [kairos/connected? (constantly true)
+                      kairos/send-cc!   (fn [ch cc v & _] (swap! calls conj [ch cc v]))]
+          (ct/ctrl-write! [:reg-test :cc] 0.5))
+        (is (= [[2 30 64]] @calls) "mount dispatched the registry binding"))
+      (finally
+        (breg/unregister-path! [:reg-test :cc])
+        (dosync (alter refs/mount-table dissoc [:reg-test]))
+        (dosync (alter refs/tree-state dissoc [:reg-test :cc]))))))

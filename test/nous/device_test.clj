@@ -2,6 +2,8 @@
 (ns nous.device-test
   "Unit tests for nous.device — device registration, CC routing, semantic resolution."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
+            [nous.binding-registry :as breg]
             [nous.core   :as core]
             [nous.ctrl   :as ctrl]
             [nous.device :as device]))
@@ -12,7 +14,9 @@
 
 (defn with-system [f]
   (core/start! :bpm 120)
-  (try (f) (finally (core/stop!))))
+  ;; the binding registry is a global atom independent of core/start!/stop! —
+  ;; clear it between tests so device registrations don't leak across them.
+  (try (f) (finally (breg/clear!) (core/stop!))))
 
 (use-fixtures :each with-system)
 
@@ -58,8 +62,8 @@
                   :values [{:value 0 :label :triangle}
                            {:value 43 :label :saw}
                            {:value 86 :label :pulse}]}]})
-    (let [cutoff-node (ctrl/node-info [:test/synth :filter :cutoff])
-          wave-node   (ctrl/node-info [:test/synth :vco1 :wave])]
+    (let [cutoff-node (breg/node-info [:test/synth :filter :cutoff])
+          wave-node   (breg/node-info [:test/synth :vco1 :wave])]
       (is (some? cutoff-node) "cutoff node registered")
       (is (= :int (:type cutoff-node)))
       (is (some? wave-node) "wave node registered")
@@ -72,7 +76,7 @@
       {:device/role :target
        :midi/channel 3
        :midi/cc [{:cc 40 :path [:filter :cutoff] :range [0 127]}]})
-    (let [node     (ctrl/node-info [:test/synth :filter :cutoff])
+    (let [node     (breg/node-info [:test/synth :filter :cutoff])
           bindings (:bindings node)]
       (is (= 1 (count bindings)))
       (is (= :midi-cc (:type (first bindings))))
@@ -85,7 +89,7 @@
       {:device/role :controller
        :midi/channel 1
        :midi/cc [{:cc :configurable :path [:touch-strip] :range [0 127]}]})
-    (is (nil? (ctrl/node-info [:test/ctrl :touch-strip]))
+    (is (nil? (breg/node-info [:test/ctrl :touch-strip]))
         "configurable CC should not create a ctrl node")))
 
 (deftest defdevice-reregistration-test
@@ -98,7 +102,7 @@
       ;; Re-registration should not throw (no duplicate priority error)
       (is (= :test/synth (device/defdevice :test/synth map2)))
       ;; New channel should be reflected
-      (let [node (ctrl/node-info [:test/synth :filter :cutoff])]
+      (let [node (breg/node-info [:test/synth :filter :cutoff])]
         (is (= 2 (:channel (first (:bindings node)))))))))
 
 ;; ---------------------------------------------------------------------------
@@ -111,21 +115,21 @@
            (device/defdevice :korg/minilogue-xd
              (device/load-device-map "devices/korg-minilogue-xd.edn"))))
     ;; Spot-check a few known nodes
-    (is (some? (ctrl/node-info [:korg/minilogue-xd :filter :cutoff])))
-    (is (some? (ctrl/node-info [:korg/minilogue-xd :eg :attack])))
-    (is (some? (ctrl/node-info [:korg/minilogue-xd :lfo :wave])))))
+    (is (some? (breg/node-info [:korg/minilogue-xd :filter :cutoff])))
+    (is (some? (breg/node-info [:korg/minilogue-xd :eg :attack])))
+    (is (some? (breg/node-info [:korg/minilogue-xd :lfo :wave])))))
 
 ;; ---------------------------------------------------------------------------
 ;; device-send! — numeric values
 ;; ---------------------------------------------------------------------------
 
 (deftest device-send-numeric-test
-  (testing "device-send! with a numeric value calls ctrl/send! with device path"
+  (testing "device-send! with a numeric value writes the device path via ct/ctrl-write!"
     (device/defdevice :test/synth
       {:device/role :target :midi/channel 1
        :midi/cc [{:cc 40 :path [:filter :cutoff] :range [0 127]}]})
     (let [calls (atom [])]
-      (with-redefs [ctrl/send! (fn [path val] (swap! calls conj {:path path :val val}))]
+      (with-redefs [ct/ctrl-write! (fn [path val] (swap! calls conj {:path path :val val}))]
         (device/device-send! :test/synth [:filter :cutoff] 80))
       (is (= 1 (count @calls)))
       (is (= [:test/synth :filter :cutoff] (:path (first @calls))))
@@ -144,7 +148,7 @@
                            {:value 43 :label :saw}
                            {:value 86 :label :pulse}]}]})
     (let [calls (atom [])]
-      (with-redefs [ctrl/send! (fn [path val] (swap! calls conj {:path path :val val}))]
+      (with-redefs [ct/ctrl-write! (fn [path val] (swap! calls conj {:path path :val val}))]
         (device/device-send! :test/synth [:vco1 :wave] :saw))
       (is (= 43 (:val (first @calls))) ":saw resolves to 43")))
   (testing "resolves :bpm-sync on lfo mode"
@@ -155,7 +159,7 @@
                            {:value 43 :label :slow}
                            {:value 86 :label :bpm-sync}]}]})
     (let [calls (atom [])]
-      (with-redefs [ctrl/send! (fn [path val] (swap! calls conj {:path path :val val}))]
+      (with-redefs [ct/ctrl-write! (fn [path val] (swap! calls conj {:path path :val val}))]
         (device/device-send! :test/synth [:lfo :mode] :bpm-sync))
       (is (= 86 (:val (first @calls)))))))
 
@@ -240,8 +244,8 @@
        :midi/cc   []
        :midi/nrpn [{:nrpn 1 :path [:portamento]}
                    {:nrpn 0 :path [:eg :type] :bits 7 :range [0 127]}]})
-    (let [port-node (ctrl/node-info [:test/synth :portamento])
-          eg-node   (ctrl/node-info [:test/synth :eg :type])]
+    (let [port-node (breg/node-info [:test/synth :portamento])
+          eg-node   (breg/node-info [:test/synth :eg :type])]
       (is (some? port-node) "portamento node registered")
       (is (= :int (:type port-node)))
       (is (= [0 16383] (get-in port-node [:node-meta :range]))
@@ -267,8 +271,8 @@
   (testing "Minilogue XD NRPN entries register correctly"
     (device/defdevice :korg/minilogue-xd
       (device/load-device-map "devices/korg-minilogue-xd.edn"))
-    (let [port-node (ctrl/node-info [:korg/minilogue-xd :portamento])
-          eg-node   (ctrl/node-info [:korg/minilogue-xd :eg :type])]
+    (let [port-node (breg/node-info [:korg/minilogue-xd :portamento])
+          eg-node   (breg/node-info [:korg/minilogue-xd :eg :type])]
       (is (some? port-node) "portamento NRPN node present")
       (is (some? eg-node)   "eg type NRPN node present")
       (is (= :midi-nrpn (:type (first (:bindings port-node))))))))
