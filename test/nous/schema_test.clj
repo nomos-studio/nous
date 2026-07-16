@@ -3,6 +3,7 @@
   "Tests for nous.schema — device model, realization, and realize!."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [nous.schema :as schema]
+            [nous.binding-registry :as breg]
             [nous.ctrl   :as ctrl]
             [nous.core   :as core]))
 
@@ -12,7 +13,7 @@
 
 (defn with-system [f]
   (core/start! :bpm 120)
-  (try (f) (finally (core/stop!))))
+  (try (f) (finally (breg/clear!) (core/stop!))))
 
 (use-fixtures :each with-system)
 
@@ -123,11 +124,11 @@
     (schema/defdevice-model :test/synth test-model)
     (schema/defrealization  :test/node-rig midi-realization)
     (schema/realize! :test/synth :test/node-rig)
-    (is (some? (ctrl/node-info [:test/synth :filter :cutoff]))
+    (is (some? (breg/node-info [:test/synth :filter :cutoff]))
         "filter/cutoff node exists")
-    (is (some? (ctrl/node-info [:test/synth :filter :res]))
+    (is (some? (breg/node-info [:test/synth :filter :res]))
         "filter/res node exists")
-    (is (some? (ctrl/node-info [:test/synth :env :attack]))
+    (is (some? (breg/node-info [:test/synth :env :attack]))
         "env/attack node exists")))
 
 (deftest realize-installs-midi-bindings-test
@@ -135,7 +136,7 @@
     (schema/defdevice-model :test/synth test-model)
     (schema/defrealization  :test/bind-rig midi-realization)
     (schema/realize! :test/synth :test/bind-rig)
-    (let [node (ctrl/node-info [:test/synth :filter :cutoff])]
+    (let [node (breg/node-info [:test/synth :filter :cutoff])]
       (is (seq (:bindings node)) "cutoff node has bindings")
       (let [b (first (:bindings node))]
         (is (= :midi-cc (:type b)))
@@ -165,7 +166,7 @@
     (schema/defdevice-model :test/synth test-model)
     (schema/defrealization  :test/type-rig midi-realization)
     (schema/realize! :test/synth :test/type-rig)
-    (let [node (ctrl/node-info [:test/synth :filter :cutoff])]
+    (let [node (breg/node-info [:test/synth :filter :cutoff])]
       (is (= :float (:type node))))))
 
 (deftest realize-unknown-model-throws-test
@@ -202,10 +203,10 @@
       (schema/defrealization  :test/swap-r2 r2)
       (schema/realize! :test/swap-synth :test/swap-r1)
       ;; After first realize, channel should be 1
-      (let [b (first (:bindings (ctrl/node-info [:test/swap-synth :filter :cutoff])))]
+      (let [b (first (:bindings (breg/node-info [:test/swap-synth :filter :cutoff])))]
         (is (= 1 (:channel b)) "channel 1 after first realize"))
       ;; Rebind — should tear down and reinstall
       (schema/realize! :test/swap-synth :test/swap-r2)
-      (let [bindings (:bindings (ctrl/node-info [:test/swap-synth :filter :cutoff]))]
+      (let [bindings (:bindings (breg/node-info [:test/swap-synth :filter :cutoff]))]
         (is (= 1 (count bindings)) "exactly one binding after rebind")
         (is (= 2 (:channel (first bindings))) "channel 2 after second realize")))))

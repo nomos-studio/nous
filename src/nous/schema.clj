@@ -41,7 +41,7 @@
     (realize! :arp2600 :grey-meanie)
 
     ;; 4. Address by model path — realization handles transport
-    (ctrl/send! [:arp2600 :filter :cutoff] 0.6)
+    (ct/ctrl-write! [:arp2600 :filter :cutoff] 0.6)
 
   ## Schema in the transaction log
 
@@ -50,7 +50,8 @@
   schema state by projecting [:txlog/schema ...] transactions first.
 
   Key design decisions: doc/design-device-model.md, Q74-Q76, Q79."
-  (:require [nous.ctrl :as ctrl]))
+  (:require [nous.binding-registry :as breg]
+            [nous.ctrl :as ctrl]))
 
 ;; ---------------------------------------------------------------------------
 ;; Schema source context
@@ -171,7 +172,7 @@
             meta      (cond-> {}
                         (:range spec)  (assoc :range (:range spec))
                         (:values spec) (assoc :values (:values spec)))]
-        (ctrl/defnode! node-path :type t :node-meta meta)))))
+        (breg/register-node! node-path :type t :node-meta meta)))))
 
 (defn- bind-midi-realization!
   "Install MIDI CC and NRPN bindings for a :midi realization.
@@ -183,8 +184,8 @@
     (doseq [[param-path {:keys [cc range]}] cc-map]
       (let [node-path (into [model-id] param-path)
             r         (or range [0 127])]
-        (ctrl/unbind! node-path 20)
-        (ctrl/bind! node-path
+        (breg/unbind! node-path 20)
+        (breg/bind! node-path
                     {:type :midi-cc :channel channel :cc-num cc :range r}
                     :priority 20)))
     (doseq [[param-path {:keys [nrpn bits range]}] nrpn-map]
@@ -192,8 +193,8 @@
             b         (int (or bits 14))
             max-val   (if (= 14 b) 16383 127)
             r         (or range [0 max-val])]
-        (ctrl/unbind! node-path 20)
-        (ctrl/bind! node-path
+        (breg/unbind! node-path 20)
+        (breg/bind! node-path
                     {:type :midi-nrpn :channel channel :nrpn nrpn :bits b :range r}
                     :priority 20)))))
 
@@ -203,7 +204,7 @@
   (let [cc-map   (or (:cc-map   realization-map) {})
         nrpn-map (or (:nrpn-map realization-map) {})]
     (doseq [param-path (concat (keys cc-map) (keys nrpn-map))]
-      (ctrl/unbind! (into [model-id] param-path) 20))))
+      (breg/unbind! (into [model-id] param-path) 20))))
 
 ;; ---------------------------------------------------------------------------
 ;; realize!
@@ -227,7 +228,7 @@
     (realize! :arp2600 :timewarp-vst)  ; laptop session
 
   After realize!, address the model via the ctrl tree:
-    (ctrl/send! [:arp2600 :filter :cutoff] 0.6)"
+    (ct/ctrl-write! [:arp2600 :filter :cutoff] 0.6)"
   [model-id realization-id]
   (let [model       (ctrl/get (model-path model-id))
         realization (ctrl/get (realization-path realization-id))]
