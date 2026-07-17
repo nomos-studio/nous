@@ -192,10 +192,9 @@
        :midi/cc []
        :nous/bind-sources
        {:touch-strip {:source :channel-pressure :yields :pressure-0-127}}})
-    (ctrl/defnode! [:synth/cutoff] :type :float :meta {:range [0.0 1.0]})
     (device/device-bind! [:synth/cutoff]
                          {:device :test/ctrl :source :touch-strip})
-    (let [node     (ctrl/node-info [:synth/cutoff])
+    (let [node     (breg/node-info [:synth/cutoff])
           bindings (:bindings node)]
       (is (some #(= :midi-device-input (:type %)) bindings)
           "binding of type :midi-device-input should be present")

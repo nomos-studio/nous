@@ -56,3 +56,13 @@
     (breg/register-node! [:dev :w] :type :float :node-meta {:range [0.0 1.0]})
     (is (= :float (:type (breg/node-info [:dev :w]))))
     (is (= 1 (count (breg/bindings-for [:dev :w]))) "binding preserved")))
+
+(deftest bindings-by-type-test
+  (testing "bindings-by-type returns [path binding] for every matching binding"
+    (breg/bind! [:kbd :pitch]    {:type :midi-device-input :device :ks :source :notes} :priority 20)
+    (breg/bind! [:kbd :pressure] {:type :midi-device-input :device :ks :source :strip} :priority 20)
+    (breg/bind! [:synth :cutoff] {:type :midi-cc :cc-num 74} :priority 20)
+    (let [found (breg/bindings-by-type :midi-device-input)]
+      (is (= #{[:kbd :pitch] [:kbd :pressure]} (set (map first found)))
+          "exactly the two input paths, not the :midi-cc one"))
+    (is (empty? (breg/bindings-by-type :no-such-type)) "empty for an absent type")))

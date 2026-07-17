@@ -6,8 +6,9 @@
   All tests use -dispatch-for-test! to simulate inbound MIDI messages,
   avoiding the need for physical MIDI hardware."
   (:require [clojure.test  :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
+            [nous.binding-registry :as breg]
             [nous.core   :as core]
-            [nous.ctrl   :as ctrl]
             [nous.device :as device]
             [nous.midi-in :as midi-in]))
 
@@ -15,9 +16,11 @@
 ;; Fixtures
 ;; ---------------------------------------------------------------------------
 
+;; The binding registry is a global atom outliving core/start!/stop!, so clear
+;; it between tests to keep :midi-device-input bindings from leaking dispatch.
 (defn with-system [f]
   (core/start! :bpm 120)
-  (try (f) (finally (core/stop!))))
+  (try (f) (finally (breg/clear!) (core/stop!))))
 
 (use-fixtures :each with-system)
 
@@ -53,10 +56,10 @@
 (deftest note-on-routes-pitch-test
   (testing "note-on dispatches pitch-midi to bound ctrl node"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/pitch] :type :int :value 0)
+    (ct/ctrl-write! [:test/pitch] 0)
     (device/device-bind! [:test/pitch] {:device :test/keystep :source :notes})
     (midi-in/-dispatch-for-test! :test/keystep 1 NOTE_ON 60 80)
-    (is (= 60 (ctrl/get [:test/pitch])) "note number routed to node")))
+    (is (= 60 (ct/ctrl-read [:test/pitch])) "note number routed to node")))
 
 ;; ---------------------------------------------------------------------------
 ;; note-on → :velocity-0-127
@@ -65,10 +68,10 @@
 (deftest note-on-routes-velocity-test
   (testing "note-on dispatches velocity to bound ctrl node"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/velocity] :type :int :value 0)
+    (ct/ctrl-write! [:test/velocity] 0)
     (device/device-bind! [:test/velocity] {:device :test/keystep :source :velocity})
     (midi-in/-dispatch-for-test! :test/keystep 1 NOTE_ON 60 100)
-    (is (= 100 (ctrl/get [:test/velocity])) "velocity routed to node")))
+    (is (= 100 (ct/ctrl-read [:test/velocity])) "velocity routed to node")))
 
 ;; ---------------------------------------------------------------------------
 ;; channel-pressure → :pressure-0-127
@@ -77,10 +80,10 @@
 (deftest channel-pressure-routes-pressure-test
   (testing "channel-pressure dispatches pressure value to bound ctrl node"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/pressure] :type :int :value 0)
+    (ct/ctrl-write! [:test/pressure] 0)
     (device/device-bind! [:test/pressure] {:device :test/keystep :source :touch-strip})
     (midi-in/-dispatch-for-test! :test/keystep 1 CHANNEL_PRESSURE 90 0)
-    (is (= 90 (ctrl/get [:test/pressure])) "pressure routed to node")))
+    (is (= 90 (ct/ctrl-read [:test/pressure])) "pressure routed to node")))
 
 ;; ---------------------------------------------------------------------------
 ;; cc-64 → :boolean
@@ -89,18 +92,18 @@
 (deftest cc64-routes-boolean-on-test
   (testing "CC 64 > 0 dispatches true to bound ctrl node"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/sustain-on] :type :bool :value false)
+    (ct/ctrl-write! [:test/sustain-on] false)
     (device/device-bind! [:test/sustain-on] {:device :test/keystep :source :sustain})
     (midi-in/-dispatch-for-test! :test/keystep 1 CONTROL_CHANGE 64 127)
-    (is (= true (ctrl/get [:test/sustain-on])) "sustain on")))
+    (is (= true (ct/ctrl-read [:test/sustain-on])) "sustain on")))
 
 (deftest cc64-routes-boolean-off-test
   (testing "CC 64 = 0 dispatches false to bound ctrl node"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/sustain-off] :type :bool :value true)
+    (ct/ctrl-write! [:test/sustain-off] true)
     (device/device-bind! [:test/sustain-off] {:device :test/keystep :source :sustain})
     (midi-in/-dispatch-for-test! :test/keystep 1 CONTROL_CHANGE 64 0)
-    (is (= false (ctrl/get [:test/sustain-off])) "sustain off")))
+    (is (= false (ct/ctrl-read [:test/sustain-off])) "sustain off")))
 
 ;; ---------------------------------------------------------------------------
 ;; Channel mismatch — should not dispatch
@@ -109,11 +112,11 @@
 (deftest wrong-channel-no-dispatch-test
   (testing "message on wrong channel does not update ctrl node"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/ch-pitch] :type :int :value 0)
+    (ct/ctrl-write! [:test/ch-pitch] 0)
     (device/device-bind! [:test/ch-pitch] {:device :test/keystep :source :notes})
     ;; device is on channel 1; send on channel 2
     (midi-in/-dispatch-for-test! :test/keystep 2 NOTE_ON 60 80)
-    (is (= 0 (ctrl/get [:test/ch-pitch])) "value unchanged for wrong channel")))
+    (is (= 0 (ct/ctrl-read [:test/ch-pitch])) "value unchanged for wrong channel")))
 
 ;; ---------------------------------------------------------------------------
 ;; Device mismatch — should not dispatch
@@ -122,10 +125,10 @@
 (deftest wrong-device-no-dispatch-test
   (testing "message for unknown device does not update ctrl node"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/dev-pitch] :type :int :value 0)
+    (ct/ctrl-write! [:test/dev-pitch] 0)
     (device/device-bind! [:test/dev-pitch] {:device :test/keystep :source :notes})
     (midi-in/-dispatch-for-test! :test/other-device 1 NOTE_ON 60 80)
-    (is (= 0 (ctrl/get [:test/dev-pitch])) "value unchanged for wrong device")))
+    (is (= 0 (ct/ctrl-read [:test/dev-pitch])) "value unchanged for wrong device")))
 
 ;; ---------------------------------------------------------------------------
 ;; Multiple bindings — note-on updates both pitch and velocity nodes
@@ -134,31 +137,30 @@
 (deftest note-on-updates-multiple-nodes-test
   (testing "single note-on updates all matching bindings simultaneously"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/multi-pitch] :type :int :value 0)
-    (ctrl/defnode! [:test/multi-vel]   :type :int :value 0)
+    (ct/ctrl-write! [:test/multi-pitch] 0)
+    (ct/ctrl-write! [:test/multi-vel]   0)
     (device/device-bind! [:test/multi-pitch] {:device :test/keystep :source :notes}    :priority 20)
     (device/device-bind! [:test/multi-vel]   {:device :test/keystep :source :velocity} :priority 20)
     (midi-in/-dispatch-for-test! :test/keystep 1 NOTE_ON 48 110)
-    (is (= 48  (ctrl/get [:test/multi-pitch])) "pitch updated")
-    (is (= 110 (ctrl/get [:test/multi-vel]))   "velocity updated")))
+    (is (= 48  (ct/ctrl-read [:test/multi-pitch])) "pitch updated")
+    (is (= 110 (ct/ctrl-read [:test/multi-vel]))   "velocity updated")))
 
 ;; ---------------------------------------------------------------------------
 ;; bindings-by-type — ctrl helper
 ;; ---------------------------------------------------------------------------
 
 (deftest bindings-by-type-returns-input-bindings-test
-  (testing "ctrl/bindings-by-type finds :midi-device-input bindings in the tree"
+  (testing "breg/bindings-by-type finds :midi-device-input bindings in the registry"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/bbt-pitch] :type :int :value 0)
     (device/device-bind! [:test/bbt-pitch] {:device :test/keystep :source :notes})
-    (let [found (ctrl/bindings-by-type :midi-device-input)]
+    (let [found (breg/bindings-by-type :midi-device-input)]
       (is (seq found) "at least one binding found")
       (is (some #(= [:test/bbt-pitch] (first %)) found)
           "bound path present in results"))))
 
 (deftest bindings-by-type-empty-for-unknown-type-test
-  (testing "ctrl/bindings-by-type returns empty for a type with no bindings"
-    (is (empty? (ctrl/bindings-by-type :no-such-type)))))
+  (testing "breg/bindings-by-type returns empty for a type with no bindings"
+    (is (empty? (breg/bindings-by-type :no-such-type)))))
 
 ;; ---------------------------------------------------------------------------
 ;; open-inputs inspection
@@ -270,12 +272,12 @@
 (deftest ctrl-and-note-handler-both-fire
   (testing "ctrl binding and note handler both receive the same Note On"
     (device/defdevice :test/keystep keystep-map)
-    (ctrl/defnode! [:test/coexist-pitch] :type :int :value 0)
+    (ct/ctrl-write! [:test/coexist-pitch] 0)
     (device/device-bind! [:test/coexist-pitch] {:device :test/keystep :source :notes})
     (let [handler-note (atom nil)]
       (midi-in/register-note-handler! :test/keystep 1
         (fn [note _vel] (reset! handler-note note)))
       (midi-in/-dispatch-for-test! :test/keystep 1 NOTE_ON 55 90)
-      (is (= 55 (ctrl/get [:test/coexist-pitch])) "ctrl tree updated")
+      (is (= 55 (ct/ctrl-read [:test/coexist-pitch])) "ctrl tree updated")
       (is (= 55 @handler-note) "note handler also called")
       (midi-in/unregister-note-handler! :test/keystep 1))))

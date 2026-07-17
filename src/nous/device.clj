@@ -53,7 +53,6 @@
             [clojure.edn     :as edn]
             [ctrl-tree.core  :as ct]
             [nous.binding-registry :as breg]
-            [nous.ctrl     :as ctrl]
             [nous.dirs     :as dirs]))
 
 ;; ---------------------------------------------------------------------------
@@ -279,12 +278,10 @@
   Options:
     :priority — binding priority (default 20)
 
-  The source is looked up in the device's :nous/bind-sources map.
-  The binding is stored on the ctrl node as type :midi-device-input.
-
-  Actual inbound MIDI routing (KeyStep events → ctrl tree updates) requires
-  a listener thread and is deferred to a future sprint. device-bind! records
-  the intent so it can be activated when that infrastructure is in place."
+  The source is looked up in the device's :nous/bind-sources map. The binding
+  is registered in nous.binding-registry as type :midi-device-input; on each
+  inbound MIDI message nous.midi-in matches it (by :device, :channel, and
+  :midi-source) and writes the extracted value to `path` via ct/ctrl-write!."
   [path {:keys [device source]} & {:keys [priority] :or {priority 20}}]
   (let [reg (clojure.core/get @device-registry device)]
     (when-not reg
@@ -298,7 +295,7 @@
                          :available (keys bind-sources)})))
       ;; :source is the bind-source name (e.g. :touch-strip); the underlying
       ;; MIDI message type from source-info uses :midi-source to avoid collision.
-      (ctrl/bind! path
+      (breg/bind! path
                   {:type        :midi-device-input
                    :device      device
                    :source      source

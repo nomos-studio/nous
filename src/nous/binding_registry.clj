@@ -82,6 +82,16 @@
   [path]
   (get @registry path))
 
+(defn bindings-by-type
+  "Return [[path binding] …] for every binding of `binding-type` across all
+  registered nodes. Empty when none. Used by nous.midi-in to locate
+  :midi-device-input bindings on each inbound message."
+  [binding-type]
+  (for [[path node] @registry
+        binding      (:bindings node)
+        :when        (= binding-type (:type binding))]
+    [path binding]))
+
 (defn clear!
   "Remove every registered node. Test/REPL utility."
   []

@@ -5,7 +5,8 @@
 
   Opens a JVM MIDI input port by partial device name and attaches a Receiver
   that dispatches on each inbound message:
-    1. ctrl tree  — :midi-device-input bindings (CC, channel pressure, note-on)
+    1. ctrl tree  — :midi-device-input bindings from nous.binding-registry
+                    (CC, channel pressure, note-on) → ct/ctrl-write!
     2. note handlers — registered per [device-id channel] via register-note-handler!
 
   ## Quick start — ctrl routing
@@ -43,7 +44,8 @@
 
   Key design decisions: R&R §28.8 (MIDI input routing)."
   (:require [clojure.string :as str]
-            [nous.ctrl    :as ctrl]
+            [ctrl-tree.core :as ct]
+            [nous.binding-registry :as breg]
             [nous.device  :as device])
   (:import  [javax.sound.midi MidiSystem ShortMessage Receiver]))
 
@@ -130,11 +132,11 @@
     2. Registered note handlers for this [device-id channel] on Note On"
   [device-id channel command data1 data2]
   ;; 1. ctrl tree routing
-  (doseq [[path binding] (ctrl/bindings-by-type :midi-device-input)]
+  (doseq [[path binding] (breg/bindings-by-type :midi-device-input)]
     (when (and (= device-id (:device binding))
                (= (int channel) (int (:channel binding)))
                (matches-source? (:midi-source binding) command data1))
-      (ctrl/set! path (extract-yield (:yields binding) data1 data2))))
+      (ct/ctrl-write! path (extract-yield (:yields binding) data1 data2))))
   ;; 2. Note handler routing — Note On with velocity > 0
   (when (and (= command NOTE_ON) (> (int data2) 0))
     (let [handlers @note-handlers]
@@ -173,8 +175,9 @@
     :name-hint — partial JVM MIDI device name to match (default: :device/name
                  from the device map, e.g. \"Arturia KeyStep\")
 
-  On each incoming MIDI message the receiver calls ctrl/set! for every
-  :midi-device-input binding whose :device, :channel, and :midi-source match.
+  On each incoming MIDI message the receiver calls ct/ctrl-write! for every
+  registry :midi-device-input binding whose :device, :channel, and :midi-source
+  match.
 
   Re-calling with the same device-id is a no-op if the port is already open.
   Throws ex-info if the device is not registered or no JVM MIDI device matches.
