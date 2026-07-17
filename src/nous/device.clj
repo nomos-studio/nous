@@ -233,7 +233,7 @@
     id))
 
 ;; ---------------------------------------------------------------------------
-;; device-send! — semantic value resolution + ctrl/send! dispatch
+;; device-send! — semantic value resolution + ct/ctrl-write! dispatch
 ;; ---------------------------------------------------------------------------
 
 (defn device-send!
@@ -249,7 +249,8 @@
     (device-send! :korg/minilogue-xd [:vco1 :wave] :saw)   ; => CC 23 = 43
     (device-send! :korg/minilogue-xd [:filter :cutoff] 80) ; => CC 40 = 80
 
-  Dispatches to the sidecar via ctrl/send! at the current wall-clock instant."
+  Writes to the ctrl tree; the root IpcMount resolves the path's registry
+  bindings and dispatches to the sidecar at the current wall-clock instant."
   [device-id path value]
   (let [reg (clojure.core/get @device-registry device-id)]
     (when-not reg

@@ -60,8 +60,8 @@
   The :kairos-grid node type is the built-in sample-rate DSP container in
   kairos. Its internal module graph is delivered inline via the :patch key.
   The CLAP plugin ID is [[kairos-grid-plugin-id]] (configurable)."
-  (:require [nous.kairos :as kairos]
-            [nous.ctrl   :as ctrl]
+  (:require [nous.binding-registry :as breg]
+            [nous.kairos :as kairos]
             [nous.synth  :as synth-ns]))
 
 ;; ---------------------------------------------------------------------------
@@ -192,11 +192,11 @@
           (:controls control-tree {})]
     (let [path  [path-root ctrl-name]
           vtype (case type :midi-note :int :gate :bool :float)]
-      (ctrl/defnode! path :type vtype
-                          :node-meta {:range           (or range [0 1])
-                                      :topology/target target})
+      (breg/register-node! path :type vtype
+                           :node-meta {:range           (or range [0 1])
+                                       :topology/target target})
       (when cc
-        (ctrl/bind! path {:type    :midi-cc
+        (breg/bind! path {:type    :midi-cc
                           :cc-num  cc
                           :range   (or range [0 1])
                           :channel 1})))))

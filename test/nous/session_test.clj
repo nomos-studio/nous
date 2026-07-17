@@ -2,8 +2,8 @@
 (ns nous.session-test
   "Tests for nous.session — nomos-topology Session → kairos graph translation."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [nous.binding-registry :as breg]
             [nous.core    :as core]
-            [nous.ctrl    :as ctrl]
             [nous.kairos  :as kairos]
             [nous.session :as session]
             [nous.synth   :as synth]))
@@ -57,6 +57,7 @@
     (finally
       (reset! (active-session-atom) nil)
       (reset! (placed-nodes-atom)   {})
+      (breg/clear!)
       (core/stop!))))
 
 (use-fixtures :each with-system)
@@ -217,16 +218,16 @@
                   kairos/send-graph-load! (fn [_] nil)]
       (session/load-session! simple-session :path-root :test-session))
     ;; :pitch should be registered as :int (midi-note type)
-    (is (some? (ctrl/node-info [:test-session :pitch])))
+    (is (some? (breg/node-info [:test-session :pitch])))
     ;; :timbre should be registered
-    (is (some? (ctrl/node-info [:test-session :timbre])))))
+    (is (some? (breg/node-info [:test-session :timbre])))))
 
 (deftest ctrl-node-has-topology-target-meta
   (testing "ctrl node meta includes :topology/target pointing to the param ref"
     (with-redefs [kairos/connected?       (constantly true)
                   kairos/send-graph-load! (fn [_] nil)]
       (session/load-session! simple-session :path-root :test-session2))
-    (let [node (ctrl/node-info [:test-session2 :pitch])]
+    (let [node (breg/node-info [:test-session2 :pitch])]
       (is (= [:voice "osc/note"] (get-in node [:node-meta :topology/target]))))))
 
 ;; ---------------------------------------------------------------------------

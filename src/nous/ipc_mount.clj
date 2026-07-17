@@ -10,33 +10,30 @@
   See doc/design-ctrl-authority.md and the project note on ctrl-tree output via
   nomos-rt IPC.
 
-  ## Transitional hybrid (during the nous.ctrl → ctrl-tree migration)
-  The *value* lives on the ctrl-tree (this write triggered the mount). Bindings
-  are read from the union of two sources: the Clojure-side nous.binding-registry
-  (where migrated declarers — device.clj etc. — register) and the legacy
-  nous.ctrl node's :bindings (where schema/berlin still declare). Both dispatch;
-  the sources migrate to the registry one increment at a time, after which the
-  nous.ctrl read is dropped.
+  ## Binding source
+  The *value* lives on the ctrl-tree (this write triggered the mount). Output
+  bindings are read from nous.binding-registry — the single source for output
+  dispatch; every declarer (device, schema, session, berlin) registers there.
+  (Controller-*input* bindings, :midi-device-input, live on nous.ctrl and are
+  consumed by nous.midi-in, not by this output mount.)
 
   Mounts fire post-commit (never inside the STM transaction), so the blocking
   IPC send is safe here."
   (:require [protomatter.protocols :as p]
             [ctrl-tree.refs :as refs]
             [nous.binding-registry :as breg]
-            [nous.ctrl     :as ctrl]
             [nous.dispatch :as dispatch]
             [nous.kairos   :as kairos]))
 
 (deftype IpcMount []
   p/IMount
   (mount-write! [_ path value]
-    ;; Resolve the path's bindings from the legacy store and emit a frame per
-    ;; binding, when the transport is connected. Swallow errors — a mount must
-    ;; not break the committing write.
+    ;; Resolve the path's bindings from the binding registry and emit a frame
+    ;; per binding, when the transport is connected. Swallow errors — a mount
+    ;; must not break the committing write.
     (try
       (when (kairos/connected?)
-        (doseq [binding (concat (breg/bindings-for path)
-                                (:bindings (ctrl/node-info path)))]
+        (doseq [binding (breg/bindings-for path)]
           (dispatch/dispatch-binding! binding value)))
       (catch Exception e
         (binding [*out* *err*]

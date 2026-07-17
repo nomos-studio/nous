@@ -41,8 +41,8 @@
     ;; Slow filter journey over 64 bars
     (berlin/filter-journey! [:filter :cutoff] 74 1 0 127 64 :breathe)"
   (:require [ctrl-tree.core       :as ct]
+            [nous.binding-registry :as breg]
             [nous.clock           :as clock]
-            [nous.ctrl            :as ctrl]
             [nous.loop            :as loop-ns]
             [nous.random          :as random]
             [nous.scala           :as scala]
@@ -419,7 +419,7 @@
          loop-name   (keyword (str "berlin-journey-" (name (last ctrl-path))))
          bar-beat    (atom 0)]
      (try
-       (ctrl/bind! ctrl-path {:type :midi-cc :channel channel :cc-num cc-num
+       (breg/bind! ctrl-path {:type :midi-cc :channel channel :cc-num cc-num
                               :range [0 127]})
        (catch clojure.lang.ExceptionInfo _
          nil))
