@@ -1,7 +1,9 @@
 # Control-state authority rule
 
 *Status: active. Companion to `design-ctrl-foundation.md`. Written 2026-07-13 to
-close Gate 4 finding #2 (two control stores, no documented authority rule).*
+close Gate 4 finding #2 (two control stores, no documented authority rule).
+Migration-status section refreshed 2026-07-16 after Increment 10 (binding
+plumbing fully migrated).*
 
 ## The rule
 
@@ -11,11 +13,11 @@ value to live.
 
 `nous.ctrl` (the `system-state` atom, with typed nodes, MIDI dispatch, undo,
 checkpoints, and watchers) is **legacy under migration**. It is not deleted —
-~36 namespaces still read and write it — but it is retired path-by-path, and
+~20 namespaces still read and write it — but it is retired path-by-path, and
 **no new state is added to it**. Full retirement is the goal; it is gated on the
 still-draft transaction model (`design-transactional-ctrl.md`) and proceeds as a
-series of scoped increments. Increment 1 (2026-07-13) moved the M14–M18 surface
-— keyboard, tuning, seq, notation — fully onto `ctrl-tree`.
+series of scoped increments. See the **Migration status** section below for the
+increment history and the categorised inventory of what remains.
 
 ## What follows from it
 
@@ -71,7 +73,83 @@ series of scoped increments. Increment 1 (2026-07-13) moved the M14–M18 surfac
 
 When you touch a `nous.ctrl` path, prefer moving it to `ctrl-tree` rather than
 extending its `nous.ctrl` usage — provided its value is serialisable (rule 4)
-and its behaviour does not depend on `nous.ctrl`-only capabilities (MIDI
-dispatch, binding priority, undo, checkpoints, typed-node metadata). Those
-capabilities are the hard part of full retirement and are ported deliberately in
-later increments, not opportunistically.
+and its behaviour does not depend on the `nous.ctrl`-only capabilities that are
+**not yet ported** (undo, checkpoints, typed-node metadata, per-write tx
+`:source/kind`, and beat-scheduled `send-at!`). Hardware *dispatch* is no longer
+in that list — MIDI output and input binding plumbing were migrated in
+Increments 5–10 (see below); dispatch now flows ctrl-tree → mount →
+`nous.binding-registry`. The remaining capabilities are the hard part of full
+retirement and are ported deliberately in later increments, not opportunistically.
+
+---
+
+## Migration status (as of Increment 10, 2026-07-16)
+
+### Increment history
+
+- **Inc 1–4 — surface + read/write plumbing.** M14–M18 control surface (keyboard,
+  tuning, seq, notation, theory) moved fully onto `ctrl-tree`; `nous.server` and
+  `nous.mcp` made store-agnostic via the transitional **`nous.ctrl-bridge`**
+  (union read, ownership-routed write, dual-watch broadcast over both stores);
+  the ensemble/peer/session/spectral cluster migrated.
+- **Inc 5–10 — binding plumbing, now complete.** Output *and* input hardware
+  binding moved off the `nous.ctrl` node model:
+  - `nous.dispatch/dispatch-binding!` — shared scale-and-emit for `:midi-cc` /
+    `:midi-nrpn`, driving both the legacy `ctrl/send-at!` path and the mount.
+  - `nous.ipc-mount/IpcMount` — root `[]` mount; a ctrl-tree write resolves the
+    path's bindings and emits nomos-rt frames post-commit.
+  - `nous.binding-registry` — the single store for hardware bindings
+    (`{path → {:type :node-meta :bindings}}`); every output declarer (device,
+    schema, session, berlin) and the input declarer (device-bind!) register here.
+  - `nous.midi-in` reads `breg/bindings-by-type` and writes routed inbound values
+    via `ct/ctrl-write!` — inbound MIDI lands in `ctrl-tree`.
+  - **The IpcMount's transitional `nous.ctrl` union read is gone (Inc 9).**
+  **No production code reads or writes hardware bindings via `nous.ctrl`.**
+  `ctrl/send!` / `ctrl/send-at!` / `ctrl/bind!` / `ctrl/bindings-by-type` remain
+  defined but have essentially no production callers (the lone exception is
+  `core/play!`'s per-step mod dispatch — see below).
+
+### What still depends on `nous.ctrl` (~20 namespaces, by concern)
+
+These are the targets for the *node/value-model* retirement, which is harder than
+the binding work and involves open design decisions.
+
+- **Transitional infra (keep until the model retires):** `ctrl-bridge` (union
+  read/write over both stores; used by `server` + `mcp`), `server` (union reads +
+  dual-watch broadcast), `user` / `core` (system lifecycle: `start!`/`stop!`/
+  `started?`, plus `all-nodes`).
+- **Value read/write (`get`/`set!`/`node-info`/`child-keys`) — migrate when
+  touched, if serialisable:** `bitwig`, `excursion`, `lattice`, `target`,
+  `morph`, `live`.
+- **Typed-node declarers (`defnode!`):** `book`, `flux`, `fractal`, `stochastic`,
+  `excursion`, `lattice`, `live`, `morph`, `config` — blocked on porting
+  typed-node metadata to `ctrl-tree`.
+- **Watch-driven reactions (`watch!`/`watch-global!`):** `defensemble`, `terrain`,
+  `osc`, `bitwig`, `server` — blocked on a `ctrl-tree` watch primitive (today
+  callers `add-watch` `refs/tree-state` directly, rule 3's standing exception).
+- **`nous.schema` persistent state:** models/realizations/active-realization at
+  `[:txlog/schema …]` via `with-source`/`set!`/`get`/`child-keys`. Blocked on the
+  **`:source/kind :schema` decision** — `ct/ctrl-write!` cannot reproduce
+  per-write source kinds that `schema_test` asserts on.
+- **Undo:** `config` reads `undo-stack-depth` — blocked on porting the undo/
+  checkpoint model.
+- **Ephemeral, deliberately exempt (rule 6):** `spatial_field` `[:spatial … :state]`
+  (~20 Hz) stays on `nous.ctrl` pending a dedicated ephemeral store.
+- **The last dispatch caller:** `core/play!` still routes per-step modulation via
+  `ctrl/send-at!` (beat-anchored). Migrating it to `ct/ctrl-write!` → mount needs
+  the beat-scheduling semantics resolved (the mount dispatches immediately
+  post-commit; `send-at!` records a beat-stamped tx).
+
+### Open decisions gating full retirement
+
+1. **`:source/kind` per-write provenance** — keep (needs a `ctrl-tree` mechanism)
+   or drop (change `schema_test` + accept coarser txlog).
+2. **Undo / checkpoints** — port to `ctrl-tree` or redefine against the SQLite
+   txlog replay model.
+3. **Typed-node metadata** — where `:type`/`:node-meta` live once nodes are
+   `ctrl-tree` paths (candidate: fold into `nous.binding-registry`, already a
+   `{:type :node-meta}` store).
+4. **A `ctrl-tree` watch primitive** — to retire the `add-watch`-on-`tree-state`
+   exception (rule 3).
+5. **Beat-scheduled `send-at!`** — how modulation dispatch stays beat-accurate
+   through the immediate-dispatch mount.
