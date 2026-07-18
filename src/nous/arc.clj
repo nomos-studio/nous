@@ -37,8 +37,7 @@
     [:arc/gravity]    — tonal pull toward tonic; 0=away, 1=strong cadential
 
   Key design decisions: R&R §31 (trajectory/arc vocabulary)."
-  (:require [ctrl-tree.core :as ct]
-            [ctrl-tree.refs :as refs]))
+  (:require [ctrl-tree.core :as ct]))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state
@@ -89,14 +88,13 @@
   (let [first-bind? (not (contains? @routes source-path))]
     (swap! routes assoc source-path bindings)
     (when first-bind?
-      ;; Watch the ctrl-tree (single source of truth). add-watch on the global
-      ;; tree-state ref fires on every write, so key uniquely per source and
-      ;; filter for a change at source-path.
-      (add-watch refs/tree-state [::arc-fan-out source-path]
-                 (fn [_ _ old new]
-                   (let [v (get new source-path)]
-                     (when (not= v (get old source-path))
-                       (fan-out! source-path v)))))))
+      ;; Watch the ctrl-tree (single source of truth) at source-path via the
+      ;; ctrl-tree path-watch primitive. Fires post-commit only on writes to
+      ;; source-path; change-gate skips no-op writes.
+      (ct/ctrl-watch! source-path [::arc-fan-out source-path]
+                      (fn [_p before after]
+                        (when (not= before after)
+                          (fan-out! source-path after))))))
   nil)
 
 (defn arc-unbind!
@@ -104,7 +102,7 @@
   The ctrl watcher is removed; subsequent changes to source-path will not fan out."
   [source-path]
   (swap! routes dissoc source-path)
-  (remove-watch refs/tree-state [::arc-fan-out source-path])
+  (ct/ctrl-unwatch! source-path [::arc-fan-out source-path])
   nil)
 
 (defn arc-unbind-all!

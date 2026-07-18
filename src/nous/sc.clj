@@ -45,7 +45,7 @@
                                   [:sin-osc :freq]] 0.0]]})
     (sc/send-synthdef! :my-pad)"
   (:require [clojure.string  :as str]
-            [ctrl-tree.refs :as refs]
+            [ctrl-tree.core :as ct]
             [nous.clock    :as clock]
             [nous.core     :as core]
             [nous.fm       :as fm]
@@ -842,16 +842,16 @@
     (cancel!)"
   [node-id param spectral-key transform-fn]
   (let [watch-key [::spectral-bind node-id param]]
-    ;; Watch the ctrl-tree (single source of truth). add-watch on the tree-state
-    ;; ref fires on every write, so filter for a change at [:spectral :state].
-    (add-watch refs/tree-state watch-key
-               (fn [_ _ old new]
-                 (let [st (get new [:spectral :state])]
-                   (when (and (not= st (get old [:spectral :state]))
-                              (sc-connected?))
-                     (when-let [v (get st spectral-key)]
-                       (set-param! node-id param (transform-fn v)))))))
-    (fn [] (remove-watch refs/tree-state watch-key))))
+    ;; Watch the ctrl-tree (single source of truth) at [:spectral :state] via
+    ;; the ctrl-tree path-watch primitive — fires post-commit only on writes to
+    ;; that path; change-gate skips no-op writes.
+    (ct/ctrl-watch! [:spectral :state] watch-key
+                    (fn [_p old-st new-st]
+                      (when (and (not= old-st new-st)
+                                 (sc-connected?))
+                        (when-let [v (get new-st spectral-key)]
+                          (set-param! node-id param (transform-fn v))))))
+    (fn [] (ct/ctrl-unwatch! [:spectral :state] watch-key))))
 
 (defn unbind-spectral!
   "Remove a spectral binding registered by bind-spectral!.
@@ -859,7 +859,7 @@
 
   `node-id` and `param` must match the original bind-spectral! call."
   [node-id param]
-  (remove-watch refs/tree-state [::spectral-bind node-id param]))
+  (ct/ctrl-unwatch! [:spectral :state] [::spectral-bind node-id param]))
 
 ;; ---------------------------------------------------------------------------
 ;; core/play! dispatch — register SC backend at namespace load time

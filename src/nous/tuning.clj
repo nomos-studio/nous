@@ -29,7 +29,6 @@
   Install the watch from session! via (install-tuning-watch!)."
   (:require [clojure.string :as str]
             [ctrl-tree.core :as ct]
-            [ctrl-tree.refs :as refs]
             [nous.live      :as live]
             [nous.loop      :as loop-ns]
             [nous.scala     :as scala]))
@@ -221,22 +220,20 @@
   maqam-next! / maqam-prev! directly (see maqam-nav! for why a level-keyword
   ctrl-tree endpoint was removed — Gate 4 finding #6)."
   []
-  (add-watch refs/tree-state :nous.tuning/installer
-    (fn [_ _ old new]
-      (let [old-tuning (get old [:theory :tuning])
-            new-tuning (get new [:theory :tuning])]
-        ;; Tuning activation — run SYNCHRONOUSLY. Ref watches fire after the
-        ;; transaction commits, so calling activate! (alter-var-root via
-        ;; use-tuning!) here is on the committing/REPL thread, never the agent
-        ;; pool. use-tuning! is documented single-thread-only; wrapping this in a
-        ;; future would violate that contract (Gate 4 finding #3).
-        (when (not= old-tuning new-tuning)
-          (if (nil? new-tuning)
-            (activate! nil)
-            (when-let [scale (resolve-scale new-tuning)]
-              (activate! scale))))))))
+  (ct/ctrl-watch! [:theory :tuning] :nous.tuning/installer
+    (fn [_p old-tuning new-tuning]
+      ;; Tuning activation — run SYNCHRONOUSLY. ctrl-watch! fires post-commit on
+      ;; the committing/REPL thread (like the ref watch it replaces), so calling
+      ;; activate! (alter-var-root via use-tuning!) here is never on the agent
+      ;; pool. use-tuning! is documented single-thread-only; wrapping this in a
+      ;; future would violate that contract (Gate 4 finding #3).
+      (when (not= old-tuning new-tuning)
+        (if (nil? new-tuning)
+          (activate! nil)
+          (when-let [scale (resolve-scale new-tuning)]
+            (activate! scale)))))))
 
 (defn remove-tuning-watch!
   "Remove the tuning/maqam-navigation watch."
   []
-  (remove-watch refs/tree-state :nous.tuning/installer))
+  (ct/ctrl-unwatch! [:theory :tuning] :nous.tuning/installer))
