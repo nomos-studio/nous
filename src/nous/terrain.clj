@@ -11,7 +11,7 @@
 
   Adjacent branches are linearly blended so that moving Z continuously
   produces smooth morphs rather than hard cuts. Y and Z are registered as
-  ctrl-tree float nodes so they can be driven by trajectory/bind!, ctrl/set!,
+  ctrl-tree float paths so they can be driven by trajectory/bind!, ct/ctrl-write!,
   or any external modulator.
 
   Stepping through a terrain is semantically identical to stepping through a
@@ -32,8 +32,8 @@
     (next-terrain-step! seabed)
 
     ;; Drift into the terrain over time
-    (ctrl/set! [:terrain :seabed :y] 0.6)
-    (ctrl/set! [:terrain :seabed :z] 0.35)
+    (ct/ctrl-write! [:terrain :seabed :y] 0.6)
+    (ct/ctrl-write! [:terrain :seabed :z] 0.35)
 
     ;; As IStepSequencer inside a live loop
     (deflive-loop :depth {}
@@ -41,7 +41,7 @@
 
   Attribution: the terrain sequencer concept is original to nous.
   See doc/design/design-seed-terrain.md."
-  (:require [nous.ctrl    :as ctrl]
+  (:require [ctrl-tree.core :as ct]
             [nous.fractal :as frac]
             [nomos.maths.phasor  :as phasor]
             [nous.seq     :as sq]))
@@ -213,12 +213,12 @@
     :scale        — weighted-scale map (for :mutate/:inverse/:randomize)
     :root         — root MIDI note (default 60)
 
-  Ctrl-tree nodes registered:
+  Ctrl-tree paths seeded (initial 0.0):
     [:terrain <name> :y]  — depth phasor, float 0.0–1.0
     [:terrain <name> :z]  — branch phasor, float 0.0–1.0
 
   Ctrl-tree watches keep the context atom in sync so that trajectory/bind!
-  and ctrl/set! drive the terrain in real time without polling.
+  and ct/ctrl-write! drive the terrain in real time without polling.
 
   Example:
     (defterrain seabed
@@ -233,14 +233,16 @@
     `(do
        (def ~gen-name (atom (make-terrain-context ~k ~opts-map)))
        (register! ~k ~gen-name)
-       (ctrl/defnode! [:terrain ~k :y] :type :float :value 0.0)
-       (ctrl/defnode! [:terrain ~k :z] :type :float :value 0.0)
-       (ctrl/watch! [:terrain ~k :y]
-                    (fn [_p# _o# v#]
-                      (swap! ~gen-name assoc :y (double (or v# 0.0)))))
-       (ctrl/watch! [:terrain ~k :z]
-                    (fn [_p# _o# v#]
-                      (swap! ~gen-name assoc :z (double (or v# 0.0)))))
+       ;; Seed the ctrl-tree paths (initial 0.0) before registering the watches,
+       ;; so the seed writes do not fire the watches.
+       (ct/ctrl-write! [:terrain ~k :y] 0.0)
+       (ct/ctrl-write! [:terrain ~k :z] 0.0)
+       (ct/ctrl-watch! [:terrain ~k :y] [::terrain-watch ~k :y]
+                       (fn [_p# _before# after#]
+                         (swap! ~gen-name assoc :y (double (or after# 0.0)))))
+       (ct/ctrl-watch! [:terrain ~k :z] [::terrain-watch ~k :z]
+                       (fn [_p# _before# after#]
+                         (swap! ~gen-name assoc :z (double (or after# 0.0)))))
        ~gen-name)))
 
 ;; ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.terrain-test
   (:require [clojure.test :refer [deftest is testing]]
+            [ctrl-tree.core :as ct]
             [nous.seq     :as sq]
             [nous.terrain :as terrain]))
 
@@ -9,6 +10,10 @@
    {:pitch/midi 64 :dur/beats 1/4 :gate/on? true :gate/len 0.5}
    {:pitch/midi 67 :dur/beats 1/2 :gate/on? true :gate/len 0.8}
    {:pitch/midi 65 :dur/beats 1/4 :gate/on? true :gate/len 0.5}])
+
+;; Top-level so the def'd gen var resolves at compile time. defterrain seeds
+;; [:terrain :tw-gen :y|:z] to 0.0 and registers ctrl-tree watches.
+(terrain/defterrain tw-gen :trunk trunk :max-depth 2)
 
 ;; ---------------------------------------------------------------------------
 ;; z->path
@@ -138,3 +143,15 @@
             {:keys [event]} (sq/next-event ts2)]
         (when event
           (is (= 80 (:mod/velocity event))))))))
+
+;; ---------------------------------------------------------------------------
+;; defterrain ctrl-tree watch wiring (regression: this path used to throw an
+;; ArityException — defterrain called the 3-arg nous.ctrl/watch! with 2 args)
+;; ---------------------------------------------------------------------------
+
+(deftest defterrain-watch-updates-context-test
+  (testing "a ct/ctrl-write! to [:terrain <name> :y|:z] updates the gen context atom"
+    (ct/ctrl-write! [:terrain :tw-gen :y] 0.6)
+    (ct/ctrl-write! [:terrain :tw-gen :z] 0.35)
+    (is (= 0.6  (:y @tw-gen)) "y phasor tracked from ctrl-tree")
+    (is (= 0.35 (:z @tw-gen)) "z phasor tracked from ctrl-tree")))
