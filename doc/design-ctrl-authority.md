@@ -34,10 +34,12 @@ increment history and the categorised inventory of what remains.
    the UI you register a mount for its prefix — you do not write it twice.
 
 3. **Reads and writes are symmetric.** Use `ctrl-tree.core/ctrl-read` and
-   `ctrl-tree.core/ctrl-write!`. Application code does **not** dereference
-   `ctrl-tree.refs/tree-state` directly. The sole current exception is
-   `add-watch`/`remove-watch` on the ref (there is no ctrl-tree watch primitive
-   yet); when one exists, that exception goes away too.
+   `ctrl-tree.core/ctrl-write!`. Application code does **not** dereference or
+   `add-watch` `ctrl-tree.refs/tree-state` directly. To react to a change, use the
+   path-watch primitive `ctrl-tree.core/ctrl-watch!` (or `ctrl-watch-global!`),
+   added Inc 12. The former standing exception — raw `add-watch` on the ref — is
+   retired: as of Inc 14 no nous code `add-watch`es `tree-state` (test code may
+   still deref it for assertions).
 
 4. **Serialisability rule.** Every `ctrl-write!` is persisted to the SQLite txlog
    (values serialised via `pr-str`; the log is the replayable session record —
@@ -124,9 +126,14 @@ the binding work and involves open design decisions.
 - **Typed-node declarers (`defnode!`):** `book`, `flux`, `fractal`, `stochastic`,
   `excursion`, `lattice`, `live`, `morph`, `config` — blocked on porting
   typed-node metadata to `ctrl-tree`.
-- **Watch-driven reactions (`watch!`/`watch-global!`):** `defensemble`, `terrain`,
-  `osc`, `bitwig`, `server` — blocked on a `ctrl-tree` watch primitive (today
-  callers `add-watch` `refs/tree-state` directly, rule 3's standing exception).
+- **Watch-driven reactions:** the ctrl-tree watch primitive `ctrl-watch!` landed
+  Inc 12, and **all five raw `add-watch`-on-`tree-state` sites are migrated onto it**
+  — `arc`/`tuning`/`sc` (Inc 13, single-path) and `server`/`theory` (Inc 14,
+  global/derive). Rule 3's `add-watch` exception is retired. What remains is the
+  `nous.ctrl/watch!` consumers that watch the *legacy* store — `defensemble`
+  (`[:harmony :voice-*]`), `terrain`, `osc`, `bitwig` — blocked not on a primitive
+  but on moving their writers/values off `nous.ctrl` (e.g. defensemble needs the
+  lattice/excursion `[:harmony :voice-*]` writers on `ct/ctrl-write!` first).
 - **`nous.schema` persistent state:** models/realizations/active-realization at
   `[:txlog/schema …]` via `with-source`/`set!`/`get`/`child-keys`. Blocked on the
   **`:source/kind :schema` decision** — `ct/ctrl-write!` cannot reproduce

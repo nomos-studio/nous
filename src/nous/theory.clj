@@ -21,8 +21,7 @@
   Call (install-theory-watch!) from session! to auto-derive
   [:theory :scale-pcs] and [:theory :scale-notes] whenever
   [:theory :key] or [:theory :mode] changes in the ctrl-tree."
-  (:require [ctrl-tree.core :as ct]
-            [ctrl-tree.refs :as refs]))
+  (:require [ctrl-tree.core :as ct]))
 
 ;; ---------------------------------------------------------------------------
 ;; Note tables
@@ -215,27 +214,28 @@
   [:theory :key] or [:theory :mode] changes.
 
   Safe to call multiple times — uses a fixed watch key (:nous.theory/deriver)
-  so reinstallation replaces the prior watch."
+  on each path, so reinstallation replaces the prior watch."
   []
-  (add-watch refs/tree-state :nous.theory/deriver
-    (fn [_ _ old new]
-      (let [old-key  (get old [:theory :key])
-            new-key  (get new [:theory :key])
-            old-mode (get old [:theory :mode])
-            new-mode (get new [:theory :mode])
-            key      new-key
-            mode     new-mode]
-        (when (and key mode
-                   (or (not= old-key new-key)
-                       (not= old-mode new-mode)))
-          ;; Run in a future — watches run on the STM agent thread;
-          ;; ct/ctrl-write! uses dosync, which is safe but we avoid blocking.
-          (future
-            (when-let [pcs (scale-pcs key mode)]
-              (ct/ctrl-write! [:theory :scale-pcs]   pcs)
-              (ct/ctrl-write! [:theory :scale-notes]  (scale-notes key mode)))))))))
+  (letfn [(derive! []
+            (let [key  (ct/ctrl-read [:theory :key])
+                  mode (ct/ctrl-read [:theory :mode])]
+              (when (and key mode)
+                ;; Run in a future to keep the derive off the writing thread.
+                ;; ctrl-watch! fires post-commit, so the ctrl-write!s below run
+                ;; outside any dosync; the future just avoids blocking the writer.
+                (future
+                  (when-let [pcs (scale-pcs key mode)]
+                    (ct/ctrl-write! [:theory :scale-pcs]   pcs)
+                    (ct/ctrl-write! [:theory :scale-notes]  (scale-notes key mode)))))))]
+    ;; Derive when either key or mode changes. Each ctrl-write! is single-path,
+    ;; so the two path-watches together cover both trigger paths.
+    (ct/ctrl-watch! [:theory :key]  :nous.theory/deriver
+                    (fn [_p before after] (when (not= before after) (derive!))))
+    (ct/ctrl-watch! [:theory :mode] :nous.theory/deriver
+                    (fn [_p before after] (when (not= before after) (derive!))))))
 
 (defn remove-theory-watch!
   "Remove the theory derivation watch."
   []
-  (remove-watch refs/tree-state :nous.theory/deriver))
+  (ct/ctrl-unwatch! [:theory :key]  :nous.theory/deriver)
+  (ct/ctrl-unwatch! [:theory :mode] :nous.theory/deriver))

@@ -379,6 +379,18 @@
         (finally
           (.sendClose ws WebSocket/NORMAL_CLOSURE "done"))))))
 
+(deftest ws-ctrl-tree-broadcast-test
+  (testing "ct/ctrl-write! after WS connect delivers a broadcast (ctrl-tree side)"
+    (let [[ws queue] (ws-connect)]
+      (try
+        (ct/ctrl-write! [:ws-ct :param] 7)
+        (let [msg (.poll queue 2 TimeUnit/SECONDS)]
+          (is (some? msg) "message received within 2 s")
+          (is (= ["ws-ct" "param"] (get msg "path")))
+          (is (= 7 (get msg "value"))))
+        (finally
+          (.sendClose ws WebSocket/NORMAL_CLOSURE "done"))))))
+
 (deftest ws-inbound-ctrl-write-test
   (testing "JSON sent over WebSocket applies ctrl/set! on the server"
     (let [[ws _queue] (ws-connect)]

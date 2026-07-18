@@ -57,7 +57,7 @@
             [clojure.string    :as str]
             [clojure.data.json :as json]
             [clojure.java.io   :as io]
-            [ctrl-tree.refs  :as refs]
+            [ctrl-tree.core  :as ct]
             [nous.ctrl       :as ctrl]
             [nous.ctrl-bridge :as bridge]
             [nous.core       :as core]
@@ -176,17 +176,15 @@
     (doseq [ch @ws-channels]
       (hk/send! ch msg))))
 
-(defn- tree-state->broadcast!
-  "Clojure-ref add-watch callback for ctrl-tree.refs/tree-state. Broadcasts every
-  changed path to WebSocket clients in the same JSON shape as broadcast-ctrl!, so
-  the surface sees ctrl-tree writes as well as nous.ctrl ones during the
-  migration. Each ctrl-write! alters one path, so the diff yields one entry."
-  [_key _ref old new]
-  (doseq [[path value] new
-          :when (not= value (get old path))]
+(defn- ctrl-tree->broadcast!
+  "ctrl-watch-global! callback: broadcast a single ctrl-tree change to WebSocket
+  clients in the same JSON shape as broadcast-ctrl!, so the surface sees ctrl-tree
+  writes as well as nous.ctrl ones during the migration."
+  [path before after]
+  (when (not= before after)
     (let [msg (json/write-str {"type"  "ctrl"
                                "path"  (mapv kw->str path)
-                               "value" (->json-safe value)})]
+                               "value" (->json-safe after)})]
       (doseq [ch @ws-channels]
         (hk/send! ch msg)))))
 
@@ -322,7 +320,7 @@
     (stop-server!))
   (let [stop-fn (hk/run-server #'handler {:port port})]
     (ctrl/watch-global! ::ws-broadcast broadcast-ctrl!)
-    (add-watch refs/tree-state ::ws-broadcast tree-state->broadcast!)
+    (ct/ctrl-watch-global! ::ws-broadcast ctrl-tree->broadcast!)
     (runtime/watch-global! ::ws-broadcast broadcast-runtime!)
     (reset! server-atom {:server stop-fn :port port})
     (println (str "[server] started on port " port))
@@ -333,7 +331,7 @@
   []
   (when-let [{:keys [server]} @server-atom]
     (ctrl/unwatch-global! ::ws-broadcast)
-    (remove-watch refs/tree-state ::ws-broadcast)
+    (ct/ctrl-unwatch-global! ::ws-broadcast)
     (runtime/unwatch-global! ::ws-broadcast)
     (server :timeout 100)
     (reset! server-atom nil)
