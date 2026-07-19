@@ -69,7 +69,7 @@
     (osc/on-msg! \"/nous/bitwig/val\" (fn [args] ...))
     (osc/off-msg! \"/nous/bitwig/val\")"
   (:require [clojure.string :as str]
-            [nous.ctrl    :as ctrl]
+            [ctrl-tree.core :as ct]
             [nous.core    :as core])
   (:import  [java.net DatagramSocket DatagramPacket InetSocketAddress URLDecoder URLEncoder]
             [java.nio ByteBuffer ByteOrder]
@@ -151,11 +151,10 @@
   "Return a ctrl watcher fn that pushes the value to all registered subscribers
   for `path` using `*push-fn*` (or `osc-send!` when not rebound)."
   [path]
-  (fn [tx _state]
+  (fn [_p _before after]
     (when-let [subs (seq (get @subscriber-registry path))]
-      (let [value   (:after (first (:tx/changes tx)))
-            address (ctrl-path->osc-address path)
-            coerced (coerce-for-osc value)
+      (let [address (ctrl-path->osc-address path)
+            coerced (coerce-for-osc after)
             send-fn (or *push-fn* osc-send!)]
         (doseq [{:keys [host port]} subs]
           (try
@@ -167,13 +166,13 @@
 (defn- ensure-watcher!
   "Install a ctrl push watcher on `path` if not already present."
   [path]
-  (ctrl/watch! path (sub-watcher-key path) (make-push-watcher path)))
+  (ct/ctrl-watch! path (sub-watcher-key path) (make-push-watcher path)))
 
 (defn- remove-watcher-if-empty!
   "Remove the ctrl push watcher for `path` if there are no more subscribers."
   [path]
   (when (empty? (get @subscriber-registry path))
-    (ctrl/unwatch! path (sub-watcher-key path))))
+    (ct/ctrl-unwatch! path (sub-watcher-key path))))
 
 ;; ---------------------------------------------------------------------------
 ;; Public push-subscribe API
@@ -217,7 +216,7 @@
     (osc/unsubscribe-all! [:filter/cutoff])"
   [path]
   (swap! subscriber-registry dissoc path)
-  (ctrl/unwatch! path (sub-watcher-key path))
+  (ct/ctrl-unwatch! path (sub-watcher-key path))
   nil)
 
 (defn subscribers
@@ -372,7 +371,7 @@
     (let [[path-addr] args]
       (when (and path-addr sender-host sender-port)
         (when-let [path (parse-ctrl-path path-addr)]
-          (let [value   (ctrl/get path)
+          (let [value   (ct/ctrl-read path)
                 coerced (coerce-for-osc value)
                 send-fn (or *push-fn* osc-send!)]
             (try
@@ -385,7 +384,7 @@
     (let [ctrl-path (parse-ctrl-path address)
           value     (first args)]
       (when ctrl-path
-        (ctrl/set! ctrl-path value)))
+        (ct/ctrl-write! ctrl-path value)))
 
     :else
     (when-not (contains? @persistent-handlers address)

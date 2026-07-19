@@ -2,8 +2,8 @@
 (ns nous.osc-test
   "Unit tests for nous.osc — OSC UDP receiver and ctrl routing."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
             [nous.core  :as core]
-            [nous.ctrl  :as ctrl]
             [nous.osc   :as osc])
   (:import  [java.net DatagramSocket DatagramPacket InetSocketAddress]
             [java.nio ByteBuffer ByteOrder]
@@ -116,34 +116,32 @@
 
 (deftest osc-ctrl-set-float-test
   (testing "/ctrl/<path> with float arg writes to ctrl tree"
-    (ctrl/defnode! [:osc-test/cutoff] :type :float :value 0.0)
     (let [msg (encode-osc "/ctrl/osc-test%2Fcutoff" "f" (encode-float 0.7))]
       (send-osc! msg test-port)
       (Thread/sleep 50)
-      (is (= (float 0.7) (float (ctrl/get [:osc-test/cutoff])))))))
+      (is (= (float 0.7) (float (ct/ctrl-read [:osc-test/cutoff])))))))
 
 (deftest osc-ctrl-set-int-test
   (testing "/ctrl/<path> with int arg writes to ctrl tree"
-    (ctrl/defnode! [:osc-test/channel] :type :int :value 0)
     (let [msg (encode-osc "/ctrl/osc-test%2Fchannel" "i" (encode-int 5))]
       (send-osc! msg test-port)
       (Thread/sleep 50)
-      (is (= 5 (ctrl/get [:osc-test/channel]))))))
+      (is (= 5 (ct/ctrl-read [:osc-test/channel]))))))
 
 (deftest osc-ctrl-nested-path-test
   (testing "/ctrl/loops/bass/vel sets a nested ctrl path"
-    (ctrl/set! [:loops :bass :vel] 0)
+    (ct/ctrl-write! [:loops :bass :vel] 0)
     (let [msg (encode-osc "/ctrl/loops/bass/vel" "i" (encode-int 88))]
       (send-osc! msg test-port)
       (Thread/sleep 50)
-      (is (= 88 (ctrl/get [:loops :bass :vel]))))))
+      (is (= 88 (ct/ctrl-read [:loops :bass :vel]))))))
 
 (deftest osc-ctrl-creates-node-test
   (testing "/ctrl/<path> creates node if absent"
     (let [msg (encode-osc "/ctrl/osc-test/new-key" "f" (encode-float 3.14))]
       (send-osc! msg test-port)
       (Thread/sleep 50)
-      (is (some? (ctrl/node-info [:osc-test :new-key])) "node created"))))
+      (is (some? (ct/ctrl-read [:osc-test :new-key])) "ctrl-tree path created"))))
 
 ;; ---------------------------------------------------------------------------
 ;; Decode robustness
@@ -259,8 +257,8 @@
                                                :address address :value value}))]
         (binding [osc/*push-fn* push-mock]
           (osc/subscribe! [:osc-test/push-target] "10.0.0.1" 9000)
-          (ctrl/set! [:osc-test/push-target] 0.75)
-          ;; watcher fires synchronously in set!, so no sleep needed
+          (ct/ctrl-write! [:osc-test/push-target] 0.75)
+          ;; watcher fires synchronously in ct/ctrl-write!, so no sleep needed
           (is (= 1 (count @delivered)))
           (let [d (first @delivered)]
             (is (= "10.0.0.1" (:host d)))
@@ -278,7 +276,7 @@
         (binding [osc/*push-fn* push-mock]
           (osc/subscribe! [:osc-test/multi] "10.0.0.1" 9000)
           (osc/subscribe! [:osc-test/multi] "10.0.0.2" 9001)
-          (ctrl/set! [:osc-test/multi] 42)
+          (ct/ctrl-write! [:osc-test/multi] 42)
           (is (= 2 (count @delivered)))
           (is (= #{"10.0.0.1" "10.0.0.2"} (set (map :host @delivered)))))))))
 
@@ -290,7 +288,7 @@
         (binding [osc/*push-fn* push-mock]
           (osc/subscribe! [:osc-test/unsub-test] "10.0.0.1" 9000)
           (osc/unsubscribe! [:osc-test/unsub-test] "10.0.0.1" 9000)
-          (ctrl/set! [:osc-test/unsub-test] 1.0)
+          (ct/ctrl-write! [:osc-test/unsub-test] 1.0)
           (is (empty? @delivered)))))))
 
 (deftest push-coerces-integer
@@ -300,7 +298,7 @@
             push-mock (fn [_ _ _ v] (reset! delivered v))]
         (binding [osc/*push-fn* push-mock]
           (osc/subscribe! [:osc-test/int-coerce] "10.0.0.1" 9000)
-          (ctrl/set! [:osc-test/int-coerce] (int 7))
+          (ct/ctrl-write! [:osc-test/int-coerce] (int 7))
           (is (= 7 @delivered)))))))
 
 (deftest push-coerces-nil-to-string
@@ -310,7 +308,7 @@
             push-mock (fn [_ _ _ v] (reset! delivered v))]
         (binding [osc/*push-fn* push-mock]
           (osc/subscribe! [:osc-test/nil-coerce] "10.0.0.1" 9000)
-          (ctrl/set! [:osc-test/nil-coerce] nil)
+          (ct/ctrl-write! [:osc-test/nil-coerce] nil)
           (is (= "nil" @delivered)))))))
 
 (deftest push-coerces-keyword-to-prs-str
@@ -320,7 +318,7 @@
             push-mock (fn [_ _ _ v] (reset! delivered v))]
         (binding [osc/*push-fn* push-mock]
           (osc/subscribe! [:osc-test/kw-coerce] "10.0.0.1" 9000)
-          (ctrl/set! [:osc-test/kw-coerce] :my-mode)
+          (ct/ctrl-write! [:osc-test/kw-coerce] :my-mode)
           (is (= ":my-mode" @delivered)))))))
 
 ;; ---------------------------------------------------------------------------
@@ -368,7 +366,7 @@
             received      (atom nil)
             buf           (byte-array 65536)
             recv-pkt      (DatagramPacket. buf (alength buf))]
-        (ctrl/set! [:osc-test/tree-val] 3.14)
+        (ct/ctrl-write! [:osc-test/tree-val] 3.14)
         (with-open [sock (doto (DatagramSocket. (int response-port))
                            (.setSoTimeout 500))]
           ;; Send /tree from response-port so server pushes back here
