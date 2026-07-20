@@ -126,14 +126,15 @@ the binding work and involves open design decisions.
 - **Typed-node declarers (`defnode!`):** `book`, `flux`, `fractal`, `stochastic`,
   `excursion`, `lattice`, `live`, `morph`, `config` — blocked on porting
   typed-node metadata to `ctrl-tree`.
-- **Watch-driven reactions:** the ctrl-tree watch primitive `ctrl-watch!` landed
-  Inc 12, and **all five raw `add-watch`-on-`tree-state` sites are migrated onto it**
-  — `arc`/`tuning`/`sc` (Inc 13, single-path) and `server`/`theory` (Inc 14,
-  global/derive). Rule 3's `add-watch` exception is retired. What remains is the
-  `nous.ctrl/watch!` consumers that watch the *legacy* store — `defensemble`
-  (`[:harmony :voice-*]`), `terrain`, `osc`, `bitwig` — blocked not on a primitive
-  but on moving their writers/values off `nous.ctrl` (e.g. defensemble needs the
-  lattice/excursion `[:harmony :voice-*]` writers on `ct/ctrl-write!` first).
+- **Watch-driven reactions — fully migrated (Inc 12–18).** The ctrl-tree watch
+  primitive `ctrl-watch!` landed Inc 12; all five raw `add-watch`-on-`tree-state`
+  sites (`arc`/`tuning`/`sc` Inc 13, `server`/`theory` Inc 14) *and* all four legacy
+  `nous.ctrl/watch!` consumers (`terrain` Inc 15, `osc` Inc 16, `bitwig` Inc 17,
+  `defensemble` + its coupled `lattice`/`excursion` `[:harmony :voice-*]` writers
+  Inc 18) now use it. **No nous code `add-watch`es `tree-state` or calls
+  `nous.ctrl/watch!`.** (Migrating `terrain` and `defensemble` also fixed latent
+  `ArityException`s — both had callbacks written against the primitive before it
+  existed.)
 - **`nous.schema` persistent state:** models/realizations/active-realization at
   `[:txlog/schema …]` via `with-source`/`set!`/`get`/`child-keys`. Blocked on the
   **`:source/kind :schema` decision** — `ct/ctrl-write!` cannot reproduce
