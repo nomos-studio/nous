@@ -2,11 +2,11 @@
 (ns nous.defensemble-test
   "Unit tests for nous.defensemble — inter-voice tension monitor."
   (:require [clojure.test      :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core    :as ct]
             [nomos.maths.harmonic :as h]
             [nous.defensemble  :as de]
             [nous.seq          :as sq]
-            [nous.core         :as core]
-            [nous.ctrl         :as ctrl]))
+            [nous.core         :as core]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixtures
@@ -30,8 +30,8 @@
 (defn- set-voice!
   "Set pitch and motion in the ctrl tree for a voice."
   [voice midi motion]
-  (ctrl/set! [:harmony :voice-pitch voice] (long midi))
-  (ctrl/set! [:harmony :voice-motion voice] (long motion)))
+  (ct/ctrl-write! [:harmony :voice-pitch voice] (long midi))
+  (ct/ctrl-write! [:harmony :voice-motion voice] (long motion)))
 
 ;; ---------------------------------------------------------------------------
 ;; make-ensemble-context
@@ -84,6 +84,26 @@
       (let [t (de/ensemble-tension ctx)]
         (is (number? t))
         (is (< 0.0 t 1.0) "non-unison interval produces non-zero tension")))))
+
+;; ---------------------------------------------------------------------------
+;; start-monitor! — the watch actually fires run-update! (regression: the old
+;; 4-arg nous.ctrl/watch! callback threw ArityException on every fire)
+;; ---------------------------------------------------------------------------
+
+(deftest start-monitor-fires-run-update-via-watch
+  (testing "a voice-pitch ct/ctrl-write! triggers run-update! through the watch"
+    (let [ctx (make-ctx {:voices [:bass :soprano] :ens-name :watch-duo})]
+      (try
+        (de/start-monitor! ctx)
+        ;; These writes fire the ctrl-watch! on [:harmony :voice-pitch …],
+        ;; which calls run-update! — no direct run-update! call here.
+        (set-voice! :bass    60 0)
+        (set-voice! :soprano 67 0)   ; a fifth apart → non-zero tension
+        (is (true? (:monitoring? @ctx)))
+        (is (pos? (de/ensemble-tension ctx))
+            "watch-driven run-update! updated tension (0.0 would mean the watch never fired)")
+        (finally
+          (de/stop-monitor! ctx))))))
 
 (deftest run-update-tension-increases-with-distance
   (testing "wider intervals produce higher tension than narrower"

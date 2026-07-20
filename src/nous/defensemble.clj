@@ -48,7 +48,8 @@
     H < 3.5   — fusion risk (unison / octave zone)
     3.5–5.5   — imperfect consonance (target zone for counterpoint)
     H > 5.5   — active dissonance"
-  (:require [nomos.maths.harmonic :as h]
+  (:require [ctrl-tree.core       :as ct]
+            [nomos.maths.harmonic :as h]
             [nous.ctrl            :as ctrl]
             [nous.seq             :as sq]))
 
@@ -128,12 +129,12 @@
   "Read all voice pitches and motions from the ctrl tree, recompute
   tension metrics, and publish results back to the ctrl tree.
 
-  Called automatically via ctrl/watch! on each voice-pitch path."
+  Called automatically via ct/ctrl-watch! on each voice-pitch path."
   [ctx-atom]
   (let [{:keys [voices consonance-horizon fusion-threshold last-consonance]} @ctx-atom
         prev-cons (or last-consonance {})
-        pitches   (into {} (map (fn [v] [v (or (ctrl/get [:harmony :voice-pitch v]) 60)]) voices))
-        motions   (into {} (map (fn [v] [v (or (ctrl/get [:harmony :voice-motion v]) 0)]) voices))
+        pitches   (into {} (map (fn [v] [v (or (ct/ctrl-read [:harmony :voice-pitch v]) 60)]) voices))
+        motions   (into {} (map (fn [v] [v (or (ct/ctrl-read [:harmony :voice-motion v]) 0)]) voices))
         cons-map  (compute-consonance voices pitches)
         tension   (compute-tension cons-map (double consonance-horizon))
         par-prs   (detect-parallel-pairs prev-cons cons-map motions (double fusion-threshold))
@@ -143,9 +144,9 @@
            :last-tension        tension+
            :last-consonance     cons-map
            :last-parallel-pairs par-prs)
-    (try (ctrl/set! [:harmony :tension] tension+)          (catch Exception _ nil))
-    (try (ctrl/set! [:harmony :voice-consonance] cons-map) (catch Exception _ nil))
-    (try (ctrl/set! [:harmony :parallel-pairs] par-prs)   (catch Exception _ nil))))
+    (try (ct/ctrl-write! [:harmony :tension] tension+)          (catch Exception _ nil))
+    (try (ct/ctrl-write! [:harmony :voice-consonance] cons-map) (catch Exception _ nil))
+    (try (ct/ctrl-write! [:harmony :parallel-pairs] par-prs)   (catch Exception _ nil))))
 
 ;; ---------------------------------------------------------------------------
 ;; Imitation buffer
@@ -178,42 +179,42 @@
 ;; ---------------------------------------------------------------------------
 
 (defn start-monitor!
-  "Attach ctrl/watch! on [:harmony :voice-pitch v] for each voice in the
+  "Attach ct/ctrl-watch! on [:harmony :voice-pitch v] for each voice in the
   ensemble (tension monitoring) and on each leader voice (imitation buffering)."
   [ctx-atom]
   (let [{:keys [voices ens-name imitation]} @ctx-atom]
     ;; Tension watches
     (doseq [v voices]
       (try
-        (ctrl/watch! [:harmony :voice-pitch v]
-                     [::ensemble ens-name v]
-                     (fn [_k _ref _old _new] (run-update! ctx-atom)))
+        (ct/ctrl-watch! [:harmony :voice-pitch v]
+                        [::ensemble ens-name v]
+                        (fn [_p _before _after] (run-update! ctx-atom)))
         (catch Exception _ nil)))
     ;; Imitation buffering watches — one per unique leader voice
     (when imitation
       (doseq [[leader followers] (leader->followers-map imitation)]
         (try
-          (ctrl/watch! [:harmony :voice-pitch leader]
-                       [::imitation ens-name leader]
-                       (fn [_k _ref _old new-midi]
-                         (when new-midi
-                           (let [dur (double (or (ctrl/get [:harmony :voice-duration leader]) 1.0))]
-                             (doseq [f followers]
-                               (swap! ctx-atom update-in [:imitation-buffers f]
-                                      conj {:midi (long new-midi) :dur/beats dur}))))))
+          (ct/ctrl-watch! [:harmony :voice-pitch leader]
+                          [::imitation ens-name leader]
+                          (fn [_p _before new-midi]
+                            (when new-midi
+                              (let [dur (double (or (ct/ctrl-read [:harmony :voice-duration leader]) 1.0))]
+                                (doseq [f followers]
+                                  (swap! ctx-atom update-in [:imitation-buffers f]
+                                         conj {:midi (long new-midi) :dur/beats dur}))))))
           (catch Exception _ nil))))
     (swap! ctx-atom assoc :monitoring? true)))
 
 (defn stop-monitor!
-  "Remove all ctrl/watch! registrations for this ensemble."
+  "Remove all ct/ctrl-watch! registrations for this ensemble."
   [ctx-atom]
   (let [{:keys [voices ens-name imitation]} @ctx-atom]
     (doseq [v voices]
-      (try (ctrl/unwatch! [:harmony :voice-pitch v] [::ensemble ens-name v])
+      (try (ct/ctrl-unwatch! [:harmony :voice-pitch v] [::ensemble ens-name v])
            (catch Exception _ nil)))
     (when imitation
       (doseq [leader (keys (leader->followers-map imitation))]
-        (try (ctrl/unwatch! [:harmony :voice-pitch leader] [::imitation ens-name leader])
+        (try (ct/ctrl-unwatch! [:harmony :voice-pitch leader] [::imitation ens-name leader])
              (catch Exception _ nil))))
     (swap! ctx-atom assoc :monitoring? false)))
 

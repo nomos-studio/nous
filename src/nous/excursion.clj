@@ -57,7 +57,8 @@
                              :to [m n]}               ; target (default [1 1])
 
   See design-seed-partch-navigation.md for the full musical grammar."
-  (:require [nomos.maths.harmonic :as h]
+  (:require [ctrl-tree.core       :as ct]
+            [nomos.maths.harmonic :as h]
             [nomos.maths.lattice  :as l]
             [nous.ctrl            :as ctrl]
             [nous.modulator       :as modulator]
@@ -487,9 +488,9 @@
                             (< (long curr-midi) (long prev-midi)) -1
                             :else                                  0)]
         (try
-          (ctrl/set! [:harmony :voice-pitch    vn] (long curr-midi))
-          (ctrl/set! [:harmony :voice-motion   vn] (long dir))
-          (ctrl/set! [:harmony :voice-duration vn] (double (:dur/beats step)))
+          (ct/ctrl-write! [:harmony :voice-pitch    vn] (long curr-midi))
+          (ct/ctrl-write! [:harmony :voice-motion   vn] (long dir))
+          (ct/ctrl-write! [:harmony :voice-duration vn] (double (:dur/beats step)))
           (catch Exception _ nil))))
     step))
 

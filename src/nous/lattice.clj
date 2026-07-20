@@ -37,7 +37,8 @@
     (jump!          f-sharp-space [11 8])  ; teleport to the 11th harmonic
 
   See design-seed-harmonic-lattice.md for full vocabulary and musical context."
-  (:require [nomos.maths.harmonic :as h]
+  (:require [ctrl-tree.core       :as ct]
+            [nomos.maths.harmonic :as h]
             [nomos.maths.lattice  :as l]
             [nous.ctrl            :as ctrl]
             [nous.modulator       :as modulator]
@@ -396,9 +397,9 @@
                             (< (long curr-midi) (long prev-midi)) -1
                             :else                                  0)]
         (try
-          (ctrl/set! [:harmony :voice-pitch    vn] (long curr-midi))
-          (ctrl/set! [:harmony :voice-motion   vn] (long dir))
-          (ctrl/set! [:harmony :voice-duration vn] (double (:dur/beats step)))
+          (ct/ctrl-write! [:harmony :voice-pitch    vn] (long curr-midi))
+          (ct/ctrl-write! [:harmony :voice-motion   vn] (long dir))
+          (ct/ctrl-write! [:harmony :voice-duration vn] (double (:dur/beats step)))
           (catch Exception _ nil))))
     step))
 
