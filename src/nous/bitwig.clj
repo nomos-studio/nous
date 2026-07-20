@@ -33,13 +33,13 @@
 
     (peer/start-discovery!)
     (bitwig/connect!)           ; auto-connects to discovered bwosc peer
-    (ctrl/get [:bitwig :track :lead-synth :volume])  ;=> 0.73
-    (ctrl/set! [:bitwig :track :lead-synth :volume] 0.8) ; pushes to Bitwig
+    (ct/ctrl-read [:bitwig :track :lead-synth :volume])  ;=> 0.73
+    (ct/ctrl-write! [:bitwig :track :lead-synth :volume] 0.8) ; pushes to Bitwig
 
   Or with explicit coordinates:
     (bitwig/connect! \"192.168.1.42\" 7179 7178)"
   (:require [clojure.edn    :as edn]
-            [nous.ctrl      :as ctrl]
+            [ctrl-tree.core :as ct]
             [nous.osc       :as osc]
             [nous.peer      :as peer]))
 
@@ -116,7 +116,7 @@
       (let [tree (edn/read-string body)]
         (when (map? tree)
           (doseq [[path value] (flatten-tree [:bitwig] tree)]
-            (ctrl/set! path value))))
+            (ct/ctrl-write! path value))))
       (catch Exception _ nil))))
 
 ;; ---------------------------------------------------------------------------
@@ -128,13 +128,12 @@
     (send! host port val-address (encode-path path) (osc/coerce-for-osc value))))
 
 (defn- register-watch! []
-  (ctrl/watch-global!
+  (ct/ctrl-watch-global!
     watch-key
-    (fn [tx _state]
-      (let [{:keys [path after]} (first (:tx/changes tx))]
-        (when (and (= :bitwig (first path))
-                   (not (contains? @inbound-paths path)))
-          (dispatch! path after))))))
+    (fn [path _before after]
+      (when (and (= :bitwig (first path))
+                 (not (contains? @inbound-paths path)))
+        (dispatch! path after)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Inbound: bwosc → ctrl tree
@@ -145,7 +144,7 @@
     (when-let [path (decode-path path-str)]
       (when (= :bitwig (first path))
         (swap! inbound-paths conj path)
-        (ctrl/set! path value)
+        (ct/ctrl-write! path value)
         (swap! inbound-paths disj path)))))
 
 ;; ---------------------------------------------------------------------------
@@ -188,7 +187,7 @@
   (when-let [{:keys [host port nous-port]} @conn-atom]
     (try (send! host port unsub-address (encode-path [:bitwig]) nous-port)
          (catch Exception _ nil)))
-  (ctrl/unwatch-global! watch-key)
+  (ct/ctrl-unwatch-global! watch-key)
   (osc/off-msg! val-address)
   (reset! conn-atom nil)
   (reset! inbound-paths #{})

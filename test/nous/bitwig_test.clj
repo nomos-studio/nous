@@ -2,8 +2,8 @@
 (ns nous.bitwig-test
   "Tests for nous.bitwig — OSC-based Bitwig ctrl tree adapter."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
             [nous.bitwig :as bitwig]
-            [nous.ctrl   :as ctrl]
             [nous.core   :as core]
             [nous.osc    :as osc]))
 
@@ -88,7 +88,7 @@
                 bitwig/*http-get* (constantly nil)]
         (bitwig/connect! "127.0.0.1" 7179 7178)
         (reset! calls [])
-        (ctrl/set! [:bitwig :track :lead-synth :volume] 0.73)
+        (ct/ctrl-write! [:bitwig :track :lead-synth :volume] 0.73)
         (is (= 1 (count @calls)))
         (let [{:keys [address args]} (first @calls)]
           (is (= "/nous/bitwig/val" address))
@@ -102,7 +102,7 @@
                 bitwig/*http-get* (constantly nil)]
         (bitwig/connect! "127.0.0.1" 7179 7178)
         (reset! calls [])
-        (ctrl/set! [:journey :current-bar] 12)
+        (ct/ctrl-write! [:journey :current-bar] 12)
         (is (= 0 (count @calls)))))))
 
 ;; ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@
       (let [handler (get @(deref #'nous.osc/persistent-handlers) "/nous/bitwig/val")]
         (is (fn? handler))
         (handler ["[:bitwig :track :drums :volume]" 0.9])
-        (is (= 0.9 (ctrl/get [:bitwig :track :drums :volume])))))))
+        (is (= 0.9 (ct/ctrl-read [:bitwig :track :drums :volume])))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Echo suppression
@@ -134,7 +134,7 @@
         ;; Simulate inbound from bwosc
         (let [handler (get @(deref #'nous.osc/persistent-handlers) "/nous/bitwig/val")]
           (handler ["[:bitwig :track :lead-synth :volume]" 0.55]))
-        ;; The ctrl/set! fires synchronously; global watch should be suppressed
+        ;; The ct/ctrl-write! fires synchronously; global watch should be suppressed
         (is (= 0 (count @calls)))))))
 
 ;; ---------------------------------------------------------------------------
@@ -148,5 +148,5 @@
                                   (pr-str {:track {:synth-pad {:volume 0.65
                                                                :pan    0.1}}}))]
       (bitwig/connect! "127.0.0.1" 7179 7178)
-      (is (= 0.65 (ctrl/get [:bitwig :track :synth-pad :volume])))
-      (is (= 0.1  (ctrl/get [:bitwig :track :synth-pad :pan]))))))
+      (is (= 0.65 (ct/ctrl-read [:bitwig :track :synth-pad :volume])))
+      (is (= 0.1  (ct/ctrl-read [:bitwig :track :synth-pad :pan]))))))
