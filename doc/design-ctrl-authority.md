@@ -179,3 +179,23 @@ the binding work and involves open design decisions.
    param and `send-at!` ignores its `time-ns` (its own docstring says so), dispatching
    immediately like the mount. Migrating `core/play!`'s last `send-at!` caller to
    `ct/ctrl-write!` → mount is a **verify-no-regression** move, not a prerequisite build.
+
+### Where the remainder retires — milestone mapping
+
+The rest of the `nous.ctrl` retirement is **not a dedicated pass**; it rides the
+milestones that already touch each namespace (see `~/org/areas/music/plans/
+snoopy-jingling-rainbow.md`, annotated 2026-07-25). The `defnode!` migrations are
+mechanical now that decision #3 is resolved (`ctrl/defnode!` → `breg/register-node!`
++ `ct/ctrl-write!`; `ctrl-bridge` already surfaces registry nodes).
+
+| nous.ctrl remainder | Retires at |
+|---|---|
+| `fractal`, `stochastic`, `flux` `defnode!` | **M20** — get BEAM matter, so their state moves to the tree |
+| `lattice`, `excursion`, `book` `defnode!` | **M25** — "as ctrl-tree-native" *is* this migration (`terrain` already done, Inc 15) |
+| `defensemble` `defnode!` | **M26** — last vocabulary declarer |
+| `morph` value r/w | **M22/M23** — beat-rate modulation vocabulary / DAW work |
+| `schema` `[:txlog/schema …]` + `:source/kind` | **M19/M20** device-realization — but decision #1 first (a design call, not mechanical) |
+| `core/play!` `send-at!` | verify-no-regression swap (decision #5); any modulation-touching milestone |
+| `config` undo read | orphan — tied to decision #2 (undo/checkpoints), no milestone forces it |
+| `spatial_field` `[:spatial …]` | **stays** on nous.ctrl (rule 6, ephemeral); BEAM via throttled echo at M20, not migration |
+| `ctrl-bridge`, `server` dual-watch, `core`/`user` lifecycle | **capstone** — deleted when the last value path is off nous.ctrl |
