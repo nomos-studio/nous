@@ -2,8 +2,12 @@
 (ns nous.session-test
   "Tests for nous.session — nomos-topology Session → kairos graph translation."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [ctrl-tree.core :as ct]
+            [ctrl-tree.refs :as refs]
+            [protomatter.protocols :as p]
             [nous.binding-registry :as breg]
             [nous.core    :as core]
+            [nous.ipc-mount :as ipc-mount]
             [nous.kairos  :as kairos]
             [nous.session :as session]
             [nous.synth   :as synth]))
@@ -229,6 +233,33 @@
       (session/load-session! simple-session :path-root :test-session2))
     (let [node (breg/node-info [:test-session2 :pitch])]
       (is (= [:voice "osc/note"] (get-in node [:node-meta :topology/target]))))))
+
+(deftest default-path-root-binding-reaches-transport
+  (testing "load-session! with the DEFAULT :session path-root dispatches a bound
+            control to hardware — a UI-echo mount at [:session] no longer shadows
+            the root IpcMount (Gate 5 Finding 1 regression)"
+    (let [echoes (atom [])
+          ccs    (atom [])
+          beam-like (reify p/IMount
+                      (mount-write!   [_ path value] (swap! echoes conj [path value]))
+                      (mount-recable! [_ _] nil))]
+      (ipc-mount/install!)                                   ; root [] hardware mount
+      (dosync (alter refs/mount-table assoc [:session] beam-like))  ; UI-echo mount
+      (try
+        (with-redefs [kairos/connected?       (constantly true)
+                      kairos/send-graph-load! (fn [_] nil)
+                      kairos/send-cc!         (fn [ch cc v & _] (swap! ccs conj [ch cc v]))]
+          ;; DEFAULT path-root → [:session :timbre] gets the :cc 74 binding
+          (session/load-session! simple-session)
+          (ct/ctrl-write! [:session :timbre] 1.0))
+        (is (= [[[:session :timbre] 1.0]] @echoes)
+            "the [:session] mount still received the write (UI echo preserved)")
+        (is (= [[1 74 127]] @ccs)
+            "the root IpcMount ALSO fired → the :cc 74 binding dispatched (1.0→127)")
+        (finally
+          (ipc-mount/uninstall!)
+          (dosync (alter refs/mount-table dissoc [:session]))
+          (dosync (alter refs/tree-state dissoc [:session :timbre])))))))
 
 ;; ---------------------------------------------------------------------------
 ;; kairos-grid-plugin-id override
