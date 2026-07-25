@@ -4,6 +4,7 @@
   (:require [clojure.test    :refer [deftest is testing use-fixtures]]
             [ctrl-tree.core  :as ct]
             [ctrl-tree.refs  :as refs]
+            [nous.binding-registry :as breg]
             [nous.core       :as core]
             [nous.ctrl       :as ctrl]
             [nous.ctrl-bridge :as bridge]))
@@ -13,10 +14,12 @@
   (try (f)
        (finally
          (core/stop!)
+         (breg/clear!)   ; binding-registry is global; clear leaked entries
          ;; tree-state is a global STM ref; drop the keys these tests write.
          (dosync (alter refs/tree-state
                         #(apply dissoc % [[:bridge-test/ct]
-                                          [:bridge-test/routed]]))))))
+                                          [:bridge-test/routed]
+                                          [:bridge-test/mrg]]))))))
 
 (use-fixtures :each with-system)
 
@@ -37,8 +40,26 @@
       (is (nil? (:type n)))
       (is (= {} (:node-meta n))))))
 
+(deftest read-node-surfaces-registry-node-test
+  (testing "read-node serves a registry-declared node with no value yet (Finding 2)"
+    (breg/register-node! [:bridge-test/reg] :type :float :node-meta {:range [0 1]})
+    (let [n (bridge/read-node [:bridge-test/reg])]
+      (is (some? n) "declared-but-unwritten registry node is visible, not nil (was a 404)")
+      (is (nil? (:value n)) "no value written yet")
+      (is (= :float (:type n)))
+      (is (= {:range [0 1]} (:node-meta n))))))
+
+(deftest read-node-merges-value-and-registry-meta-test
+  (testing "read-node merges ctrl-tree value with binding-registry type/meta"
+    (breg/register-node! [:bridge-test/mrg] :type :int :node-meta {:range [0 127]})
+    (ct/ctrl-write! [:bridge-test/mrg] 64)
+    (let [n (bridge/read-node [:bridge-test/mrg])]
+      (is (= 64 (:value n)) "value from ctrl-tree")
+      (is (= :int (:type n)) "type from binding-registry")
+      (is (= {:range [0 127]} (:node-meta n))))))
+
 (deftest read-node-nil-when-absent-test
-  (testing "read-node returns nil for a path in neither store"
+  (testing "read-node returns nil for a path in no store"
     (is (nil? (bridge/read-node [:bridge-test/nope])))))
 
 (deftest read-value-returns-value-only-test
@@ -47,18 +68,23 @@
     (is (= 3 (bridge/read-value [:bridge-test/ct])))
     (is (nil? (bridge/read-value [:bridge-test/nope])))))
 
-(deftest all-entries-and-snapshot-union-both-stores-test
-  (testing "all-entries + snapshot include nodes from both stores"
+(deftest all-entries-and-snapshot-union-all-stores-test
+  (testing "all-entries + snapshot include nodes from nous.ctrl, ctrl-tree, and registry"
     ;; Distinct nous.ctrl path — system-state persists across core/start!/stop!,
     ;; and defnode! preserves an existing value, so reusing a path would collide.
     (ctrl/defnode! [:bridge-test/union-nc] :type :int :value 7)
     (ct/ctrl-write! [:bridge-test/ct] 9)
-    (let [paths (into #{} (map :path) (bridge/all-entries))
-          snap  (bridge/snapshot)]
-      (is (contains? paths [:bridge-test/union-nc]))
-      (is (contains? paths [:bridge-test/ct]))
+    (breg/register-node! [:bridge-test/reg] :type :float)   ; registry-only, no value
+    (let [entries (bridge/all-entries)
+          paths   (into #{} (map :path) entries)
+          snap    (bridge/snapshot)]
+      (is (contains? paths [:bridge-test/union-nc]) "nous.ctrl node present")
+      (is (contains? paths [:bridge-test/ct])       "ctrl-tree path present")
+      (is (contains? paths [:bridge-test/reg])      "registry-only node present (Finding 2)")
       (is (= 7 (get snap [:bridge-test/union-nc])))
-      (is (= 9 (get snap [:bridge-test/ct]))))))
+      (is (= 9 (get snap [:bridge-test/ct])))
+      (is (= :float (:type (first (filter #(= [:bridge-test/reg] (:path %)) entries))))
+          "registry node carries its type in all-entries"))))
 
 (deftest write-any-routes-by-ownership-test
   (testing "write-any routes to the owning store; NEW paths default to ctrl-tree"

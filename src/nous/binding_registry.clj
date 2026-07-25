@@ -92,6 +92,12 @@
         :when        (= binding-type (:type binding))]
     [path binding]))
 
+(defn paths
+  "Return a set of every path with a registry entry (typed node and/or bindings).
+  Used by nous.ctrl-bridge to surface registry-declared nodes."
+  []
+  (set (keys @registry)))
+
 (defn clear!
   "Remove every registered node. Test/REPL utility."
   []

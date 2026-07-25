@@ -66,3 +66,12 @@
       (is (= #{[:kbd :pitch] [:kbd :pressure]} (set (map first found)))
           "exactly the two input paths, not the :midi-cc one"))
     (is (empty? (breg/bindings-by-type :no-such-type)) "empty for an absent type")))
+
+(deftest paths-test
+  (testing "paths returns every registered path (typed node and/or bind-only)"
+    (breg/register-node! [:dev :a] :type :float)
+    (breg/register-node! [:dev :b] :type :int)
+    (breg/bind! [:dev :c] {:type :midi-cc :cc-num 1} :priority 20)   ; bind-only, no register-node!
+    (is (= #{[:dev :a] [:dev :b] [:dev :c]} (breg/paths)))
+    (breg/clear!)
+    (is (= #{} (breg/paths)) "empty after clear!")))

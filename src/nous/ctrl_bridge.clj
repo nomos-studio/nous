@@ -1,12 +1,16 @@
 ; SPDX-License-Identifier: EPL-2.0
 (ns nous.ctrl-bridge
-  "Store-agnostic control access over both stores during the nous.ctrl →
-  ctrl-tree migration.
+  "Store-agnostic control access during the nous.ctrl → ctrl-tree migration.
 
-  Control state lives across two stores while nous.ctrl is retired path-by-path
-  (see doc/design-ctrl-authority.md): ctrl-tree is the single source of truth,
-  nous.ctrl is the legacy store. A path lives in exactly one store, so union
-  reads and ownership-routed writes are unambiguous.
+  A control node is assembled from up to three facets (see
+  doc/design-ctrl-authority.md):
+    - a legacy nous.ctrl node — self-contained: value + :type + :node-meta;
+    - a ctrl-tree value (ctrl-tree.refs/tree-state) — the value of a migrated path;
+    - a nous.binding-registry entry — the :type / :node-meta (and bindings) of a
+      migrated path; the registry is the typed-node metadata home.
+  A migrated path carries its value on ctrl-tree and its type/meta in the registry,
+  so read-node merges the two. nous.ctrl is retired path-by-path; a path lives in
+  exactly one value store, so union reads and ownership-routed writes are unambiguous.
 
   This namespace is a transitional bridge — a surface that must serve or accept
   arbitrary paths (the HTTP control plane in nous.server, the generic ctrl tools
@@ -14,16 +18,25 @@
   deletable once nous.ctrl is fully retired."
   (:require [ctrl-tree.core :as ct]
             [ctrl-tree.refs :as refs]
+            [nous.binding-registry :as breg]
             [nous.ctrl      :as ctrl]))
 
 (defn read-node
-  "Return {:value :type :node-meta} for `path`, or nil when it exists in neither
-  store. Prefers the nous.ctrl typed node (which carries :type/:node-meta); falls
-  back to ctrl-tree, where a path has a value but no type/meta."
+  "Return {:value :type :node-meta} for `path`, or nil when no store knows it.
+
+  A legacy nous.ctrl node is self-contained and preferred. Otherwise the path is
+  ctrl-tree-era: its value comes from ctrl-tree and its :type/:node-meta from the
+  binding-registry. A path known to either — a written ctrl-tree value OR a
+  registry declaration (even before its first write) — resolves; a
+  declared-but-unwritten registry node returns :value nil."
   [path]
   (or (ctrl/node-info path)
-      (when (contains? @refs/tree-state path)
-        {:value (ct/ctrl-read path) :type nil :node-meta {}})))
+      (let [bnode    (breg/node-info path)
+            in-tree? (contains? @refs/tree-state path)]
+        (when (or bnode in-tree?)
+          {:value     (ct/ctrl-read path)
+           :type      (:type bnode)
+           :node-meta (:node-meta bnode {})}))))
 
 (defn read-value
   "Return just the value at `path` from either store, or nil when absent."
@@ -31,15 +44,17 @@
   (:value (read-node path)))
 
 (defn all-entries
-  "Union of every ctrl node across both stores as {:path :value :type :node-meta}
-  maps. nous.ctrl nodes carry type/meta; ctrl-tree paths render with nil/empty."
+  "Union of every ctrl node across all stores as {:path :value :type :node-meta}
+  maps. Legacy nous.ctrl nodes carry their own type/meta; each ctrl-tree/registry
+  path is assembled by read-node (value from ctrl-tree, type/meta from the
+  binding-registry — including registry-declared nodes not yet written)."
   []
   (let [nc     (ctrl/all-nodes)
-        nc-set (into #{} (map :path) nc)]
+        nc-set (into #{} (map :path) nc)
+        extra  (into #{} (remove nc-set)
+                     (concat (keys @refs/tree-state) (breg/paths)))]
     (into (vec nc)
-          (for [[path value] @refs/tree-state
-                :when (not (contains? nc-set path))]
-            {:path path :value value :type nil :node-meta {}}))))
+          (map (fn [p] (assoc (read-node p) :path p)) extra))))
 
 (defn snapshot
   "Return a {path value} map of the full control state across both stores."

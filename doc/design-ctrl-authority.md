@@ -117,15 +117,21 @@ These are the targets for the *node/value-model* retirement, which is harder tha
 the binding work and involves open design decisions.
 
 - **Transitional infra (keep until the model retires):** `ctrl-bridge` (union
-  read/write over both stores; used by `server` + `mcp`), `server` (union reads +
-  dual-watch broadcast), `user` / `core` (system lifecycle: `start!`/`stop!`/
-  `started?`, plus `all-nodes`).
+  read over nous.ctrl + ctrl-tree + binding-registry, ownership-routed write;
+  used by `server` + `mcp`), `server` (union reads + dual-watch broadcast), `user`
+  / `core` (system lifecycle: `start!`/`stop!`/`started?`, plus `all-nodes`).
 - **Value read/write (`get`/`set!`/`node-info`/`child-keys`) — migrate when
   touched, if serialisable:** `bitwig`, `excursion`, `lattice`, `target`,
   `morph`, `live`.
 - **Typed-node declarers (`defnode!`):** `book`, `flux`, `fractal`, `stochastic`,
-  `excursion`, `lattice`, `live`, `morph`, `config` — blocked on porting
-  typed-node metadata to `ctrl-tree`.
+  `excursion`, `lattice`, `live`, `morph`, `config` — **unblocked (decision #3
+  resolved, 2026-07-24):** `nous.binding-registry` is the typed-node metadata home,
+  and `nous.ctrl-bridge` now surfaces registry-declared nodes (HTTP/MCP), so a
+  serialisable typed node migrates by swapping `ctrl/defnode!` → `breg/register-node!`
+  (plus `ct/ctrl-write!` for any seed value). *Object / non-serialisable `:value`
+  nodes* (e.g. `[:defensemble …]`/`[:lattice …]` storing the gen/ensemble object)
+  are a distinct concern — they can't ride the `pr-str` txlog and stay on `nous.ctrl`
+  pending a dedicated home.
 - **Watch-driven reactions — fully migrated (Inc 12–18).** The ctrl-tree watch
   primitive `ctrl-watch!` landed Inc 12; all five raw `add-watch`-on-`tree-state`
   sites (`arc`/`tuning`/`sc` Inc 13, `server`/`theory` Inc 14) *and* all four legacy
@@ -154,9 +160,12 @@ the binding work and involves open design decisions.
    or drop (change `schema_test` + accept coarser txlog).
 2. **Undo / checkpoints** — port to `ctrl-tree` or redefine against the SQLite
    txlog replay model.
-3. **Typed-node metadata** — where `:type`/`:node-meta` live once nodes are
-   `ctrl-tree` paths (candidate: fold into `nous.binding-registry`, already a
-   `{:type :node-meta}` store).
+3. **Typed-node metadata** — **RESOLVED 2026-07-24** (Gate 5 Finding 2 + decision 3):
+   `nous.binding-registry` (already a `{:type :node-meta :bindings}` store) is the home
+   for typed-node `:type`/`:node-meta`; `nous.ctrl-bridge` reads it so registry-declared
+   nodes are visible on the HTTP/MCP surfaces. Future `defnode!` declarers migrate to
+   `breg/register-node!`. (Non-serialisable object nodes remain separate — see the
+   Typed-node declarers bullet above.)
 4. **A `ctrl-tree` watch primitive** — to retire the `add-watch`-on-`tree-state`
    exception (rule 3).
 5. **Beat-scheduled `send-at!`** — how modulation dispatch stays beat-accurate
