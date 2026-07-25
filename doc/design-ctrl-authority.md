@@ -2,8 +2,9 @@
 
 *Status: active. Companion to `design-ctrl-foundation.md`. Written 2026-07-13 to
 close Gate 4 finding #2 (two control stores, no documented authority rule).
-Migration-status section refreshed 2026-07-16 after Increment 10 (binding
-plumbing fully migrated).*
+Migration-status section refreshed 2026-07-25: binding plumbing (Inc 5–10) and the
+watch layer (Inc 12–18) fully migrated; Gate 5 review findings 1/2/3 fixed and its
+decisions #3 (typed-node metadata) + #4 (watch primitive) resolved.*
 
 ## The rule
 
@@ -76,16 +77,17 @@ increment history and the categorised inventory of what remains.
 When you touch a `nous.ctrl` path, prefer moving it to `ctrl-tree` rather than
 extending its `nous.ctrl` usage — provided its value is serialisable (rule 4)
 and its behaviour does not depend on the `nous.ctrl`-only capabilities that are
-**not yet ported** (undo, checkpoints, typed-node metadata, per-write tx
-`:source/kind`, and beat-scheduled `send-at!`). Hardware *dispatch* is no longer
-in that list — MIDI output and input binding plumbing were migrated in
-Increments 5–10 (see below); dispatch now flows ctrl-tree → mount →
-`nous.binding-registry`. The remaining capabilities are the hard part of full
-retirement and are ported deliberately in later increments, not opportunistically.
+**not yet ported** (undo, checkpoints, per-write tx `:source/kind`, and
+non-serialisable object nodes). No longer in that list: hardware *dispatch*
+(binding plumbing migrated Inc 5–10, output + input; flows ctrl-tree → mount →
+`nous.binding-registry`), reactive *watches* (Inc 12–18, via `ctrl-tree.core/
+ctrl-watch!`), and *typed-node metadata* (Gate 5 decision #3 — lives in
+`nous.binding-registry`, surfaced by `ctrl-bridge`). The remaining capabilities are
+the hard part of full retirement and are ported deliberately, not opportunistically.
 
 ---
 
-## Migration status (as of Increment 10, 2026-07-16)
+## Migration status (as of Increment 18 + Gate 5 fixes, 2026-07-25)
 
 ### Increment history
 
@@ -150,9 +152,12 @@ the binding work and involves open design decisions.
 - **Ephemeral, deliberately exempt (rule 6):** `spatial_field` `[:spatial … :state]`
   (~20 Hz) stays on `nous.ctrl` pending a dedicated ephemeral store.
 - **The last dispatch caller:** `core/play!` still routes per-step modulation via
-  `ctrl/send-at!` (beat-anchored). Migrating it to `ct/ctrl-write!` → mount needs
-  the beat-scheduling semantics resolved (the mount dispatches immediately
-  post-commit; `send-at!` records a beat-stamped tx).
+  `ctrl/send-at!`. Despite the name, `send-at!` does **not** beat-schedule CC/NRPN:
+  its own docstring says "the value is ignored — kairos does not use wall-clock
+  scheduling for CC", and `kairos/send-cc!` takes no time parameter — it dispatches
+  immediately via `nous.dispatch/dispatch-binding!`, exactly as the mount does. So
+  migrating this caller to `ct/ctrl-write!` → mount is a no-behaviour-change move for
+  CC/NRPN (Gate 5 decision #5, reframed: verify no regression, don't build scheduling).
 
 ### Open decisions gating full retirement
 
@@ -166,7 +171,11 @@ the binding work and involves open design decisions.
    nodes are visible on the HTTP/MCP surfaces. Future `defnode!` declarers migrate to
    `breg/register-node!`. (Non-serialisable object nodes remain separate — see the
    Typed-node declarers bullet above.)
-4. **A `ctrl-tree` watch primitive** — to retire the `add-watch`-on-`tree-state`
-   exception (rule 3).
-5. **Beat-scheduled `send-at!`** — how modulation dispatch stays beat-accurate
-   through the immediate-dispatch mount.
+4. **A `ctrl-tree` watch primitive** — **RESOLVED (Inc 12–18):** `ctrl-tree.core/
+   ctrl-watch!` / `ctrl-watch-global!` landed Inc 12; all watchers migrated onto it,
+   retiring rule 3's `add-watch`-on-`tree-state` exception.
+5. **Beat-scheduled `send-at!`** — **reframed (Gate 5 #6):** not a scheduling-build
+   task. `send-at!` never delivered beat-accurate CC — `kairos/send-cc!` has no time
+   param and `send-at!` ignores its `time-ns` (its own docstring says so), dispatching
+   immediately like the mount. Migrating `core/play!`'s last `send-at!` caller to
+   `ct/ctrl-write!` → mount is a **verify-no-regression** move, not a prerequisite build.
