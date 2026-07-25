@@ -61,6 +61,8 @@
                         #(apply dissoc % [[:server-test/ct-only]
                                           [:server-test/ct-dump]
                                           [:server-test/ct-put]
+                                          [:server-test :new-key]
+                                          [:ws-in :val]
                                           [:ensemble :harmony-ctx]
                                           [:spectral :state]]))))))
 
@@ -191,10 +193,10 @@
       (is (string? (get body "error"))))))
 
 (deftest ctrl-put-creates-node-test
-  (testing "PUT /ctrl/<path> creates node if it does not exist"
+  (testing "PUT /ctrl/<path> creates a new path (on ctrl-tree, per authority rule 1)"
     (let [put-resp (http-put "/ctrl/server-test/new-key" {"value" 42})]
       (is (= 200 (:status put-resp))))
-    (is (= 42 (ctrl/get [:server-test :new-key])))))
+    (is (= 42 (ct/ctrl-read [:server-test :new-key])))))
 
 ;; ---------------------------------------------------------------------------
 ;; GET /ctrl (full dump)
@@ -392,12 +394,12 @@
           (.sendClose ws WebSocket/NORMAL_CLOSURE "done"))))))
 
 (deftest ws-inbound-ctrl-write-test
-  (testing "JSON sent over WebSocket applies ctrl/set! on the server"
+  (testing "JSON sent over WebSocket writes to the ctrl tree on the server"
     (let [[ws _queue] (ws-connect)]
       (try
         (.sendText ws (json/write-str {"path" ["ws-in" "val"] "value" 99}) true)
-        (Thread/sleep 50)  ; allow server-side set! to complete
-        (is (= 99 (ctrl/get [:ws-in :val])) "inbound WS write applied to ctrl tree")
+        (Thread/sleep 50)  ; allow the server-side write to complete
+        (is (= 99 (ct/ctrl-read [:ws-in :val])) "inbound WS write applied to ctrl-tree")
         (finally
           (.sendClose ws WebSocket/NORMAL_CLOSURE "done"))))))
 

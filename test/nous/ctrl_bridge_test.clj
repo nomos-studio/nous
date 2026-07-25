@@ -61,13 +61,18 @@
       (is (= 9 (get snap [:bridge-test/ct]))))))
 
 (deftest write-any-routes-by-ownership-test
-  (testing "write-any writes ctrl-tree when the path lives there, else nous.ctrl"
+  (testing "write-any routes to the owning store; NEW paths default to ctrl-tree"
     ;; Path already on ctrl-tree → write ctrl-tree.
     (ct/ctrl-write! [:bridge-test/ct] 1)
     (bridge/write-any [:bridge-test/ct] 2)
     (is (= 2 (ct/ctrl-read [:bridge-test/ct])) "ctrl-tree path routed to ctrl-tree")
     (is (nil? (ctrl/get [:bridge-test/ct])) "not written to nous.ctrl")
-    ;; Brand-new path → nous.ctrl (legacy default).
+    ;; Existing nous.ctrl node → updated in place, not migrated to ctrl-tree.
+    (ctrl/set! [:bridge-test/legacy] 10)
+    (bridge/write-any [:bridge-test/legacy] 11)
+    (is (= 11 (ctrl/get [:bridge-test/legacy])) "existing legacy path stays on nous.ctrl")
+    (is (nil? (ct/ctrl-read [:bridge-test/legacy])) "not copied to ctrl-tree")
+    ;; Brand-new path → ctrl-tree (authority rule 1), NOT nous.ctrl.
     (bridge/write-any [:bridge-test/routed] 42)
-    (is (= 42 (ctrl/get [:bridge-test/routed])) "new path routed to nous.ctrl")
-    (is (nil? (ct/ctrl-read [:bridge-test/routed])) "not written to ctrl-tree")))
+    (is (= 42 (ct/ctrl-read [:bridge-test/routed])) "new path routed to ctrl-tree")
+    (is (nil? (ctrl/get [:bridge-test/routed])) "not written to nous.ctrl")))

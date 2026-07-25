@@ -47,10 +47,16 @@
   (into {} (map (juxt :path :value)) (all-entries)))
 
 (defn write-any
-  "Write `value` at `path` to whichever store owns it — ctrl-tree when the path
-  is already present there, otherwise nous.ctrl (legacy default for new paths).
+  "Write `value` at `path` to whichever store owns it:
+    - ctrl-tree, when the path is already present there;
+    - the legacy nous.ctrl node, when one exists — updated in place (the bridge
+      routes to the owning store; it does not opportunistically migrate, and a
+      read-node prefers the nous.ctrl node, so its updates must stay there);
+    - otherwise ctrl-tree — the single source of truth for NEW state (authority
+      rule 1: no new state on nous.ctrl).
   Logical write only; no hardware dispatch."
   [path value]
-  (if (contains? @refs/tree-state path)
-    (ct/ctrl-write! path value)
-    (ctrl/set! path value)))
+  (cond
+    (contains? @refs/tree-state path) (ct/ctrl-write! path value)
+    (ctrl/node-info path)             (ctrl/set! path value)
+    :else                             (ct/ctrl-write! path value)))
