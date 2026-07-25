@@ -43,7 +43,7 @@
   ## Mod routing context
     (use-mod! {[:filter/cutoff] my-lfo}) ; REPL default
     (with-mod {[:filter/cutoff] my-lfo} …) ; scoped
-    (tick-mods!)                         ; sample all *mod-ctx* mods → ctrl/send!"
+    (tick-mods!)                         ; sample all *mod-ctx* mods → ct/ctrl-write!"
   (:require [ctrl-tree.core :as ct]
             [nous.theory  :as theory]
             [nous.chord  :as chord-ns]
@@ -384,7 +384,7 @@
 
 (defn tick-mods!
   "Sample all modulators in *mod-ctx* at the current virtual time and route
-  each sampled value to ctrl/send!.
+  each sampled value to ct/ctrl-write!.
 
   Intended to be called once per loop iteration, typically at the top of a
   deflive-loop body. Each entry in *mod-ctx* is {path -> ITemporalValue};

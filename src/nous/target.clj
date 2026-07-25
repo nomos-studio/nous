@@ -56,7 +56,7 @@
 
     (play! {:synth :my-pd-patch :pitch/midi 60 :dur/beats 2})
     ;; → looks up :my-pd-patch → calls trigger-note! → OSC to Pd"
-  (:require [nous.ctrl :as ctrl]))
+  (:require [ctrl-tree.core :as ct]))
 
 ;; ---------------------------------------------------------------------------
 ;; Protocols
@@ -90,7 +90,9 @@
   (send-param!  [t path value]
     "Set the parameter at `path` (relative to param-root) to `value`.
      path may be a keyword (:mix) or a vector ([:reverb :mix]).
-     Delegates to ctrl/set! at (conj (param-root t) path) by default."))
+     Writes to the ctrl tree via ct/ctrl-write! at (conj (param-root t) path);
+     the root IpcMount then dispatches any hardware binding registered on that
+     path (see nous.binding-registry)."))
 
 ;; ---------------------------------------------------------------------------
 ;; Target registry
@@ -137,7 +139,7 @@
     (let [full-path (if (vector? path)
                       (into param-root-path path)
                       (conj param-root-path path))]
-      (ctrl/set! full-path value))))
+      (ct/ctrl-write! full-path value))))
 
 (defn fn-target
   "Build an FnTarget record from named options.
@@ -179,21 +181,21 @@
   IParamTarget
   (param-root  [_] param-root-path)
   (send-param! [_ path value]
-    ;; Mirror to ctrl tree so watchers / UI see the value.
-    ;; Actual transport (OSC, MIDI CC, etc.) is handled by ctrl/bind! bindings
-    ;; on the param subtree — the ctrl tree delivers the bytes.
+    ;; Write to the ctrl tree (the single source of truth). The root IpcMount
+    ;; fires post-commit and dispatches any hardware binding registered on the
+    ;; param path via nous.binding-registry (OSC address, MIDI CC, etc.).
     (let [full-path (if (vector? path)
                       (into param-root-path path)
                       (conj param-root-path path))]
-      (ctrl/set! full-path value))))
+      (ct/ctrl-write! full-path value))))
 
 (defn param-target
   "Build a ParamTarget for a continuously-running device with addressable
   parameters (FX processors, OSC/MIDI-controlled hardware, Pd patches).
 
   The device's param subtree is wired to its transport (OSC address, MIDI CC,
-  etc.) via ctrl/bind! — this record provides the device identity and the
-  IParamTarget protocol face.
+  etc.) via nous.binding-registry — this record provides the device identity and
+  the IParamTarget protocol face.
 
   Options:
     :param-root  — ctrl-tree path root (e.g. [:studio :nightsky])

@@ -37,7 +37,7 @@
     (mod-unroute! [:filter/cutoff])
 
   The runner samples the modulator at its natural `next-edge` rate and
-  dispatches via `ctrl/send!`. The ctrl binding's :range handles scaling
+  dispatches via `ct/ctrl-write!`. The ctrl binding's :range handles scaling
   to the physical MIDI range — so the modulator's raw output (typically
   [0.0, 1.0] for unipolar shapes) should match the binding's :range.
 
@@ -316,7 +316,7 @@
 
 (defn mod-route!
   "Connect a modulator to a ctrl path. Starts a runner thread that samples
-  the modulator at its natural `next-edge` rate and dispatches via `ctrl/send!`.
+  the modulator at its natural `next-edge` rate and dispatches via `ct/ctrl-write!`.
 
   Two arities:
 
@@ -329,7 +329,7 @@
       `phasor`        — a Phasor controlling rate and phase offset
       Equivalent to (mod-route! path (modulator-lfo phasor modulator-map)).
 
-  The raw sampled value is passed directly to `ctrl/send!`. Set the ctrl
+  The raw sampled value is passed directly to `ct/ctrl-write!`. Set the ctrl
   binding's `:range` to match the modulator's output domain — typically
   [0.0 1.0] for unipolar shapes (sine-uni, triangle, saw-up).
 

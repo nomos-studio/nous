@@ -3,8 +3,8 @@
   "Unit tests for nous.target — ITarget / ITriggerTarget / IParamTarget protocols,
   FnTarget, ParamTarget, and the target registry."
   (:require [clojure.test  :refer [deftest is testing]]
-            [nous.target :as target]
-            [nous.ctrl   :as ctrl]))
+            [ctrl-tree.core :as ct]
+            [nous.target :as target]))
 
 ;; ---------------------------------------------------------------------------
 ;; Registry
@@ -85,7 +85,7 @@
           tgt (target/fn-target :param-write-test
                 :live?-fn   (constantly true)
                 :param-root [:studio :test-dev])]
-      (with-redefs [ctrl/set! (fn [path val] (reset! written [path val]))]
+      (with-redefs [ct/ctrl-write! (fn [path val] (reset! written [path val]))]
         (target/send-param! tgt :filter 64))
       (is (= [[:studio :test-dev :filter] 64] @written))))
 
@@ -94,7 +94,7 @@
           tgt (target/fn-target :param-vec-test
                 :live?-fn   (constantly true)
                 :param-root [:studio :test-dev])]
-      (with-redefs [ctrl/set! (fn [path val] (reset! written [path val]))]
+      (with-redefs [ct/ctrl-write! (fn [path val] (reset! written [path val]))]
         (target/send-param! tgt [:reverb :mix] 0.7))
       (is (= [[:studio :test-dev :reverb :mix] 0.7] @written)))))
 
@@ -118,7 +118,7 @@
     (let [written (atom nil)
           tgt (target/param-target :param-write-test
                 :param-root [:studio :nightsky])]
-      (with-redefs [ctrl/set! (fn [path val] (reset! written [path val]))]
+      (with-redefs [ct/ctrl-write! (fn [path val] (reset! written [path val]))]
         (target/send-param! tgt :mix 0.4))
       (is (= [[:studio :nightsky :mix] 0.4] @written)))))
 

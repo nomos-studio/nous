@@ -35,7 +35,7 @@
 
   ## Output targets
     :stdout         — println for development
-    [:ctrl :path]   — ctrl/send! (compose with MIDI CC bindings)
+    [:ctrl :path]   — ct/ctrl-write! (compose with MIDI CC bindings)
 
   ## CORRUPT
     (defflux :decaying

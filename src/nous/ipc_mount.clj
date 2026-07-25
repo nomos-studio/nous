@@ -14,8 +14,9 @@
   The *value* lives on the ctrl-tree (this write triggered the mount). Output
   bindings are read from nous.binding-registry — the single source for output
   dispatch; every declarer (device, schema, session, berlin) registers there.
-  (Controller-*input* bindings, :midi-device-input, live on nous.ctrl and are
-  consumed by nous.midi-in, not by this output mount.)
+  (Controller-*input* bindings, :midi-device-input, also live in
+  nous.binding-registry but are consumed by nous.midi-in — not by this output
+  mount, which dispatches only :midi-cc / :midi-nrpn output bindings.)
 
   Mounts fire post-commit (never inside the STM transaction), so the blocking
   IPC send is safe here."
