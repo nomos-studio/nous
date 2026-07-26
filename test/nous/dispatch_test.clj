@@ -59,6 +59,24 @@
       ;; scaled 0.5 over [0,1] → round(0.5·16383)=8192 → same wire, but via scaling
       (is (= [1 6 64] (nth scaled 2))))))
 
+(deftest midi-nrpn-7bit-clamps-test
+  (testing ":bits 7 caps the NRPN data value at the 7-bit range (0–127)"
+    ;; nrpn 5 → param-msb 0, param-lsb 5; raw 200 clamps to 127 → CC6 0, CC38 127
+    (is (= [[1 99 0] [1 98 5] [1 6 0] [1 38 127]]
+           (capture-cc #(dispatch/dispatch-binding!
+                          {:type :midi-nrpn :channel 1 :nrpn 5 :bits 7 :raw true} 200))))
+    ;; an in-range 7-bit value passes through unchanged
+    (is (= [[1 99 0] [1 98 5] [1 6 0] [1 38 64]]
+           (capture-cc #(dispatch/dispatch-binding!
+                          {:type :midi-nrpn :channel 1 :nrpn 5 :bits 7 :raw true} 64))))))
+
+(deftest midi-nrpn-14bit-clamps-test
+  (testing ":bits 14 clamps the NRPN data value at the 14-bit range (0–16383)"
+    ;; raw 99999 clamps to 16383 → CC6 127, CC38 127
+    (is (= [[1 99 0] [1 98 5] [1 6 127] [1 38 127]]
+           (capture-cc #(dispatch/dispatch-binding!
+                          {:type :midi-nrpn :channel 1 :nrpn 5 :bits 14 :raw true} 99999))))))
+
 (deftest unknown-binding-type-is-noop-test
   (testing "an unhandled binding type emits nothing (caller logs/skips)"
     (is (= [] (capture-cc

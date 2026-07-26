@@ -149,18 +149,6 @@
     (is (empty? (:bindings (ctrl/node-info [:u2/node]))))))
 
 ;; ---------------------------------------------------------------------------
-;; send! (no sidecar — physical dispatch is a no-op)
-;; ---------------------------------------------------------------------------
-
-(deftest send-no-sidecar-test
-  (testing "send! updates the atom value when not connected to sidecar"
-    (ctrl/defnode! [:send/cutoff] :type :float :node-meta {:range [0.0 1.0]})
-    (ctrl/bind!    [:send/cutoff] {:type :midi-cc :channel 1 :cc-num 74 :range [0.0 1.0]})
-    (binding [ctrl/*dispatch-warn-fn* (fn [& _])]
-      (ctrl/send!    [:send/cutoff] 0.5))
-    (is (= 0.5 (ctrl/get [:send/cutoff])) "atom updated even when sidecar absent")))
-
-;; ---------------------------------------------------------------------------
 ;; checkpoint! / panic!
 ;; ---------------------------------------------------------------------------
 
@@ -232,161 +220,6 @@
     (is (nil? (ctrl/get [:timing/p])) "undo! :now restores the full tree snapshot")))
 
 ;; ---------------------------------------------------------------------------
-;; send! — :midi-nrpn dispatch
-;; ---------------------------------------------------------------------------
-
-(deftest nrpn-14bit-dispatch-test
-  (testing "14-bit NRPN emits CC 99/98/6/38 with correct parameter and value encoding"
-    ;; NRPN 1 (portamento), value 500 on channel 2:
-    ;;   param-msb = 1 >> 7 = 0,  param-lsb = 1 & 0x7F = 1
-    ;;   data-msb  = 500 >> 7 = 3, data-lsb = 500 & 0x7F = 116
-    (ctrl/defnode! [:nrpn/portamento] :type :int :node-meta {:range [0 16383]})
-    (ctrl/bind! [:nrpn/portamento]
-                {:type :midi-nrpn :channel 2 :nrpn 1 :bits 14 :range [0 16383]})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/portamento] 500))
-      (is (= 4 (count @calls)) "exactly 4 CC messages for 14-bit NRPN")
-      (let [[m99 m98 m6 m38] @calls]
-        (is (= {:ch 2 :cc 99 :val 0}   m99) "CC 99 = param MSB (0)")
-        (is (= {:ch 2 :cc 98 :val 1}   m98) "CC 98 = param LSB (1)")
-        (is (= {:ch 2 :cc  6 :val 3}   m6)  "CC 6 = data MSB (500 >> 7 = 3)")
-        (is (= {:ch 2 :cc 38 :val 116} m38) "CC 38 = data LSB (500 & 0x7F = 116)")))))
-
-(deftest nrpn-7bit-dispatch-test
-  (testing "7-bit NRPN emits all 4 CCs using 14-bit wire encoding"
-    ;; NRPN 0 (eg type), value 64 on channel 1:
-    ;;   param-msb = 0, param-lsb = 0
-    ;;   wire value = 0*128 + 64 → data-msb = 0, data-lsb = 64
-    ;;   :bits 7 controls value clamping only; wire encoding is always 14-bit
-    (ctrl/defnode! [:nrpn/eg-type] :type :int :node-meta {:range [0 127]})
-    (ctrl/bind! [:nrpn/eg-type]
-                {:type :midi-nrpn :channel 1 :nrpn 0 :bits 7 :range [0 127]})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/eg-type] 64))
-      (is (= 4 (count @calls)) "exactly 4 CC messages for 7-bit NRPN (14-bit wire encoding)")
-      (let [[m99 m98 m6 m38] @calls]
-        (is (= {:ch 1 :cc 99 :val 0}  m99) "CC 99 = param MSB")
-        (is (= {:ch 1 :cc 98 :val 0}  m98) "CC 98 = param LSB")
-        (is (= {:ch 1 :cc  6 :val 0}  m6)  "CC 6 = data MSB (64 >> 7 = 0)")
-        (is (= {:ch 1 :cc 38 :val 64} m38) "CC 38 = data LSB (64 & 0x7F = 64)")))))
-
-(deftest nrpn-high-param-number-test
-  (testing "NRPN parameter > 127 splits correctly across CC 99/98"
-    ;; NRPN 200 = 0x00C8: param-msb = 200 >> 7 = 1, param-lsb = 200 & 0x7F = 72
-    (ctrl/defnode! [:nrpn/high] :type :int :node-meta {:range [0 16383]})
-    (ctrl/bind! [:nrpn/high]
-                {:type :midi-nrpn :channel 1 :nrpn 200 :bits 14 :range [0 16383]})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/high] 0))
-      (let [[m99 m98 _ _] @calls]
-        (is (= 1  (:val m99)) "CC 99 param MSB = 200 >> 7 = 1")
-        (is (= 72 (:val m98)) "CC 98 param LSB = 200 & 0x7F = 72")))))
-
-(deftest nrpn-value-scaling-test
-  (testing "NRPN value is scaled from binding :range to [0 16383]"
-    ;; range [0 100], value 50 → pct 0.5 → scaled 8191
-    (ctrl/defnode! [:nrpn/scaled] :type :int :node-meta {:range [0 100]})
-    (ctrl/bind! [:nrpn/scaled]
-                {:type :midi-nrpn :channel 1 :nrpn 5 :bits 14 :range [0 100]})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/scaled] 50))
-      (let [[_ _ m6 m38] @calls
-            reconstructed (+ (* (:val m6) 128) (:val m38))]
-        (is (= 8192 reconstructed) "50% of 16383 ≈ 8192 (rounded)"))))    )
-
-(deftest nrpn-value-clamping-test
-  (testing "NRPN value is clamped to [0 16383] when outside range"
-    (ctrl/defnode! [:nrpn/clamp] :type :int :node-meta {:range [0 16383]})
-    (ctrl/bind! [:nrpn/clamp]
-                {:type :midi-nrpn :channel 1 :nrpn 3 :bits 14 :range [0 16383]})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/clamp] 99999))
-      (let [[_ _ m6 m38] @calls]
-        (is (= 127 (:val m6))  "data MSB clamped to max")
-        (is (= 127 (:val m38)) "data LSB clamped to max")))))
-
-;; ---------------------------------------------------------------------------
-;; send! — :midi-nrpn :raw true (compound/passthrough)
-;; ---------------------------------------------------------------------------
-
-(deftest nrpn-raw-passthrough-test
-  (testing ":raw true skips percentage scaling — value used directly"
-    ;; With :raw true, value 1024 should pass through as 1024 (not scaled from range).
-    ;; 1024 = 0x0400: data-msb = 1024 >> 7 = 8, data-lsb = 1024 & 0x7F = 0
-    (ctrl/defnode! [:nrpn/raw-macro] :type :int :node-meta {:range [0 16383]})
-    (ctrl/bind! [:nrpn/raw-macro]
-                {:type :midi-nrpn :channel 1 :nrpn 100 :bits 14 :range [0 16383] :raw true})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/raw-macro] 1024))
-      (let [[_ _ m6 m38] @calls
-            reconstructed (+ (* (:val m6) 128) (:val m38))]
-        (is (= 1024 reconstructed) "raw value 1024 passes through unchanged")))))
-
-(deftest nrpn-raw-no-scaling-test
-  (testing ":raw true with a narrow :range does not scale the value"
-    ;; With a [0 100] range and :raw false, value 50 → ~8192.
-    ;; With :raw true, value 50 → 50 exactly (CC6=0, CC38=50).
-    (ctrl/defnode! [:nrpn/raw-narrow] :type :int :node-meta {:range [0 100]})
-    (ctrl/bind! [:nrpn/raw-narrow]
-                {:type :midi-nrpn :channel 1 :nrpn 5 :bits 14 :range [0 100] :raw true})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/raw-narrow] 50))
-      (let [[_ _ m6 m38] @calls
-            reconstructed (+ (* (:val m6) 128) (:val m38))]
-        (is (= 50 reconstructed) "raw value 50 passes through, not scaled to ~8192")))))
-
-(deftest nrpn-raw-clamp-test
-  (testing ":raw true still clamps to [0 16383]"
-    (ctrl/defnode! [:nrpn/raw-clamp] :type :int :node-meta {:range [0 16383]})
-    (ctrl/bind! [:nrpn/raw-clamp]
-                {:type :midi-nrpn :channel 1 :nrpn 1 :bits 14 :range [0 16383] :raw true})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/raw-clamp] 99999))
-      (let [[_ _ m6 m38] @calls]
-        (is (= 127 (:val m6))  "raw: data MSB clamped to max")
-        (is (= 127 (:val m38)) "raw: data LSB clamped to max")))))
-
-(deftest nrpn-raw-7bit-test
-  (testing ":raw true with :bits 7 uses 14-bit wire encoding"
-    ;; value 42: wire = 0*128+42 → CC6=0, CC38=42
-    (ctrl/defnode! [:nrpn/raw-7bit] :type :int :node-meta {:range [0 127]})
-    (ctrl/bind! [:nrpn/raw-7bit]
-                {:type :midi-nrpn :channel 1 :nrpn 200 :bits 7 :range [0 127] :raw true})
-    (let [calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                                (swap! calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send! [:nrpn/raw-7bit] 42))
-      (is (= 4 (count @calls)) "7-bit raw: 4 CCs (14-bit wire encoding)")
-      (let [[_ _ m6 m38] @calls]
-        (is (= 0  (:val m6))  "CC6 = data MSB (42 >> 7 = 0)")
-        (is (= 42 (:val m38)) "CC38 = data LSB (42 & 0x7F = 42)")))))
-
-;; ---------------------------------------------------------------------------
 ;; send-raw-nrpn!
 ;; ---------------------------------------------------------------------------
 
@@ -428,72 +261,6 @@
       (is (empty? @calls) "no CCs sent when disconnected"))))
 
 ;; ---------------------------------------------------------------------------
-;; send-at! — explicit timestamp
-;; ---------------------------------------------------------------------------
-
-(deftest send-at-sends-cc-with-correct-params-test
-  (testing "send-at! sends CC with correct channel, controller, and scaled value"
-    (ctrl/defnode! [:send-at/cutoff] :type :int :node-meta {:range [0 127]})
-    (ctrl/bind! [:send-at/cutoff]
-                {:type :midi-cc :channel 1 :cc-num 74 :range [0 127]})
-    (let [cc-calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [ch cc val & _]
-                                               (swap! cc-calls conj {:ch ch :cc cc :val val}))]
-        (ctrl/send-at! 999999999 [:send-at/cutoff] 64))
-      (is (= 1 (count @cc-calls)) "one CC sent")
-      (is (= {:ch 1 :cc 74 :val 64} (first @cc-calls)) "correct ch/cc/val"))))
-
-(deftest send-at-updates-ctrl-tree-test
-  (testing "send-at! updates the ctrl tree value as a side-effect"
-    (ctrl/defnode! [:send-at/val] :type :int :node-meta {:range [0 127]})
-    (ctrl/bind! [:send-at/val]
-                {:type :midi-cc :channel 1 :cc-num 10 :range [0 127]})
-    (with-redefs [nous.kairos/connected? (constantly false)]
-      (binding [ctrl/*dispatch-warn-fn* (fn [& _])]
-        (ctrl/send-at! 12345 [:send-at/val] 100)))
-    (is (= 100 (ctrl/get [:send-at/val])) "ctrl tree value updated even when sidecar absent")))
-
-(deftest send-at-nrpn-sends-four-ccs-test
-  (testing "send-at! with NRPN binding sends CC99/98/6/38 in order"
-    (ctrl/defnode! [:send-at/nrpn] :type :int :node-meta {:range [0 16383]})
-    (ctrl/bind! [:send-at/nrpn]
-                {:type :midi-nrpn :channel 1 :nrpn 10 :bits 14 :range [0 16383]})
-    (let [cc-calls (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly true)
-                    nous.kairos/send-cc!   (fn [_ch cc _val & _]
-                                               (swap! cc-calls conj cc))]
-        (ctrl/send-at! 777000 [:send-at/nrpn] 8192))
-      (is (= [99 98 6 38] @cc-calls) "NRPN sends CC99, CC98, CC6, CC38 in order"))))
-
-;; ---------------------------------------------------------------------------
-;; send! — diagnostic warning when sidecar not connected
-;; ---------------------------------------------------------------------------
-
-(deftest send-warns-when-sidecar-not-connected-midi-cc-test
-  (testing "send! calls *dispatch-warn-fn* when MIDI CC binding exists but sidecar is absent"
-    (ctrl/defnode! [:diag/cutoff] :type :float)
-    (ctrl/bind! [:diag/cutoff] {:type :midi-cc :channel 1 :cc-num 74 :range [0.0 1.0]})
-    (let [warned (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (binding [ctrl/*dispatch-warn-fn* (fn [path btype] (swap! warned conj {:path path :type btype}))]
-          (ctrl/send! [:diag/cutoff] 0.5)))
-      (is (= 1 (count @warned)) "warn fired exactly once")
-      (is (= [:diag/cutoff] (:path (first @warned))))
-      (is (= :midi-cc (:type (first @warned)))))))
-
-(deftest send-warns-when-sidecar-not-connected-nrpn-test
-  (testing "send! calls *dispatch-warn-fn* when NRPN binding exists but sidecar is absent"
-    (ctrl/defnode! [:diag/nrpn-param] :type :int)
-    (ctrl/bind! [:diag/nrpn-param] {:type :midi-nrpn :channel 1 :nrpn 5 :bits 14 :range [0 16383]})
-    (let [warned (atom [])]
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (binding [ctrl/*dispatch-warn-fn* (fn [path btype] (swap! warned conj {:path path :type btype}))]
-          (ctrl/send! [:diag/nrpn-param] 1000)))
-      (is (= 1 (count @warned)) "warn fired exactly once")
-      (is (= :midi-nrpn (:type (first @warned)))))))
-
-;; ---------------------------------------------------------------------------
 ;; watch-global! / unwatch-global!
 ;; ---------------------------------------------------------------------------
 
@@ -510,20 +277,6 @@
       (is (= 2 (count @calls)) "fires once per set!")
       (is (= {:path [:watch-global/a] :value 1} (first @calls)))
       (is (= {:path [:watch-global/b] :value 2} (second @calls))))))
-
-(deftest watch-global-fires-on-send-test
-  (testing "watch-global! fires on send! as well"
-    (let [calls (atom [])]
-      (ctrl/defnode! [:watch-global/send] :type :float :node-meta {:range [0.0 1.0]})
-      (ctrl/watch-global! ::test-watcher-send
-                          (fn [tx _]
-                            (swap! calls conj {:path (-> tx :tx/changes first :path)
-                                               :value (-> tx :tx/changes first :after)})))
-      (binding [ctrl/*dispatch-warn-fn* (fn [& _])]
-        (ctrl/send! [:watch-global/send] 0.5))
-      (ctrl/unwatch-global! ::test-watcher-send)
-      (is (= 1 (count @calls)) "fires once on send!")
-      (is (= 0.5 (:value (first @calls)))))))
 
 (deftest unwatch-global-removes-watcher-test
   (testing "unwatch-global! stops the watcher from firing"

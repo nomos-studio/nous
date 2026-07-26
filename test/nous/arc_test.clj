@@ -33,18 +33,6 @@
 ;; ctrl/watch! — basic registration and firing
 ;; ---------------------------------------------------------------------------
 
-(deftest watch-fires-on-send-test
-  (testing "watch! callback fires when send! writes to path"
-    (ctrl/defnode! [:watch/test-send] :type :float :node-meta {:range [0.0 1.0]})
-    (ctrl/bind! [:watch/test-send] {:type :midi-cc :channel 1 :cc-num 1})
-    (let [seen (atom nil)]
-      (ctrl/watch! [:watch/test-send] ::test-watcher
-                   (fn [tx _] (reset! seen {:path (tx-path tx) :value (tx-val tx)})))
-      (with-redefs [nous.kairos/connected? (constantly false)]
-        (ctrl/send! [:watch/test-send] 0.5))
-      (is (= {:path [:watch/test-send] :value 0.5} @seen))
-      (ctrl/unwatch-all! [:watch/test-send]))))
-
 (deftest watch-fires-on-set-test
   (testing "watch! callback fires when set! writes to path"
     (ctrl/defnode! [:watch/test-set] :type :float)

@@ -5,34 +5,22 @@
   The control tree is a persistent map within the shared system-state atom.
   Nodes hold a typed value and optional physical bindings (MIDI CC, OSC, etc.).
 
-  ## set! vs send! — the core distinction
+  ## set! — recording values
 
-  There are two write functions and the choice is intentional:
+  ctrl/set! records a value into a control node. It never dispatches to physical
+  outputs — use it for values arriving from outside (MIDI/OSC input, peer sync,
+  UI, config) or for internal state with no hardware target. Recording an inbound
+  value with set! cannot echo back to hardware, so it can't cause feedback loops.
 
-    ctrl/set!   — YOU ARE RECORDING a value. Use when the value arrives from
-                  outside (MIDI input, OSC, peer sync, UI, config) or when
-                  updating internal state that has no hardware target.
-                  Never dispatches to physical outputs. Safe to call freely.
-
-    ctrl/send!  — YOU ARE DRIVING hardware. Use when Clojure code is the
-                  source of truth and you want the value to reach the bound
-                  device (MIDI CC, NRPN). Dispatches to all physical bindings.
-
-  The distinction prevents feedback loops: if MIDI arrives on CC 74 and you
-  record it with set!, it updates the tree without echoing back to hardware.
-  If your LFO calls send!, it drives CC 74 out. Same path, opposite direction.
-
-  A third variant exists for timing-critical dispatch:
-
-    ctrl/send-at! time-ns path value — like send! but schedules the outgoing
-                  hardware messages at an explicit nanosecond timestamp, for
-                  alignment with note-on events already in the sidecar queue.
+  Hardware *output* no longer flows through this namespace. Clojure-originated
+  values reach bound devices by writing the ctrl-tree (ctrl-tree.core/ctrl-write!),
+  whose root IpcMount dispatches the path's bindings from nous.binding-registry via
+  nous.dispatch. nous.ctrl is the legacy value/node model, retired path-by-path
+  (see doc/design-ctrl-authority.md).
 
   ## Node lifecycle
     (ctrl/defnode! [:filter/cutoff] :type :float :meta {:range [0.0 1.0]} :value 0.5)
-    (ctrl/bind!    [:filter/cutoff] {:type :midi-cc :channel 1 :cc-num 74} :priority 20)
     (ctrl/set!     [:filter/cutoff] 0.3)    ; record a value — no hardware dispatch
-    (ctrl/send!    [:filter/cutoff] 0.3)    ; drive hardware — atom + MIDI CC out
     (ctrl/get      [:filter/cutoff])        ; => 0.3
 
   ## Safety net
@@ -53,15 +41,14 @@
     :data     opaque Clojure value (default)
 
   ## Binding priorities (Q9) — lower number = higher priority
-    0   Clojure code (ctrl/send! from code always wins)
+    0   Clojure code (code-originated writes always win)
     10  Ableton Link
     20  MIDI
     30  OSC
 
   Key design decisions: Q4, Q8, Q9, Q10, Q47, Q48."
   (:refer-clojure :exclude [get])
-  (:require [nous.dispatch  :as dispatch]
-            [nous.kairos    :as kairos]
+  (:require [nous.kairos    :as kairos]
             [nous.timeline  :as timeline]))
 
 ;; ---------------------------------------------------------------------------
@@ -87,7 +74,7 @@
 
 (defmacro with-source
   "Execute `body` with `*current-tx-source*` bound to `source`.
-  All ctrl/set! and ctrl/send! calls within body record `source` as their origin.
+  All ctrl/set! calls within body record `source` as their origin.
 
   Example:
     (ctrl/with-source {:source/kind :loop :source/id :bass}
@@ -117,34 +104,18 @@
                 log')))))
 
 ;; ---------------------------------------------------------------------------
-;; Diagnostics
-;;
-;; ^:dynamic so tests can capture or suppress the warning without forking stderr.
-;; ---------------------------------------------------------------------------
-
-(def ^:dynamic *dispatch-warn-fn*
-  "Called when a physical binding (MIDI CC, NRPN) cannot be dispatched because
-  kairos is not connected. Default: print to *err*.
-  Override in tests: (binding [ctrl/*dispatch-warn-fn* (fn [& _])] ...)"
-  (fn [path binding-type]
-    (binding [*out* *err*]
-      (println (str "[ctrl] send! — " (pr-str path)
-                    " has a " binding-type " binding but kairos is not connected."
-                    " Start kairos with (kairos/start-kairos!) first.")))))
-
-;; ---------------------------------------------------------------------------
 ;; Watcher registry
 ;;
 ;; {path {watch-key fn}} — keyed by watch-key so callers can remove them.
-;; Watchers fire synchronously (in the writer's thread) after every send! or
-;; set! that touches their path, AFTER MIDI dispatch completes.
+;; Watchers fire synchronously (in the writer's thread) after every set! that
+;; touches their path.
 ;; Exceptions in watchers are printed and swallowed so they can't kill the
 ;; caller (e.g. a mod-route! runner thread).
 ;; ---------------------------------------------------------------------------
 
 (defonce ^:private watchers (atom {}))
 
-;; Global watchers — fire on every set!/send! regardless of path.
+;; Global watchers — fire on every set! regardless of path.
 ;; Stored separately from per-path watchers.
 (defonce ^:private global-watchers (atom {}))
 
@@ -257,8 +228,9 @@
   Not an undo target by default; pass :undoable true to push to the undo stack.
   Creates a :data node if the path does not exist; preserves existing type and bindings.
 
-  Use send! when Clojure is the source and you want the value to reach bound
-  hardware. Use send-at! when you need the hardware message at a specific time.
+  set! records a value only; it never dispatches to hardware. Clojure-originated
+  values that must reach bound devices go through ctrl-tree.core/ctrl-write! (the
+  root IpcMount dispatches the path's registry bindings).
 
   Examples:
     (ctrl/set! [:filter/cutoff] 0.7)           ; record value, no hardware dispatch
@@ -285,85 +257,6 @@
       (when (kairos/connected?)
         (kairos/send-tx-log! tx))))
   nil)
-
-(defn send-at!
-  "Drive `value` to `path` with explicit nanosecond timing.
-
-  Identical to send! but accepts `time-ns` for call-site compatibility;
-  the value is ignored — kairos does not use wall-clock scheduling for CC.
-  Use send! when you do not need per-note alignment; the kairos event queue
-  preserves insertion order without ns-offset tricks.
-
-  Like send!, this is for Clojure-originated values going to hardware. Use
-  set! for values arriving from hardware or from external sources.
-
-  Binding types dispatched and value scaling are identical to send!:
-    :midi-cc   — single CC message; value scaled to [0,127] via binding :range.
-    :midi-nrpn — NRPN parameter (CC 99/98/6/38); supports 7-bit, 14-bit, :raw.
-
-  Example:
-    ;; Schedule a filter sweep to arrive at the same time as the note-on:
-    (ctrl/send-at! on-ns [:filter/cutoff] 0.7)"
-  [time-ns path value]
-  (let [beat    (timeline/current-beat)
-        source  *current-tx-source*
-        result  (volatile! nil)]
-    (swap! @system-ref
-           (fn [s]
-             (let [before (some-> (get-node s path) :value)
-                   tx     (build-tx beat time-ns source path before value)
-                   s'     (-> s
-                              (put-node path (assoc (or (get-node s path) (make-node)) :value value))
-                              (append-tx tx))]
-               (vreset! result [tx s'])
-               s')))
-    (let [[tx new-state] @result
-          node           (get-node new-state path)]
-    (doseq [binding (:bindings node)]
-      (case (:type binding)
-        (:midi-cc :midi-nrpn)
-        ;; Shared scale-and-emit (nous.dispatch) — also drives the ctrl-tree
-        ;; nomos-rt IPC mount. The connection gate + warn stay here.
-        (if (kairos/connected?)
-          (dispatch/dispatch-binding! binding value)
-          (*dispatch-warn-fn* path (:type binding)))
-
-        ;; Other binding types: log and skip
-        (binding [*out* *err*]
-          (println (str "[ctrl] send! binding type " (:type binding)
-                        " at " (pr-str path) " not yet dispatched")))))
-      (fire-watchers! tx new-state)
-      (when (kairos/connected?)
-        (kairos/send-tx-log! tx))))
-  nil)
-
-(defn send!
-  "Drive `value` to `path`: update the control tree and dispatch to all physical
-  bindings at the current wall-clock time.
-
-  Use send! when Clojure is the source of the value and you want it to reach
-  bound hardware — LFOs, trajectories, live REPL tweaks, mod routing. Do NOT
-  use send! in MIDI/OSC input handlers; use set! there to avoid feedback loops.
-
-  Use send-at! when you need the hardware message aligned with an already-
-  scheduled note-on (e.g. per-step mod routing in core/play!).
-
-  Binding types dispatched:
-
-    :midi-cc   — single CC message; value scaled to [0,127] via binding :range.
-                 Example: (ctrl/send! [:filter/cutoff] 0.7) ; CC 74 = 89
-
-    :midi-nrpn — NRPN parameter; emits CC 99/98 (parameter select) then CC 6/38
-                 (data entry). Supports 7-bit and 14-bit resolution controlled
-                 by :bits in the binding (default 14). Value scaled from binding
-                 :range to [0,127] or [0,16383]. Add :raw true to the binding to
-                 skip scaling (useful for compound-addressed parameters).
-                 Example: (ctrl/send! [:portamento] 1000) ; NRPN 1, 14-bit
-                 Example: (ctrl/send! [:ribbon/mode] 1)   ; :raw true, direct value
-
-    others     — logged; dispatch deferred to future sprint."
-  [path value]
-  (send-at! (* (System/currentTimeMillis) 1000000) path value))
 
 (defn send-raw-nrpn!
   "Fire a raw NRPN directly to kairos, bypassing the control tree.
@@ -604,8 +497,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn watch!
-  "Register a callback fired synchronously after every send! or set! that
-  writes to `path`.
+  "Register a callback fired synchronously after every set! that writes to `path`.
 
   `watch-key` — any value; identifies this watcher for later removal.
                 Use a namespaced keyword to avoid collisions, e.g. ::my-ns/key.
