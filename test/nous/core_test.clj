@@ -2,9 +2,13 @@
 (ns nous.core-test
   "Phase 0 unit tests — clock, virtual time, live loop, play!."
   (:require [clojure.test :refer [deftest is testing]]
+            [ctrl-tree.core :as ct]
+            [ctrl-tree.refs :as refs]
+            [nous.binding-registry :as breg]
             [nous.clock :as clock]
             [nous.core  :as core]
             [nous.ctrl  :as ctrl]
+            [nous.ipc-mount :as ipc-mount]
             [nous.loop  :as loop-ns]))
 
 ;; ---------------------------------------------------------------------------
@@ -173,26 +177,33 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest ctrl-path-step-mod-dispatched-at-note-on-test
-  (testing "ctrl-path entry in *step-mod-ctx* dispatched via send-at! at note-on time"
-    ;; Set up a ctrl node with a MIDI CC binding
+  (testing "ctrl-path entry in *step-mod-ctx* dispatched via ct/ctrl-write! at note-on time"
+    ;; Register a MIDI CC binding on the ctrl-tree path; the root IpcMount
+    ;; dispatches it when core/play! writes the sampled step-mod value.
     (core/start! :bpm 120)
+    (ipc-mount/install!)
     (try
-      (ctrl/defnode! [:step-mod/cutoff] :type :int :node-meta {:range [0 127]})
-      (ctrl/bind! [:step-mod/cutoff]
+      (breg/register-node! [:step-mod/cutoff] :type :int :node-meta {:range [0 127]})
+      (breg/bind! [:step-mod/cutoff]
                   {:type :midi-cc :channel 1 :cc-num 74 :range [0 127]})
-      (let [send-at-calls (atom [])]
+      (let [cc-calls (atom [])]
         (with-redefs [nous.kairos/connected?   (constantly true)
                       nous.kairos/send-note-on!  (fn [& _])
                       nous.kairos/send-note-off! (fn [& _])
                       nous.kairos/send-cc!       (fn [ch cc val & _]
-                                                    (swap! send-at-calls conj {:ch ch :cc cc :val val}))]
+                                                    (swap! cc-calls conj {:ch ch :cc cc :val val}))]
           (binding [loop-ns/*virtual-time*   0.0
                     loop-ns/*step-mod-ctx*   {[:step-mod/cutoff] 80}]
             (core/play! {:pitch/midi 60 :dur/beats 1/4})))
-        ;; The CC for cutoff should have been dispatched
-        (let [cc-calls (filter #(= 74 (:cc %)) @send-at-calls)]
-          (is (= 1 (count cc-calls)) "one CC74 dispatched for step-mod")))
-      (finally (core/stop!)))))
+        ;; The CC for cutoff should have been dispatched (80 in [0,127] → CC74 = 80)
+        (let [cutoff-calls (filter #(= 74 (:cc %)) @cc-calls)]
+          (is (= 1 (count cutoff-calls)) "one CC74 dispatched for step-mod")
+          (is (= 80 (:val (first cutoff-calls))) "value scaled correctly")))
+      (finally
+        (ipc-mount/uninstall!)
+        (breg/clear!)
+        (dosync (alter refs/tree-state dissoc [:step-mod/cutoff]))
+        (core/stop!)))))
 
 (deftest ctrl-path-step-mod-keyword-not-dispatched-test
   (testing "keyword keys in *step-mod-ctx* do NOT trigger send-at! (handled by apply-step-mods)"

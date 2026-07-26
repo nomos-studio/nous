@@ -15,7 +15,8 @@
 
   Key design decisions: Q47 (single system-state atom), Q48 (patch system),
   Q11 (live-loop alias), Q1 (virtual time), phase0-readiness.md."
-  (:require [nous.beam-mount       :as bm]
+  (:require [ctrl-tree.core       :as ct]
+            [nous.beam-mount       :as bm]
             [nous.clock           :as clock]
             [nous.conductor       :as conductor]
             [nous.config          :as config]
@@ -632,7 +633,9 @@
                  (let [val (if (satisfies? clock/ITemporalValue mod)
                              (clock/sample mod now-beat)
                              mod)]
-                   (ctrl/send-at! on-beat k val)))
+                   ;; Per-step mod → ctrl-tree; the root IpcMount dispatches any
+                   ;; registry binding on `k` (aligns with mod-route!, Inc 6).
+                   (ct/ctrl-write! k val)))
                (let [bend-cents (when (map? note) (:pitch/bend-cents note))
                      bend-14bit (when (and bend-cents (not (zero? (double bend-cents))))
                                   (cents->bend14 bend-cents))]
