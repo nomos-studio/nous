@@ -414,25 +414,6 @@
     []
     m))
 
-(defn bindings-by-type
-  "Return [[path binding] ...] for every binding of `binding-type` in the ctrl tree.
-
-  Walks all nodes in the tree regardless of depth. Returns an empty sequence
-  if the system is not started or no bindings of that type exist.
-
-  Used by nous.midi-in to locate :midi-device-input bindings on each message.
-
-  Example:
-    (ctrl/bindings-by-type :midi-device-input)
-    ;; => [[ [:filter/cutoff] {:type :midi-device-input :device :arturia/keystep ...} ] ...]"
-  [binding-type]
-  (when-let [s @system-ref]
-    (let [tree (:tree @s)]
-      (for [[path node] (walk-nodes tree [])
-            binding     (:bindings node)
-            :when       (= binding-type (:type binding))]
-        [path binding]))))
-
 (defn child-keys
   "Return the direct child keys at an intermediate tree node `path`.
 
