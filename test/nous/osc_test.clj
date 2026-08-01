@@ -3,8 +3,9 @@
   "Unit tests for nous.osc — OSC UDP receiver and ctrl routing."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [ctrl-tree.core :as ct]
-            [nous.core  :as core]
-            [nous.osc   :as osc])
+            [nous.core   :as core]
+            [nous.kairos :as kairos]
+            [nous.osc    :as osc])
   (:import  [java.net DatagramSocket DatagramPacket InetSocketAddress]
             [java.nio ByteBuffer ByteOrder]
             [java.util Arrays]))
@@ -385,3 +386,31 @@
         (when @received
           (is (= "/ctrl/osc-test%2Ftree-val" (:address @received)))
           (is (= [(float 3.14)] (mapv float (:args @received)))))))))
+
+;; ---------------------------------------------------------------------------
+;; Output cutover — osc-send! routes through the node when connected
+;; ---------------------------------------------------------------------------
+
+(deftest osc-send-routes-through-node-when-connected
+  (testing "osc-send! emits a msg_osc frame via the node instead of a datagram"
+    (let [captured (atom nil)]
+      (with-redefs [kairos/connected? (constantly true)
+                    kairos/send-osc!  (fn [h p a args]
+                                        (reset! captured [h p a (vec args)]))]
+        (osc/osc-send! "10.0.0.5" 9000 "/n_set" (int 1000) 440.0 "freq"))
+      (is (= ["10.0.0.5" 9000 "/n_set" [1000 440.0 "freq"]] @captured)))))
+
+(deftest osc-send-falls-back-to-direct-when-disconnected
+  (testing "osc-send! uses the direct UDP path when no node is connected"
+    (let [captured (atom nil)]
+      (with-redefs [kairos/connected?   (constantly false)
+                    kairos/send-osc!    (fn [& _] (reset! captured :node))
+                    ;; capture the direct path without opening a real socket
+                    osc/encode-message  (fn [addr args]
+                                          (reset! captured [addr (vec args)])
+                                          (byte-array 0))]
+        ;; udp-send! will build a datagram to a black-hole addr; the encode
+        ;; redef short-circuits before any real send matters, but guard anyway
+        (try (osc/osc-send! "127.0.0.1" 65001 "/ping")
+             (catch Exception _ nil)))
+      (is (= ["/ping" []] @captured) "took the direct encode path, not the node"))))

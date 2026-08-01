@@ -70,7 +70,8 @@
     (osc/off-msg! \"/nous/bitwig/val\")"
   (:require [clojure.string :as str]
             [ctrl-tree.core :as ct]
-            [nous.core    :as core])
+            [nous.core    :as core]
+            [nous.kairos  :as kairos])
   (:import  [java.net DatagramSocket DatagramPacket InetSocketAddress URLDecoder URLEncoder]
             [java.nio ByteBuffer ByteOrder]
             [java.nio.charset StandardCharsets]
@@ -483,25 +484,39 @@
 ;; OSC client — send to an external target
 ;; ---------------------------------------------------------------------------
 
+(defn- udp-send!
+  "Send an OSC message directly via a JVM DatagramSocket (one per call).
+
+  The transport of last resort — used only when no nomos-rt node is connected.
+  Bypasses the RT scheduler, so it carries no GC-immunity or tick-accuracy; a
+  connected node is always preferred (see osc-send!)."
+  [^String host port ^String address args]
+  (let [msg  (encode-message address (vec args))
+        addr (InetSocketAddress. host (int (long port)))
+        pkt  (DatagramPacket. msg (alength msg) addr)]
+    (with-open [sock (DatagramSocket.)]
+      (.send sock pkt))))
+
 (defn osc-send!
-  "Send an OSC message via UDP to host:port.
+  "Send an OSC message to host:port.
+
+  When a nomos-rt node (aion/kairos) is connected, the message is emitted as a
+  msg_osc frame and the NODE sends the datagram — giving OSC output the same
+  GC-immunity and node-agnostic delivery as MIDI-out (closing the OSC-output
+  half of the schedule-ahead hole). With no node connected it falls back to a
+  direct JVM DatagramSocket.
 
   Supported argument types: Long/Integer (OSC int32), Double/Float (OSC float32),
   String (OSC string). No-arg messages are valid.
-
-  Creates a new DatagramSocket per call — suitable for low-frequency control
-  messages (transport, parameter changes). Not intended for audio-rate use.
 
   Example:
     (osc/osc-send! \"192.168.1.42\" 3819 \"/transport_play\")
     (osc/osc-send! \"127.0.0.1\"    3819 \"/transport_record\" (int 1))
     (osc/osc-send! \"127.0.0.1\"    9000 \"/n_set\" (int 1000) \"freq\" 440.0)"
   [^String host port ^String address & args]
-  (let [msg  (encode-message address (vec args))
-        addr (InetSocketAddress. host (int (long port)))
-        pkt  (DatagramPacket. msg (alength msg) addr)]
-    (with-open [sock (DatagramSocket.)]
-      (.send sock pkt))))
+  (if (kairos/connected?)
+    (kairos/send-osc! host port address args)
+    (udp-send! host port address args)))
 
 ;; Set *push-fn* default now that osc-send! is defined.
 ;; The forward-declared nil is replaced with the real function.

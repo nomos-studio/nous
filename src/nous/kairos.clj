@@ -74,6 +74,7 @@
 (def ^:private MSG-MIDI-EVENT           (unchecked-byte 0x51))
 (def ^:private MSG-ROUTE-SET            (unchecked-byte 0x52))
 (def ^:private MSG-GRAPH-LOAD-ACK       (unchecked-byte 0x53))
+(def ^:private MSG-OSC                  (unchecked-byte 0x57))
 
 ;; ---------------------------------------------------------------------------
 ;; Frame serialization — kept here so @#'kairos/make-frame still works in tests
@@ -353,6 +354,21 @@
   [data & {:keys [port] :or {port 0}}]
   (rt/send-frame! (make-frame MSG-SYSEX
                               (edn-bytes {:port port :data (vec data)}))))
+
+(defn send-osc!
+  "Emit an OSC message to an external UDP endpoint through the connected node.
+
+  The node encodes and sends the datagram (via its osc_server), giving OSC
+  output the same GC-immunity and node-agnostic delivery as MIDI-out. `host`
+  and `port` name the destination; `args` is a seq of OSC values — Long/Integer
+  → int32, Double/Float → float32, String → OSC-string (other types are dropped
+  node-side). Immediate (unscheduled) path; the beat-scheduled surface is later."
+  [host port address args]
+  (rt/send-frame! (make-frame MSG-OSC
+                              (edn-bytes {:host    (str host)
+                                          :port    (int port)
+                                          :address (str address)
+                                          :args    (vec args)}))))
 
 (defn send-mts!
   [tuning & {:keys [port tuning-prog device-id]

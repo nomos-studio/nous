@@ -149,6 +149,25 @@
         (finally
           (kairos/disconnect!))))))
 
+(deftest send-osc-wire-test
+  (testing "send-osc! encodes host, port, address and args"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-osc! "10.0.0.5" 9000 "/n_set" [(int 1000) 440.0 "freq"])
+        (let [frame (deref server 2000 :timeout)]
+          (is (not= :timeout frame))
+          (is (= 0x57 (:type frame)))
+          (is (= "10.0.0.5" (get-in frame [:payload :host])))
+          (is (= 9000       (get-in frame [:payload :port])))
+          (is (= "/n_set"   (get-in frame [:payload :address])))
+          ;; int stays int (→ i32), double stays double (→ f32), string preserved
+          (is (= [1000 440.0 "freq"] (get-in frame [:payload :args]))))
+        (finally
+          (kairos/disconnect!))))))
+
 (deftest send-note-on-wire-test
   (testing "send-note-on! encodes key and velocity"
     (let [path   (temp-socket-path)
