@@ -518,6 +518,21 @@
     (kairos/send-osc! host port address args)
     (udp-send! host port address args)))
 
+(defn osc-send-at!
+  "Schedule an OSC message for beat-accurate delivery at Link beat `at-beat`
+  through the connected node — it fires at the exact tick on the RT thread, in
+  sync with co-scheduled notes (unlike the immediate osc-send!).
+
+  Scheduled delivery has no meaning without the node's RT clock, so this is a
+  no-op when no node is connected. Returns true if the message was scheduled.
+
+  Example:
+    (osc/osc-send-at! 16.0 \"127.0.0.1\" 57110 \"/trig\" (int 1))"
+  [at-beat ^String host port ^String address & args]
+  (when (kairos/connected?)
+    (kairos/send-osc-at! at-beat host port address args)
+    true))
+
 ;; Set *push-fn* default now that osc-send! is defined.
 ;; The forward-declared nil is replaced with the real function.
 (alter-var-root #'*push-fn* (constantly osc-send!))

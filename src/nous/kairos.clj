@@ -391,28 +391,52 @@
 ;; Beat-accurate bundle scheduling
 ;; ---------------------------------------------------------------------------
 
+(defn- normalize-sched-event
+  "Normalise one schedule-bundle event to its wire shape. :osc events carry
+  {:host :port :address :args} (an OSC datagram the node sends at the tick);
+  every other :type is treated as a note event."
+  [{:keys [at-tick type] :or {at-tick 0 type :note-on} :as ev}]
+  (if (= type :osc)
+    {:at-tick (long at-tick)
+     :type    :osc
+     :host    (str (get ev :host "127.0.0.1"))
+     :port    (int (get ev :port 0))
+     :address (str (:address ev))
+     :args    (vec (:args ev))}
+    (let [{:keys [key velocity channel port note-id]
+           :or   {key 60 velocity 0.8 channel 0 port 0 note-id -1}} ev]
+      {:at-tick  (long at-tick)
+       :type     type
+       :key      (long key)
+       :velocity (double velocity)
+       :channel  (long channel)
+       :port     (long port)
+       :note-id  (long note-id)})))
+
 (defn schedule-bundle!
-  "Schedule a bundle of beat-accurate events for delivery by kairos.
+  "Schedule a bundle of beat-accurate events for delivery by the node.
 
   at-beat — Link beat at which tick-0 fires.
-  events  — vector of event maps with :at-tick, :type, :key, :velocity, etc."
+  events  — vector of event maps, each with :at-tick and a :type. Note events
+            (:note-on/:note-off) carry :key/:velocity/:channel/:port/:note-id;
+            :osc events carry :host/:port/:address/:args. Notes and OSC can be
+            mixed in one bundle — a note and an OSC message at the same :at-tick
+            fire on the same tick."
   [at-beat events]
   (rt/send-frame! (make-frame MSG-SCHEDULE-BUNDLE
                               (edn-bytes
                                {:at-beat (double at-beat)
-                                :events  (mapv (fn [{:keys [at-tick type key velocity
-                                                             channel port note-id]
-                                                     :or   {at-tick 0 type :note-on key 60
-                                                            velocity 0.8 channel 0 port 0
-                                                            note-id -1}}]
-                                                 {:at-tick  (long at-tick)
-                                                  :type     type
-                                                  :key      (long key)
-                                                  :velocity (double velocity)
-                                                  :channel  (long channel)
-                                                  :port     (long port)
-                                                  :note-id  (long note-id)})
-                                               events)}))))
+                                :events  (mapv normalize-sched-event events)}))))
+
+(defn send-osc-at!
+  "Schedule an OSC message for beat-accurate delivery at Link beat `at-beat`.
+
+  Rides msg_schedule_bundle, so the node fires it at the exact tick on the RT
+  thread — in sync with co-scheduled notes, unlike the immediate send-osc!.
+  `args` is a seq of OSC values (Long→i32, Double→f32, String→OSC-string)."
+  [at-beat host port address args]
+  (schedule-bundle! at-beat [{:type :osc :at-tick 0 :host host :port port
+                              :address address :args args}]))
 
 ;; ---------------------------------------------------------------------------
 ;; WASM DSP hot-swap

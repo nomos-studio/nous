@@ -414,3 +414,20 @@
         (try (osc/osc-send! "127.0.0.1" 65001 "/ping")
              (catch Exception _ nil)))
       (is (= ["/ping" []] @captured) "took the direct encode path, not the node"))))
+
+(deftest osc-send-at-schedules-through-node-when-connected
+  (testing "osc-send-at! schedules an OSC event via the node when connected"
+    (let [captured (atom nil)]
+      (with-redefs [kairos/connected?  (constantly true)
+                    kairos/send-osc-at! (fn [beat h p a args]
+                                          (reset! captured [beat h p a (vec args)]))]
+        (is (true? (osc/osc-send-at! 16.0 "10.0.0.5" 57110 "/trig" (int 1) "go"))))
+      (is (= [16.0 "10.0.0.5" 57110 "/trig" [1 "go"]] @captured)))))
+
+(deftest osc-send-at-is-noop-when-disconnected
+  (testing "osc-send-at! does nothing (no direct fallback) without a node"
+    (let [called (atom false)]
+      (with-redefs [kairos/connected?   (constantly false)
+                    kairos/send-osc-at! (fn [& _] (reset! called true))]
+        (is (nil? (osc/osc-send-at! 16.0 "10.0.0.5" 57110 "/trig" (int 1)))))
+      (is (false? @called) "scheduled delivery has no meaning off the node"))))

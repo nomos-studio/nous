@@ -346,6 +346,51 @@
     (is (= (+ 5.0 (/ 8 24.0)) (+ 5.0 (/ 8  24.0))))
     (is (= (+ 5.0 (/ 1 3.0))  (+ 5.0 (/ 8  24.0))))))
 
+(deftest send-osc-at-wire-test
+  (testing "send-osc-at! schedules an :osc event in a 0x45 bundle"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/send-osc-at! 16.0 "10.0.0.5" 57110 "/trig" [(int 1) 0.5 "go"])
+        (let [frame (deref server 2000 :timeout)
+              ev    (first (get-in frame [:payload :events]))]
+          (is (not= :timeout frame))
+          (is (= 0x45 (:type frame)))
+          (is (= 16.0 (get-in frame [:payload :at-beat])))
+          (is (= :osc     (:type ev)))
+          (is (= "10.0.0.5" (:host ev)))
+          (is (= 57110    (:port ev)))
+          (is (= "/trig"  (:address ev)))
+          (is (= [1 0.5 "go"] (:args ev))))
+        (finally
+          (kairos/disconnect!))))))
+
+(deftest schedule-bundle-mixed-note-osc-test
+  (testing "one bundle carries a note and an OSC message at the same tick"
+    (let [path   (temp-socket-path)
+          server (with-mock-server path read-frame!)]
+      (Thread/sleep 30)
+      (kairos/connect! :socket-path path :retry 3)
+      (try
+        (kairos/schedule-bundle! 8.0
+                                 [{:at-tick 0 :type :note-on :key 64 :velocity 0.9}
+                                  {:at-tick 0 :type :osc :host "127.0.0.1" :port 57110
+                                   :address "/hit" :args [(int 3)]}])
+        (let [frame  (deref server 2000 :timeout)
+              events (get-in frame [:payload :events])
+              note   (first (filter #(= :note-on (:type %)) events))
+              osc    (first (filter #(= :osc (:type %)) events))]
+          (is (= 2 (count events)))
+          (is (= 0 (:at-tick note)))
+          (is (= 64 (:key note)))
+          (is (= 0 (:at-tick osc)))
+          (is (= "/hit" (:address osc)))
+          (is (= [3] (:args osc))))
+        (finally
+          (kairos/disconnect!))))))
+
 ;; ---------------------------------------------------------------------------
 ;; on-tick! / off-tick! tests
 ;; ---------------------------------------------------------------------------

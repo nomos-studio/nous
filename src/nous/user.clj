@@ -573,6 +573,7 @@
 (def osc-running?            osc/osc-running?)
 (def osc-port                osc/osc-port)
 (def osc-send!               osc/osc-send!)
+(def osc-send-at!            osc/osc-send-at!)
 (def osc-subscribe!          osc/subscribe!)
 (def osc-unsubscribe!        osc/unsubscribe!)
 (def osc-unsubscribe-all!    osc/unsubscribe-all!)
