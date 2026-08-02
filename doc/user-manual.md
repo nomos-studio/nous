@@ -37,7 +37,7 @@ Version 0.18.0 · June 2026
 28. [DynKlank Physical Modeling](#28-dynklank-physical-modeling)
 29. [Composition from Hardware](#29-composition-from-hardware)
 30. [8-op FM Synthesis](#30-8-op-fm-synthesis)
-31. [OSC Push-Subscribe](#31-osc-push-subscribe)
+31. [OSC](#31-osc)
 32. [nREPL Remote Eval](#32-nrepl-remote-eval)
 33. [Configuration Registry](#33-configuration-registry)
 34. [MCP Bridge (AI Compositional Collaborator)](#34-mcp-bridge)
@@ -3070,7 +3070,47 @@ enabling inter-operator feedback loops:
 
 ---
 
-## 31. OSC push-subscribe
+## 31. OSC
+
+nous speaks OSC in both directions: it **sends** OSC to external targets
+(SuperCollider, hardware, other apps), and **receives** OSC — including a
+push-subscribe mechanism that streams ctrl tree changes to external clients.
+
+### Sending OSC to external targets
+
+`osc-send!` sends an OSC message immediately; `osc-send-at!` schedules one for
+beat-accurate delivery.
+
+```clojure
+(require '[nous.osc :as osc])
+
+;; Immediate — send now
+(osc/osc-send! "127.0.0.1" 57110 "/n_set" (int 1000) "freq" 440.0)
+(osc/osc-send! "192.168.1.42" 3819 "/transport_play")   ; no-arg is valid
+
+;; Beat-scheduled — fires at Link beat 16, in sync with co-scheduled notes
+(osc/osc-send-at! 16.0 "127.0.0.1" 57110 "/trig" (int 1))
+```
+
+Argument types map to OSC: Long/Integer → `int32`, Double/Float → `float32`,
+String → OSC-string. No-argument messages are valid.
+
+**How delivery works.** When a nomos-rt node (aion/kairos) is connected, OSC
+output is routed *through the node* rather than sent from the JVM: nous emits a
+frame and the node's OSC server sends the datagram. This gives OSC output the
+same GC-immunity and timing fidelity as MIDI — it rides the RT substrate instead
+of being exposed to JVM garbage-collection jitter.
+
+- **`osc-send!`** always delivers: through the node when connected, otherwise via
+  a direct JVM UDP socket (so it works standalone too).
+- **`osc-send-at!`** is beat-scheduled, so it *requires* a connected node — the RT
+  clock that fires it at the exact beat lives in the node. It is a no-op when no
+  node is connected (scheduled delivery has no meaning without the RT clock).
+
+Push-subscribe (below) delivers through the same `osc-send!` path, so subscriber
+pushes get node-routing automatically once a node is connected.
+
+### Push-subscribe
 
 The OSC push-subscribe mechanism lets external clients (TouchOSC, Max/MSP,
 custom GUIs, remote nous instances) receive live updates whenever a ctrl tree
@@ -3089,17 +3129,17 @@ path changes — without polling.
 
 ```clojure
 ;; Push filter/cutoff changes to TouchOSC at 192.168.1.50:9000
-(osc/subscribe! [:filter/cutoff] {:host "192.168.1.50" :port 9000})
+(osc/subscribe! [:filter/cutoff] "192.168.1.50" 9000)
 
 ;; Subscribe multiple addresses to the same path
-(osc/subscribe! [:filter/cutoff] {:host "192.168.1.51" :port 9001})
+(osc/subscribe! [:filter/cutoff] "192.168.1.51" 9001)
 
 ;; List subscribers on a path
 (osc/subscribers)
 ;; => {[:filter/cutoff] #{{:host "192.168.1.50" :port 9000} ...}}
 
 ;; Unsubscribe one
-(osc/unsubscribe! [:filter/cutoff] {:host "192.168.1.50" :port 9000})
+(osc/unsubscribe! [:filter/cutoff] "192.168.1.50" 9000)
 
 ;; Unsubscribe all on a path
 (osc/unsubscribe-all! [:filter/cutoff])
