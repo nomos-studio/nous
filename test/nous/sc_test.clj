@@ -362,6 +362,24 @@
         (swap! @#'sc/sc-state assoc :connected false)
         (reset! @#'sc/sent-synthdefs #{})))))
 
+(deftest sc-play-release-scheduled-through-node-when-connected-test
+  (testing "with a node connected, sc-play! schedules /n_free via osc-send-at! (no daemon thread)"
+    (let [captured (atom nil)]
+      ;; Stub the note-on (sc-synth!) and capture the scheduled release. The
+      ;; mocked osc-send-at! returns truthy, so sc-play!'s (or …) short-circuits
+      ;; and never spawns the fallback park-thread.
+      (with-redefs [nous.sc/sc-synth!     (fn [_ _] 1234)
+                    nous.osc/osc-send-at! (fn [beat _host _port address & args]
+                                            (reset! captured
+                                                    {:beat beat :address address :args (vec args)})
+                                            true)]
+        (let [node-id (sc/sc-play! {:synth :sine :freq 440.0 :dur-ms 500})]
+          (is (= 1234 node-id) "returns the note-on node-id")
+          (is (some? @captured) "release scheduled via osc-send-at!, not a daemon thread")
+          (is (= "/n_free" (:address @captured)))
+          (is (= [1234] (:args @captured)))
+          (is (number? (:beat @captured)) "release scheduled at a computed beat"))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Process management — start-sc!, stop-sc!, sc-restart!
 ;; ---------------------------------------------------------------------------

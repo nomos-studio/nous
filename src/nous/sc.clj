@@ -713,7 +713,9 @@
 
   The release beat is computed from the current timeline beat before the OSC
   send, so the note duration tracks the session tempo (including Link sync)
-  rather than wall-clock time.
+  rather than wall-clock time. When a node (aion/kairos) is connected the /n_free
+  is scheduled on its RT thread (GC-immune, tick-accurate); with no node it falls
+  back to a JVM daemon thread that parks until the release beat.
 
   Returns node-id.
 
@@ -732,20 +734,25 @@
         release-beat (+ (timeline/current-beat)
                         (clock/ms->beats dur-ms (core/get-bpm)))
         node-id    (sc-synth! synth-name args)]
-    (doto (Thread. (fn []
-                     (try
-                       (binding [loop-ns/*virtual-time*      release-beat
-                                 loop-ns/*sleep-interrupted?* (atom false)]
-                         (loop-ns/-park-until-beat! release-beat))
-                       (free-synth! node-id)
-                       (catch Exception e
-                         (runtime/conj! [:sc :errors]
-                           {:wall-ns (System/nanoTime)
-                            :kind    :stuck-note
-                            :message (str "free-synth! failed for node " node-id)
-                            :cause   (.getMessage e)})))))
-      (.setDaemon true)
-      (.start))
+    ;; Schedule the release. Prefer the node's RT scheduler — the /n_free fires
+    ;; at the exact beat on the RT thread (GC-immune, tick-accurate), no JVM
+    ;; thread parked per note. With no node connected (osc-send-at! → nil), fall
+    ;; back to a daemon thread that parks until the beat before freeing.
+    (or (osc/osc-send-at! release-beat (sc-host) (sc-port) "/n_free" (int node-id))
+        (doto (Thread. (fn []
+                         (try
+                           (binding [loop-ns/*virtual-time*      release-beat
+                                     loop-ns/*sleep-interrupted?* (atom false)]
+                             (loop-ns/-park-until-beat! release-beat))
+                           (free-synth! node-id)
+                           (catch Exception e
+                             (runtime/conj! [:sc :errors]
+                               {:wall-ns (System/nanoTime)
+                                :kind    :stuck-note
+                                :message (str "free-synth! failed for node " node-id)
+                                :cause   (.getMessage e)})))))
+          (.setDaemon true)
+          (.start)))
     node-id))
 
 ;; ---------------------------------------------------------------------------
