@@ -36,3 +36,4 @@ resources/public/js/
 .DS_Store
 .idea/
 *.swp
+memory/
