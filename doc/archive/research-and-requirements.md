@@ -5299,6 +5299,23 @@ validation rules. Until then, these values are compile-time defaults.
 | `link-quantum` | 4 beats | `Long` beats, > 0 | Ableton Link | §15.4 |
 | `osc-control-port` | 57121 | `Long`, 1024–65535 | OSC control-plane server | Q12, §17.1 |
 | `osc-data-port` | 57110 | `Long`, 1024–65535 | OSC data-plane / sidecar passthrough | Q12, §17.1 |
+| `tap-push-rate-hz` | 30 Hz | `Long` Hz, 1–120 | Tap→IPC bridge / `msg_tap` | tap-ipc-bridge-design (2026-08) |
+
+> **`tap-push-rate-hz`** — display/telemetry rate at which the host drains the
+> kairos tap bus and pushes `msg_tap` frames to nous (scope matter + `[:tap]`
+> ctrl-tree paths). Design-intent, pending build (subsystem not yet implemented).
+> The assertion/reasoning path (Claude/MCP "ears") uses on-demand snapshots rather
+> than this steady rate — see open decision #1 below. Not yet in the live
+> `nous.config` registry; move there when the tap bridge is built.
+>
+> **Open design decisions from the tap→IPC bridge (NOT tuneable params — tracked
+> here for visibility, resolved in `plans/tap-ipc-bridge-design.md`):**
+> 1. Throttle policy — per-consumer (assertion on-demand snapshot vs scope steady
+>    `tap-push-rate-hz`); the param above is the scope/display rate.
+> 2. Schema-join — `epoch`-on-change + id-keyed values vs full-schema-per-frame.
+> 3. BEAM scope buffers — decimated-over-WS vs a dedicated socket bulk frame.
+> 4. `[:tap]` mount semantics — ephemeral (authority-doc rule 6, off the txlog) —
+>    almost certainly yes; analysis is high-churn observation, not authored state.
 
 ---
 
